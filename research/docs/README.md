@@ -20,6 +20,7 @@ Sources:
 8. `07-codebase-formats.md` - `.excalidraw`, clipboard schema, frames ordering.
 9. `08-ai-plus-workspace-gaps.md` - what official docs do not provide.
 10. `09-surprise-leads.md` - high-value findings likely easy to miss.
+11. `10-self-hostable-moving-parts.md` - self-hostable infra, current env dependencies, and OSS replacement path.
 
 ## Short Answer
 
