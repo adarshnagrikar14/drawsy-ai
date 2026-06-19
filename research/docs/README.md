@@ -21,6 +21,7 @@ Sources:
 9. `08-ai-plus-workspace-gaps.md` - what official docs do not provide.
 10. `09-surprise-leads.md` - high-value findings likely easy to miss.
 11. `10-self-hostable-moving-parts.md` - self-hostable infra, current env dependencies, and OSS replacement path.
+12. `11-localhost-broken-product-links.md` - localhost signup/import/share-link failures and what services/envs they need.
 
 ## Short Answer
 
