@@ -22,6 +22,7 @@ Sources:
 10. `09-surprise-leads.md` - high-value findings likely easy to miss.
 11. `10-self-hostable-moving-parts.md` - self-hostable infra, current env dependencies, and OSS replacement path.
 12. `11-localhost-broken-product-links.md` - localhost signup/import/share-link failures and what services/envs they need.
+13. `12-env-and-firebase-runtime-findings.md` - all env keys, Firebase runtime behavior, share backend error, Plus public keys.
 
 ## Short Answer
 
