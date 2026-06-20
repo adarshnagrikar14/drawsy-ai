@@ -15,7 +15,7 @@ But the current code is still a pilot, not production-safe:
 - no Excalidraw canvas/MCP integration yet
 - EC2 pilot mounts Docker socket, which is powerful and risky
 - per-user Codex auth exists structurally, but must be protected like passwords
-- provider switching is possible architecturally, but not automatically equal across Codex, Claude, and OpenRouter
+- provider switching is possible architecturally, but not automatically equal across Codex, OpenCode, and Claude Code
 
 Best product direction:
 
@@ -23,7 +23,7 @@ Best product direction:
 Excal AI canvas
   -> right-side Agent Panel
   -> Agent Gateway backend
-  -> provider adapters: Codex / Claude Code / OpenRouter / local
+  -> provider adapters: Codex / OpenCode / Claude Code / local
   -> shared MCP/tool layer
   -> workspace files + canvas scene + audit + approvals
 ```
@@ -248,7 +248,7 @@ flowchart LR
   Backend --> Assets[(Files / Libraries)]
   Gateway --> Codex[Codex Adapter]
   Gateway --> Claude[Claude Adapter]
-  Gateway --> OpenRouter[OpenRouter Adapter]
+  Gateway --> OpenCode[OpenCode Adapter]
   Codex --> CodexAppServer[codex app-server]
 ```
 
@@ -316,7 +316,7 @@ For large boards:
 You can build:
 
 ```text
-Codex | Claude Code | OpenRouter | Local
+Codex | OpenCode | Claude Code | Local
 ```
 
 But the common layer must be yours.
@@ -345,11 +345,13 @@ Claude Code adapter:
 - needs its own auth and sandbox handling
 - tool parity must be proven later from Anthropic docs/code
 
-OpenRouter adapter:
+OpenCode adapter:
 
-- good for model choice
-- weaker if used only as chat completions
-- needs your own tool executor, patch applier, sandbox, approvals, history
+- real coding-agent harness, not only model routing
+- use `opencode serve` behind the Agent Gateway
+- Gateway talks HTTP/OpenAPI + SSE
+- supports sessions, messages, diffs, MCP, agents, provider auth, and permissions
+- still needs EC2/container isolation and product auth around it
 
 Conclusion:
 
@@ -518,7 +520,7 @@ Codex adapter -> app-server
 Then add:
 
 ```text
-OpenRouter adapter -> custom agent runner + MCP tools
+OpenCode adapter -> opencode serve + Excal AI MCP tools
 Claude adapter -> researched separately from Anthropic/Claude Code docs
 ```
 
@@ -565,5 +567,4 @@ Excal AI Agent Gateway
   canvas diff approval as the trust model
 ```
 
-That keeps you free to add Claude, OpenRouter, local models, or future agents without rebuilding the canvas/product layer.
-
+That keeps you free to add OpenCode, Claude Code, local models, or future agents without rebuilding the canvas/product layer.
