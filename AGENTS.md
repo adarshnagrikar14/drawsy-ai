@@ -32,3 +32,9 @@ yarn fix             # Auto-fix formatting and linting issues
 - Internal packages use path aliases (see `vitest.config.mts`)
 - Build system uses esbuild for packages, Vite for the app
 - TypeScript throughout with strict configuration
+
+## General Guidelines & Constraints
+
+- **No Hardcoding/Over-complication**: DO NOT ASSUME, DO not guess, DO not Over do, DO not complicate, and DO not compell the fix by any means of hardcoded logic.
+- **Alignment**: Stay well within the repo alignment.
+- **Execution Mode**: Take micro tasks and work as a team.
