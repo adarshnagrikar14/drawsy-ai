@@ -1,12 +1,13 @@
 {
   "compilerOptions": {
     "target": "ESNext",
+    "rootDir": ".",
     "strict": true,
     "skipLibCheck": true,
     "declaration": true,
     "allowSyntheticDefaultImports": true,
     "module": "ESNext",
-    "moduleResolution": "Node",
+    "moduleResolution": "Bundler",
     "resolveJsonModule": true,
     "jsx": "react-jsx",
     "emitDeclarationOnly": true,
