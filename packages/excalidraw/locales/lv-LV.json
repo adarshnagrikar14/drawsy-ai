@@ -56,7 +56,7 @@
     "arrowtype_elbowed": "",
     "fontSize": "Teksta lielums",
     "fontFamily": "Fontu saime",
-    "addWatermark": "Pievienot \"Radīts ar Excalidraw\"",
+    "addWatermark": "Pievienot \"Radīts ar Drawsy\"",
     "handDrawn": "Rokraksts",
     "normal": "Parasts",
     "code": "Kods",
@@ -91,7 +91,7 @@
     "untitled": "Bez nosaukuma",
     "name": "Vārds",
     "yourName": "Jūsu vārds",
-    "madeWithExcalidraw": "Radīts ar Excalidraw",
+    "madeWithExcalidraw": "Radīts ar Drawsy",
     "group": "Grupēt atlasīto",
     "ungroup": "Atgrupēt atlasīto",
     "collaborators": "Dalībnieki",
@@ -121,7 +121,7 @@
     "toggleTheme": "",
     "theme": "",
     "personalLib": "Personīgā bibliotēka",
-    "excalidrawLib": "Excalidraw bibliotēka",
+    "excalidrawLib": "Drawsy bibliotēka",
     "decreaseFontSize": "Samazināt fonta izmēru",
     "increaseFontSize": "Palielināt fonta izmēru",
     "unbindText": "Atdalīt tekstu",
@@ -248,7 +248,7 @@
     "cannotExportEmptyCanvas": "Nevar eksportēt tukšu tāfeli.",
     "couldNotCopyToClipboard": "Nevarēja nokopēt starpliktuvē.",
     "decryptFailed": "Nevarēja atšifrēt datus.",
-    "uploadedSecurly": "Augšuplāde nodrošināta ar šifrēšanu no gala līdz galam, kas nozīmē, ka Excalidraw serveri un trešās puses nevar lasīt saturu.",
+    "uploadedSecurly": "Augšuplāde nodrošināta ar šifrēšanu no gala līdz galam, kas nozīmē, ka Drawsy serveri un trešās puses nevar lasīt saturu.",
     "loadSceneOverridePrompt": "Ārēja satura ielāde aizstās jūsu pašreizējo saturu. Vai vēlaties turpināt?",
     "collabStopOverridePrompt": "Sesijas pārtraukšana pārrakstīs jūsu iepriekšējo zīmējumu, kas saglabāts jūsu pārlūkā. Vai turpināt?\n\n(Ja vēlaties paturēt zīmējumu, kas saglabāts jūsu pārlūkā, vienkārši aizveriet pārlūka cilni.)",
     "errorAddingToLibrary": "Nevarēja pievienot vienumu bibliotēkai",
@@ -256,7 +256,7 @@
     "confirmAddLibrary": "Šī funkcija pievienos {{numShapes}} formu(-as) jūsu bibliotēkai. Vai turpināt?",
     "imageDoesNotContainScene": "Šķiet, ka attēls nesatur ainas datus. Vai iespējojāt ainas iegulšanu, kad eksportējāt?",
     "cannotRestoreFromImage": "Ainu nevarēja atgūt no attēla datnes",
-    "invalidSceneUrl": "Nevarēja importēt ainu no norādītā URL. Vai nu tas ir nederīgs, vai nesatur derīgus Excalidraw JSON datus.",
+    "invalidSceneUrl": "Nevarēja importēt ainu no norādītā URL. Vai nu tas ir nederīgs, vai nesatur derīgus Drawsy JSON datus.",
     "resetLibrary": "Šī funkcija iztukšos bibliotēku. Vai turpināt?",
     "removeItemsFromsLibrary": "Vai izņemt {{count}} vienumu(s) no bibliotēkas?",
     "invalidEncryptionKey": "Šifrēšanas atslēgai jābūt 22 simbolus garai. Tiešsaistes sadarbība ir izslēgta.",
@@ -390,7 +390,7 @@
     "desc_inProgressIntro": "Notiek tiešsaistes sadarbības sesija.",
     "desc_shareLink": "Dalieties ar šo saiti ar jebkuru, ar ko vēlaties sadarboties:",
     "desc_exitSession": "Sesijas beigšana jūs atvienos no sadarbošanās, bet jūs vēl joprojām varēsiet strādāt ar ainu savā datorā. Ievērojiet, ka šis neietekmēs citus dalībniekus, un viņi vēl joprojām varēs sadarboties savā ainas versijā.",
-    "shareTitle": "Pievienoties tiešsaistes sadarbībai programmā Excalidraw"
+    "shareTitle": "Pievienoties tiešsaistes sadarbībai programmā Drawsy"
   },
   "errorDialog": {
     "title": "Kļūda"
@@ -402,9 +402,9 @@
     "link_title": "Kopīgošanas saite",
     "link_details": "Eksportēt kā tikai lasāmu saiti.",
     "link_button": "Eksportēt kā saiti",
-    "excalidrawplus_description": "Saglabāt ainu savā Excalidraw+ darbvietā.",
+    "excalidrawplus_description": "Saglabāt ainu savā Drawsy+ darbvietā.",
     "excalidrawplus_button": "Eksportēt",
-    "excalidrawplus_exportError": "Pašreiz nevarēja eksportēt uz Excalidraw+..."
+    "excalidrawplus_exportError": "Pašreiz nevarēja eksportēt uz Drawsy+..."
   },
   "helpDialog": {
     "blog": "Lasīt mūsu blogu",
@@ -503,8 +503,8 @@
     }
   },
   "encrypted": {
-    "tooltip": "Jūsu zīmējumi ir šifrēti no gala līdz galam; līdz ar to Excalidraw serveri tos nekad neredzēs.",
-    "link": "Ieraksts par šifrēšanu no gala līdz galam Excalidraw blogā"
+    "tooltip": "Jūsu zīmējumi ir šifrēti no gala līdz galam; līdz ar to Drawsy serveri tos nekad neredzēs.",
+    "link": "Ieraksts par šifrēšanu no gala līdz galam Drawsy blogā"
   },
   "stats": {
     "angle": "Leņķis",
@@ -560,7 +560,7 @@
       "center_heading": "",
       "center_heading_line2": "",
       "center_heading_line3": "",
-      "center_heading_plus": "Vai tā vietā vēlies doties uz Excalidraw+?",
+      "center_heading_plus": "Vai tā vietā vēlies doties uz Drawsy+?",
       "menuHint": "Eksportēšana, iestatījumi, valodas..."
     },
     "defaults": {

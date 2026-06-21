@@ -56,7 +56,7 @@
     "arrowtype_elbowed": "Albuepil",
     "fontSize": "Skriftstørrelse",
     "fontFamily": "Fontfamilie",
-    "addWatermark": "Legg til \"Laget med Excalidraw\"",
+    "addWatermark": "Legg til \"Laget med Drawsy\"",
     "handDrawn": "Håndtegnet",
     "normal": "Normal",
     "code": "Kode",
@@ -91,7 +91,7 @@
     "untitled": "Uten navn",
     "name": "Navn",
     "yourName": "Ditt navn",
-    "madeWithExcalidraw": "Laget med Excalidraw",
+    "madeWithExcalidraw": "Laget med Drawsy",
     "group": "Gruppér utvalg",
     "ungroup": "Avgruppér utvalg",
     "collaborators": "Samarbeidspartnere",
@@ -121,7 +121,7 @@
     "toggleTheme": "Vis/skjul lys/mørkt tema",
     "theme": "Tema",
     "personalLib": "Personlig bibliotek",
-    "excalidrawLib": "Excalidraw-bibliotek",
+    "excalidrawLib": "Drawsy-bibliotek",
     "decreaseFontSize": "Reduser skriftstørrelse",
     "increaseFontSize": "Øk skriftstørrelse",
     "unbindText": "Avbind tekst",
@@ -163,7 +163,7 @@
     "zoomToFitViewport": "Zoom for å få plass i visning",
     "zoomToFitSelection": "Zoom for å passe utvalg",
     "zoomToFit": "Zoom for å se alle elementer",
-    "installPWA": "Installer Excalidraw lokalt (PWA)",
+    "installPWA": "Installer Drawsy lokalt (PWA)",
     "autoResize": "Aktiver automatisk endring av tekststørrelse",
     "imageCropping": "Bildebeskjæring",
     "unCroppedDimension": "Ikke-beskåret dimensjon",
@@ -248,7 +248,7 @@
     "cannotExportEmptyCanvas": "Kan ikke eksportere et tomt lerret.",
     "couldNotCopyToClipboard": "Kunne ikke kopiere til utklippstavlen.",
     "decryptFailed": "Kunne ikke dekryptere data.",
-    "uploadedSecurly": "Opplastingen er kryptert og kan ikke leses av Excalidraw-serveren eller tredjeparter.",
+    "uploadedSecurly": "Opplastingen er kryptert og kan ikke leses av Drawsy-serveren eller tredjeparter.",
     "loadSceneOverridePrompt": "Å laste inn ekstern tegning vil erstatte det eksisterende innholdet. Ønsker du å fortsette?",
     "collabStopOverridePrompt": "Hvis du slutter økten, overskrives din forrige, lokalt lagrede tegning. Er du sikker?\n\n(Hvis du ønsker å beholde din lokale tegning, bare lukk nettleserfanen i stedet.)",
     "errorAddingToLibrary": "Kunne ikke legge element i biblioteket",
@@ -256,7 +256,7 @@
     "confirmAddLibrary": "Dette vil legge til {{numShapes}} figur(er) i biblioteket ditt. Er du sikker?",
     "imageDoesNotContainScene": "Det ser ikke ut til at dette bildet inneholder noen scenedata. Har du aktivert innebygging av scene under eksporten?",
     "cannotRestoreFromImage": "Scenen kunne ikke gjenopprettes fra denne bildefilen",
-    "invalidSceneUrl": "Kunne ikke importere scene fra den oppgitte URL-en. Den er enten ødelagt, eller inneholder ikke gyldig Excalidraw JSON-data.",
+    "invalidSceneUrl": "Kunne ikke importere scene fra den oppgitte URL-en. Den er enten ødelagt, eller inneholder ikke gyldig Drawsy JSON-data.",
     "resetLibrary": "Dette vil tømme biblioteket ditt. Er du sikker?",
     "removeItemsFromsLibrary": "Slett {{count}} element(er) fra biblioteket?",
     "invalidEncryptionKey": "Krypteringsnøkkel må ha 22 tegn. Live-samarbeid er deaktivert.",
@@ -312,7 +312,7 @@
     "laser": "Laserpeker",
     "hand": "Hånd (panoreringsverktøy)",
     "extraTools": "Flere verktøy",
-    "mermaidToExcalidraw": "Mermaid til Excalidraw",
+    "mermaidToExcalidraw": "Mermaid til Drawsy",
     "convertElementType": ""
   },
   "element": {
@@ -390,7 +390,7 @@
     "desc_inProgressIntro": "Sanntids-samarbeidsøkt er nå i gang.",
     "desc_shareLink": "Del denne linken med de du vil samarbeide med:",
     "desc_exitSession": "Dersom du avslutter sesjonen blir du frakoblet rommet, men du kan fortsette å arbeide med scenen lokalt. Vær oppmerksom på at dette ikke vil påvirke andre personer, og de vil fortsatt ha mulighet til å samarbeide på deres versjon.",
-    "shareTitle": "Bli med i en live samarbeidsøkt på Excalidraw"
+    "shareTitle": "Bli med i en live samarbeidsøkt på Drawsy"
   },
   "errorDialog": {
     "title": "Feil"
@@ -402,9 +402,9 @@
     "link_title": "Delbar lenke",
     "link_details": "Eksporter som en skrivebeskyttet lenke.",
     "link_button": "Eksporter til lenke",
-    "excalidrawplus_description": "Lagre scenen til ditt Excalidraw+ arbeidsområde.",
+    "excalidrawplus_description": "Lagre scenen til ditt Drawsy+ arbeidsområde.",
     "excalidrawplus_button": "Eksporter",
-    "excalidrawplus_exportError": "Kunne ikke eksportere til Excalidraw+ for øyeblikket..."
+    "excalidrawplus_exportError": "Kunne ikke eksportere til Drawsy+ for øyeblikket..."
   },
   "helpDialog": {
     "blog": "Les bloggen vår",
@@ -503,8 +503,8 @@
     }
   },
   "encrypted": {
-    "tooltip": "Dine tegninger er ende-til-ende-krypterte slik at Excalidraw sine servere aldri vil se dem.",
-    "link": "Blogginnlegg om ende-til-ende-kryptering i Excalidraw"
+    "tooltip": "Dine tegninger er ende-til-ende-krypterte slik at Drawsy sine servere aldri vil se dem.",
+    "link": "Blogginnlegg om ende-til-ende-kryptering i Drawsy"
   },
   "stats": {
     "angle": "Vinkel",
@@ -560,7 +560,7 @@
       "center_heading": "",
       "center_heading_line2": "",
       "center_heading_line3": "",
-      "center_heading_plus": "Ønsker du å gå til Excalidraw+ i stedet?",
+      "center_heading_plus": "Ønsker du å gå til Drawsy+ i stedet?",
       "menuHint": "Eksporter, innstillinger, språk, ..."
     },
     "defaults": {
@@ -591,9 +591,9 @@
         "description": "Eksporter scene-dataene til en fil som du kan importere fra senere."
       },
       "excalidrawPlus": {
-        "title": "Excalidraw+",
-        "button": "Eksporter til Excalidraw+",
-        "description": "Lagre scenen til ditt Excalidraw+-arbeidsområde."
+        "title": "Drawsy+",
+        "button": "Eksporter til Drawsy+",
+        "description": "Lagre scenen til ditt Drawsy+-arbeidsområde."
       }
     },
     "modal": {
@@ -610,9 +610,9 @@
     }
   },
   "mermaid": {
-    "title": "Mermaid til Excalidraw",
+    "title": "Mermaid til Drawsy",
     "button": "Sett inn",
-    "description": "Foreløpig er bare <flowchartLink>Flowchart</flowchartLink>-,<sequenceLink> Sequence</sequenceLink>- og <classLink>klasse </classLink>-diagrammer støttet. De andre typene vil bli gjengitt som bilde i Excalidraw.",
+    "description": "Foreløpig er bare <flowchartLink>Flowchart</flowchartLink>-,<sequenceLink> Sequence</sequenceLink>- og <classLink>klasse </classLink>-diagrammer støttet. De andre typene vil bli gjengitt som bilde i Drawsy.",
     "syntax": "Mermaid-syntaks",
     "preview": "Forhåndsvisning",
     "label": "",

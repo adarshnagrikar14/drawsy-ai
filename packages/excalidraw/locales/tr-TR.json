@@ -56,7 +56,7 @@
     "arrowtype_elbowed": "Köşeli ok",
     "fontSize": "Yazı tipi boyutu",
     "fontFamily": "Yazı tipi ailesi",
-    "addWatermark": "\"Excalidraw ile yapıldı\" yazısını ekle",
+    "addWatermark": "\"Drawsy ile yapıldı\" yazısını ekle",
     "handDrawn": "El-yazısı",
     "normal": "Normal",
     "code": "Kod",
@@ -91,7 +91,7 @@
     "untitled": "Adsız",
     "name": "Ad",
     "yourName": "Adınız",
-    "madeWithExcalidraw": "Excalidraw ile yapıldı",
+    "madeWithExcalidraw": "Drawsy ile yapıldı",
     "group": "Seçimi grup yap",
     "ungroup": "Seçilen grubu dağıt",
     "collaborators": "Ortaklar",
@@ -121,7 +121,7 @@
     "toggleTheme": "Aydınlık/karanlık mod",
     "theme": "Tema",
     "personalLib": "Kişisel Kitaplık",
-    "excalidrawLib": "Excalidraw Kitaplığı",
+    "excalidrawLib": "Drawsy Kitaplığı",
     "decreaseFontSize": "Yazı Tipi Boyutunu Küçült",
     "increaseFontSize": "Yazı Tipi Boyutunu Büyült",
     "unbindText": "Metni çöz",
@@ -163,7 +163,7 @@
     "zoomToFitViewport": "Görüş alanına sığdırmak için yakınlaştırın",
     "zoomToFitSelection": "Seçime sığdırmak için yakınlaştırın",
     "zoomToFit": "Tüm öğeleri sığdırmak için yakınlaştırın",
-    "installPWA": "Excalidraw'ı yerel olarak yükle (PWA)",
+    "installPWA": "Drawsy'ı yerel olarak yükle (PWA)",
     "autoResize": "Metni otomatik yeniden boyutlandırmayı etkinleştir",
     "imageCropping": "Görsel kırpma",
     "unCroppedDimension": "Kırpılmamış ölçüler",
@@ -248,7 +248,7 @@
     "cannotExportEmptyCanvas": "Boş tuval dışarıya aktarılamaz.",
     "couldNotCopyToClipboard": "Panoya kopyalanamıyor.",
     "decryptFailed": "Şifrelenmiş veri çözümlenemedi.",
-    "uploadedSecurly": "Yükleme uçtan uca şifreleme ile korunmaktadır. Excalidraw sunucusu ve üçüncül şahıslar içeriği okuyamayacaktır.",
+    "uploadedSecurly": "Yükleme uçtan uca şifreleme ile korunmaktadır. Drawsy sunucusu ve üçüncül şahıslar içeriği okuyamayacaktır.",
     "loadSceneOverridePrompt": "Harici çizimler yüklemek mevcut olan içeriği değiştirecektir. Devam etmek istiyor musunuz?",
     "collabStopOverridePrompt": "Oturumu sonlandırmak daha önceki, yerel olarak kaydedilmiş çizimin üzerine kaydedilmesine sebep olacak. Emin misiniz?\n\n(Yerel çiziminizi kaybetmemek için tarayıcı sekmesini kapatabilirsiniz.)",
     "errorAddingToLibrary": "Öğe kütüphaneye eklenemedi",
@@ -256,7 +256,7 @@
     "confirmAddLibrary": "Bu, kitaplığınıza {{numShapes}} tane şekil ekleyecek. Emin misiniz?",
     "imageDoesNotContainScene": "Bu görüntü herhangi bir sahne verisi içermiyor gibi görünüyor. Dışa aktarma sırasında sahne yerleştirmeyi etkinleştirdiniz mi?",
     "cannotRestoreFromImage": "Sahne bu resim dosyasından geri yüklenemedi",
-    "invalidSceneUrl": "Verilen bağlantıdan çalışma alanı yüklenemedi. Dosya bozuk olabilir veya geçerli bir Excalidraw JSON verisi bulundurmuyor olabilir.",
+    "invalidSceneUrl": "Verilen bağlantıdan çalışma alanı yüklenemedi. Dosya bozuk olabilir veya geçerli bir Drawsy JSON verisi bulundurmuyor olabilir.",
     "resetLibrary": "Bu işlem kütüphanenizi sıfırlayacak. Emin misiniz?",
     "removeItemsFromsLibrary": "{{count}} öğe(ler) kitaplıktan kaldırılsın mı?",
     "invalidEncryptionKey": "Şifreleme anahtarı 22 karakter olmalı. Canlı işbirliği devre dışı bırakıldı.",
@@ -312,7 +312,7 @@
     "laser": "Lazer işaretçisi",
     "hand": "El (hareket aracı)",
     "extraTools": "Daha fazla araç",
-    "mermaidToExcalidraw": "Mermaid'den Excalidraw'a",
+    "mermaidToExcalidraw": "Mermaid'den Drawsy'a",
     "convertElementType": "Şekil türünü aç/kapat"
   },
   "element": {
@@ -390,7 +390,7 @@
     "desc_inProgressIntro": "Ortak çalışma ortamı oluşturuldu.",
     "desc_shareLink": "Bu bağlantıyı birlikte çalışacağınız kişilerle paylaşabilirsiniz:",
     "desc_exitSession": "Çalışma ortamını kapattığınızda ortak çalışmadan ayrılmış olursunuz ancak kendi versiyonunuzda çalışmaya devam edebilirsiniz. Bu durumda ortak çalıştığınız diğer kişiler etkilenmeyecek, çalışma ortamındaki versiyon üzerinden çalışmaya devam edebilecekler.",
-    "shareTitle": "Excalidraw'da canlı ortak calışma oturumuna katıl"
+    "shareTitle": "Drawsy'da canlı ortak calışma oturumuna katıl"
   },
   "errorDialog": {
     "title": "Hata"
@@ -402,9 +402,9 @@
     "link_title": "Paylaşılabilir bağlantı",
     "link_details": "Salt okunur bir bağlantı olarak dışa aktarın.",
     "link_button": "Bağlantı olarak dışa aktar",
-    "excalidrawplus_description": "Sahneyi Excalidraw+ çalışma alanınıza kaydedin.",
+    "excalidrawplus_description": "Sahneyi Drawsy+ çalışma alanınıza kaydedin.",
     "excalidrawplus_button": "Dışa aktar",
-    "excalidrawplus_exportError": "Şu anda Excalidraw+'a aktarılamadı..."
+    "excalidrawplus_exportError": "Şu anda Drawsy+'a aktarılamadı..."
   },
   "helpDialog": {
     "blog": "Blog'umuzu okuyun",
@@ -503,8 +503,8 @@
     }
   },
   "encrypted": {
-    "tooltip": "Çizimleriniz uçtan-uca şifrelenmiştir, Excalidraw'ın sunucuları bile onları göremez.",
-    "link": "Excalidraw'da uçtan uca şifreleme hakkında blog yazısı"
+    "tooltip": "Çizimleriniz uçtan-uca şifrelenmiştir, Drawsy'ın sunucuları bile onları göremez.",
+    "link": "Drawsy'da uçtan uca şifreleme hakkında blog yazısı"
   },
   "stats": {
     "angle": "Açı",
@@ -591,9 +591,9 @@
         "description": "Sahne verilerini daha sonra içe aktarabileceğiniz bir dosyaya aktarın."
       },
       "excalidrawPlus": {
-        "title": "Excalidraw+",
-        "button": "Excalidraw+'a aktar",
-        "description": "Sahneyi Excalidraw+ çalışma alanınıza kaydedin."
+        "title": "Drawsy+",
+        "button": "Drawsy+'a aktar",
+        "description": "Sahneyi Drawsy+ çalışma alanınıza kaydedin."
       }
     },
     "modal": {
@@ -610,9 +610,9 @@
     }
   },
   "mermaid": {
-    "title": "Mermaid'den Excalidraw'a",
+    "title": "Mermaid'den Drawsy'a",
     "button": "Ekle",
-    "description": "Şu anda yalnızca <flowchartLink>Akış şeması</flowchartLink>,<sequenceLink> Dizi, </sequenceLink> ve <classLink>Sınıf </classLink>Diyagramları deskteklenmektedir. Diğer türler, Excalidraw'da görsel olarak çizilecektir.",
+    "description": "Şu anda yalnızca <flowchartLink>Akış şeması</flowchartLink>,<sequenceLink> Dizi, </sequenceLink> ve <classLink>Sınıf </classLink>Diyagramları deskteklenmektedir. Diğer türler, Drawsy'da görsel olarak çizilecektir.",
     "syntax": "Mermaid Sözdizimi",
     "preview": "Önizleme",
     "label": "",

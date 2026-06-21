@@ -54,7 +54,7 @@ exports[`Test MobileMenu > should initialize with welcome screen and hide once u
       <span
         class="ExcalidrawLogo-text"
       >
-        Excal AI
+        Drawsy AI
       </span>
     </div>
   </div>

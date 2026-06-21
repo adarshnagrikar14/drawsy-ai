@@ -56,7 +56,7 @@
     "arrowtype_elbowed": "ลูกศรหักมุม",
     "fontSize": "ขนาดตัวอักษร",
     "fontFamily": "แบบตัวอักษร",
-    "addWatermark": "เพิ่มลายน้ำ \"สร้างด้วย Excalidraw\"",
+    "addWatermark": "เพิ่มลายน้ำ \"สร้างด้วย Drawsy\"",
     "handDrawn": "ลายมือ",
     "normal": "ปกติ",
     "code": "โค้ด",
@@ -91,7 +91,7 @@
     "untitled": "ไม่มีชื่อ",
     "name": "ชื่อ",
     "yourName": "ชื่อของคุณ",
-    "madeWithExcalidraw": "เพิ่มลายน้ำ \"สร้างด้วย Excalidraw\"",
+    "madeWithExcalidraw": "เพิ่มลายน้ำ \"สร้างด้วย Drawsy\"",
     "group": "จัดกลุ่ม",
     "ungroup": "ยกเลิกการจัดกลุ่ม",
     "collaborators": "ผู้ทำงานร่วมกัน",
@@ -121,7 +121,7 @@
     "toggleTheme": "สลับธีมสว่าง/มืด",
     "theme": "ธีม",
     "personalLib": "คลังของฉัน",
-    "excalidrawLib": "คลังของ Excalidraw",
+    "excalidrawLib": "คลังของ Drawsy",
     "decreaseFontSize": "ลดขนาดตัวอักษร",
     "increaseFontSize": "เพิ่มขนาดตัวอักษร",
     "unbindText": "ยกเลิกการผูกติด",
@@ -248,7 +248,7 @@
     "cannotExportEmptyCanvas": "ไม่สามารถนำออกจากผืนผ้าใบที่ว่างเปล่าได้",
     "couldNotCopyToClipboard": "ไม่สามารถคัดลอกไปยังคลิปบอร์ดได้",
     "decryptFailed": "ไม่สามารถถอดรหัสข้อมูลได้",
-    "uploadedSecurly": "การอัพโหลดได้ถูกเข้ารหัสแบบ end-to-end หมายความว่าเซิร์ฟเวอร์ของ Excalidraw และบุคคลอื่นไม่สามารถอ่านข้อมูลได้",
+    "uploadedSecurly": "การอัพโหลดได้ถูกเข้ารหัสแบบ end-to-end หมายความว่าเซิร์ฟเวอร์ของ Drawsy และบุคคลอื่นไม่สามารถอ่านข้อมูลได้",
     "loadSceneOverridePrompt": "",
     "collabStopOverridePrompt": "",
     "errorAddingToLibrary": "ไม่สามารถเพิ่มรายการเข้าไปในคลังได้",
@@ -404,7 +404,7 @@
     "link_button": "ส่งออกไปยังไฟล์",
     "excalidrawplus_description": "",
     "excalidrawplus_button": "ส่งออก",
-    "excalidrawplus_exportError": "ไม่สามารถส่งออกไปที่ Excalidraw+ ได้ในขณะนี้"
+    "excalidrawplus_exportError": "ไม่สามารถส่งออกไปที่ Drawsy+ ได้ในขณะนี้"
   },
   "helpDialog": {
     "blog": "อ่านบล็อกของพวกเรา",
@@ -591,8 +591,8 @@
         "description": ""
       },
       "excalidrawPlus": {
-        "title": "Excalidraw+",
-        "button": "นำออกไปยัง Excalidraw+",
+        "title": "Drawsy+",
+        "button": "นำออกไปยัง Drawsy+",
         "description": ""
       }
     },

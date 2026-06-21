@@ -56,7 +56,7 @@
     "arrowtype_elbowed": "",
     "fontSize": "Tiddi n tsefsit",
     "fontFamily": "Tawacult n tsefsiyin",
-    "addWatermark": "Seddu \"Yettwaxdem s Excalidraw\"",
+    "addWatermark": "Seddu \"Yettwaxdem s Drawsy\"",
     "handDrawn": "Asuneɣ s ufus",
     "normal": "Amagnu",
     "code": "Tangalt",
@@ -91,7 +91,7 @@
     "untitled": "War azwel",
     "name": "Isem",
     "yourName": "Isem-ik (im)",
-    "madeWithExcalidraw": "Yettwaxdem s Excalidraw",
+    "madeWithExcalidraw": "Yettwaxdem s Drawsy",
     "group": "Segrew tafrayt",
     "ungroup": "Kkess asegrew i tefrayt",
     "collaborators": "Imɛiwnen",
@@ -121,7 +121,7 @@
     "toggleTheme": "",
     "theme": "Asentel",
     "personalLib": "Tamkarḍit tudmawant",
-    "excalidrawLib": "Tamkarḍit n Excalidraw",
+    "excalidrawLib": "Tamkarḍit n Drawsy",
     "decreaseFontSize": "Senqes tiddi n tsefsit",
     "increaseFontSize": "Sali tiddi n tsefsit",
     "unbindText": "Serreḥ iweḍris",
@@ -248,7 +248,7 @@
     "cannotExportEmptyCanvas": "D awezɣi asifeḍ n teɣzut n usuneɣ tilemt.",
     "couldNotCopyToClipboard": "Ulamek anɣal ɣer tecfawit.",
     "decryptFailed": "D awezɣi tukksa n uwgelhen i yisefka.",
-    "uploadedSecurly": "Asili yettwasɣelles s uwgelhen ixef s ixef, ayagi yebɣa ad d-yini belli aqeddac n Excalidraw akked medden ur zmiren ara ad ɣren agbur.",
+    "uploadedSecurly": "Asili yettwasɣelles s uwgelhen ixef s ixef, ayagi yebɣa ad d-yini belli aqeddac n Drawsy akked medden ur zmiren ara ad ɣren agbur.",
     "loadSceneOverridePrompt": "Asali n wunuɣ uffiɣ ad isemselsi agbur-inek (m) yellan. Tebɣiḍ ad tkemmeleḍ?",
     "collabStopOverridePrompt": "Aḥbas n tɣimit ad yesefsex unuɣ-inek (m) yettwaḥerzen yakan s wudem adigan. Tetḥeqqeḍ?\n(Ma tebɣiḍ ad teǧǧeḍ unuɣ-inek (m) adigan, mdel iccer n yiminig, deg umḍiq.)",
     "errorAddingToLibrary": "Ulamek ara yettwarnu uferdis ɣer temkarḍit",
@@ -256,7 +256,7 @@
     "confirmAddLibrary": "Ayagi adirnu talɣa (win) {{numShapes}} ɣer temkarḍit-inek (m). Tetḥeqqeḍ?",
     "imageDoesNotContainScene": "Tugna-agi tettban-d ur tesɛi ara isefka n usayes. Tesremdeḍ aseddu n usayes deg usifeḍ?",
     "cannotRestoreFromImage": "Asayes ulamek ara d-yettwarr seg ufaylu-agi n tugna",
-    "invalidSceneUrl": "Ulamek taktert n usayes seg URL i d-ittunefken. Ahat mačči d tameɣtut neɣ ur tegbir ara isefka JSON n Excalidraw.",
+    "invalidSceneUrl": "Ulamek taktert n usayes seg URL i d-ittunefken. Ahat mačči d tameɣtut neɣ ur tegbir ara isefka JSON n Drawsy.",
     "resetLibrary": "Ayagi ad isfeḍ tamkarḍit-inek•m. Tetḥeqqeḍ?",
     "removeItemsFromsLibrary": "Ad tekkseḍ {{count}} n uferdis (en) si temkarḍit?",
     "invalidEncryptionKey": "Tasarut n uwgelhen isefk ad tesɛu 22 n yiekkilen. Amɛiwen srid yensa.",
@@ -390,7 +390,7 @@
     "desc_inProgressIntro": "Tiɣimit n umɛawen s srid tetteddu akka tura.",
     "desc_shareLink": "Bḍu aseɣwen-agi akked medden ukud tebɣiḍ ad temɛawaneḍ:",
     "desc_exitSession": "Aḥbas n tɣimit ad k (m) yesenser si texxamt, maca ad tizmireḍ ad tkemmeleḍ amahil s usayes, s wudem adigan. Ẓer belli ayagi ur yettḥaz ara imdanen-nniḍen, yerna ad izmiren ad kemmelen ad mɛawanen di tsuffeɣt-nnsen.",
-    "shareTitle": "Rnu ɣer tɣimit n umɛiwen s srid n Excalidraw"
+    "shareTitle": "Rnu ɣer tɣimit n umɛiwen s srid n Drawsy"
   },
   "errorDialog": {
     "title": "Tuccḍa"
@@ -402,9 +402,9 @@
     "link_title": "Aseɣwen n beṭṭu",
     "link_details": "Sifeḍ am useɣwen n tɣuri kan.",
     "link_button": "Sifeḍ deg useɣwen",
-    "excalidrawplus_description": "Sekles asayes-inek•inem di tallunt n umahil Excalidraw+.",
+    "excalidrawplus_description": "Sekles asayes-inek•inem di tallunt n umahil Drawsy+.",
     "excalidrawplus_button": "Sifeḍ",
-    "excalidrawplus_exportError": "Ulamek asifeḍ ɣer Excalidraw+ akka tura..."
+    "excalidrawplus_exportError": "Ulamek asifeḍ ɣer Drawsy+ akka tura..."
   },
   "helpDialog": {
     "blog": "Ɣeṛ ablug-nneɣ",
@@ -503,8 +503,8 @@
     }
   },
   "encrypted": {
-    "tooltip": "Unuɣen-inek (m) ttuwgelhnen seg yixef s ixef dɣa iqeddacen n Excalidraw werǧin ad ten-walin. ",
-    "link": "Amagrad ɣef uwgelhen ixef s ixef di Excalidraw"
+    "tooltip": "Unuɣen-inek (m) ttuwgelhnen seg yixef s ixef dɣa iqeddacen n Drawsy werǧin ad ten-walin. ",
+    "link": "Amagrad ɣef uwgelhen ixef s ixef di Drawsy"
   },
   "stats": {
     "angle": "Tiɣmeṛt",
@@ -560,7 +560,7 @@
       "center_heading": "",
       "center_heading_line2": "",
       "center_heading_line3": "",
-      "center_heading_plus": "Tebɣiḍ ad tedduḍ ɣer Excalidraw+ deg umḍiq?",
+      "center_heading_plus": "Tebɣiḍ ad tedduḍ ɣer Drawsy+ deg umḍiq?",
       "menuHint": "Asifeḍ, ismenyifen, tutlayin, ..."
     },
     "defaults": {
@@ -591,7 +591,7 @@
         "description": ""
       },
       "excalidrawPlus": {
-        "title": "Excalidraw+",
+        "title": "Drawsy+",
         "button": "",
         "description": ""
       }

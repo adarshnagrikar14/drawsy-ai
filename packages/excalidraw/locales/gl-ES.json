@@ -56,7 +56,7 @@
     "arrowtype_elbowed": "",
     "fontSize": "Tamaño da fonte",
     "fontFamily": "Tipo de fonte",
-    "addWatermark": "Engadir \"Feito con Excalidraw\"",
+    "addWatermark": "Engadir \"Feito con Drawsy\"",
     "handDrawn": "Debuxado a man",
     "normal": "Normal",
     "code": "Código",
@@ -91,7 +91,7 @@
     "untitled": "Sen título",
     "name": "Nome",
     "yourName": "O teu nome",
-    "madeWithExcalidraw": "Feito con Excalidraw",
+    "madeWithExcalidraw": "Feito con Drawsy",
     "group": "Agrupar selección",
     "ungroup": "Desagrupar selección",
     "collaborators": "Colaboradores",
@@ -121,7 +121,7 @@
     "toggleTheme": "",
     "theme": "",
     "personalLib": "Biblioteca Persoal",
-    "excalidrawLib": "Biblioteca Excalidraw",
+    "excalidrawLib": "Biblioteca Drawsy",
     "decreaseFontSize": "Diminuír tamaño da fonte",
     "increaseFontSize": "Aumentar o tamaño da fonte",
     "unbindText": "Desvincular texto",
@@ -248,7 +248,7 @@
     "cannotExportEmptyCanvas": "Non se pode exportar un lenzo baleiro.",
     "couldNotCopyToClipboard": "Non se puido copiar ao portapapeis.",
     "decryptFailed": "Non se poideron descifrar os datos.",
-    "uploadedSecurly": "A carga foi asegurada con cifrado de extremo a extremo, o que significa que o servidor de Excalidraw e terceiros non poden ler o contido.",
+    "uploadedSecurly": "A carga foi asegurada con cifrado de extremo a extremo, o que significa que o servidor de Drawsy e terceiros non poden ler o contido.",
     "loadSceneOverridePrompt": "A carga dun debuxo externo substituirá o contido existente. Desexa continuar?",
     "collabStopOverridePrompt": "Deter a sesión, sobrescribirá o seu debuxo local previamente almacenado. Está seguro?\n\n(Se quere manter o seu debuxo local, simplemente peche a lapela do navegador.)",
     "errorAddingToLibrary": "Non se puido engadir o elemento á biblioteca",
@@ -256,7 +256,7 @@
     "confirmAddLibrary": "Isto engadirá {{numShapes}} forma(s) a túa biblioteca. Estás seguro?",
     "imageDoesNotContainScene": "Esta imaxe non parece conter ningún dato da escena. Activou a inserción de escenas durante a exportación?",
     "cannotRestoreFromImage": "Non se puido restaurar a escena dende este arquivo de imaxe",
-    "invalidSceneUrl": "Non se puido importar a escena dende a URL proporcionada. Ou ben está malformada ou non contén un JSON con información válida para Excalidraw.",
+    "invalidSceneUrl": "Non se puido importar a escena dende a URL proporcionada. Ou ben está malformada ou non contén un JSON con información válida para Drawsy.",
     "resetLibrary": "Isto limpará a súa biblioteca. Está seguro?",
     "removeItemsFromsLibrary": "Eliminar {{count}} elemento(s) da biblioteca?",
     "invalidEncryptionKey": "A clave de cifrado debe ter 22 caracteres. A colaboración en directo está desactivada.",
@@ -390,7 +390,7 @@
     "desc_inProgressIntro": "A sesión de colaboración en directo está agora en progreso.",
     "desc_shareLink": "Comparte esta ligazón con calquera que queiras colaborar:",
     "desc_exitSession": "Deter a sesión desconectarao da sala, pero poderá seguir traballando coa escena de maneira local. Teña en conta que isto non afectará a outras persoas, que poderán seguir colaborando na súa versión.",
-    "shareTitle": "Únase a unha sesión de colaboración en directo en Excalidraw"
+    "shareTitle": "Únase a unha sesión de colaboración en directo en Drawsy"
   },
   "errorDialog": {
     "title": "Erro"
@@ -402,9 +402,9 @@
     "link_title": "Ligazón para compartir",
     "link_details": "Exportar como unha ligazón de só lectura.",
     "link_button": "Exportar a unha ligazón",
-    "excalidrawplus_description": "Garde a escena no seu espazo de traballo en Excalidraw+.",
+    "excalidrawplus_description": "Garde a escena no seu espazo de traballo en Drawsy+.",
     "excalidrawplus_button": "Exportar",
-    "excalidrawplus_exportError": "Non se puido exportar a Excalidraw+ neste momento..."
+    "excalidrawplus_exportError": "Non se puido exportar a Drawsy+ neste momento..."
   },
   "helpDialog": {
     "blog": "Le o noso blog",
@@ -503,8 +503,8 @@
     }
   },
   "encrypted": {
-    "tooltip": "Os teus debuxos están cifrados de punto a punto, polo que os servidores de Excalidraw nunca os verán.",
-    "link": "Entrada do blog acerca do cifrado de punto a punto en Excalidraw"
+    "tooltip": "Os teus debuxos están cifrados de punto a punto, polo que os servidores de Drawsy nunca os verán.",
+    "link": "Entrada do blog acerca do cifrado de punto a punto en Drawsy"
   },
   "stats": {
     "angle": "Ángulo",
@@ -560,7 +560,7 @@
       "center_heading": "",
       "center_heading_line2": "",
       "center_heading_line3": "",
-      "center_heading_plus": "Queres ir a Excalidraw+ no seu lugar?",
+      "center_heading_plus": "Queres ir a Drawsy+ no seu lugar?",
       "menuHint": "Exportar, preferencias, idiomas, ..."
     },
     "defaults": {
@@ -591,8 +591,8 @@
         "description": ""
       },
       "excalidrawPlus": {
-        "title": "Excalidraw+",
-        "button": "Exportar a Excalidraw+",
+        "title": "Drawsy+",
+        "button": "Exportar a Drawsy+",
         "description": ""
       }
     },

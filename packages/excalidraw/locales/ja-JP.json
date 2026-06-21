@@ -56,7 +56,7 @@
     "arrowtype_elbowed": "ひじ矢印",
     "fontSize": "フォントの大きさ",
     "fontFamily": "フォントの種類",
-    "addWatermark": "\"Made with Excalidraw\"と表示",
+    "addWatermark": "\"Made with Drawsy\"と表示",
     "handDrawn": "手描き風",
     "normal": "普通",
     "code": "コード",
@@ -91,7 +91,7 @@
     "untitled": "無題",
     "name": "名前",
     "yourName": "あなたの名前",
-    "madeWithExcalidraw": "Excalidrawで作成",
+    "madeWithExcalidraw": "Drawsyで作成",
     "group": "グループ化",
     "ungroup": "グループ化を解除",
     "collaborators": "共同編集者",
@@ -121,7 +121,7 @@
     "toggleTheme": "ライト/ダークテーマに変更",
     "theme": "テーマ",
     "personalLib": "個人ライブラリ",
-    "excalidrawLib": "Excalidrawライブラリ",
+    "excalidrawLib": "Drawsyライブラリ",
     "decreaseFontSize": "フォントサイズを縮小",
     "increaseFontSize": "フォントサイズを拡大",
     "unbindText": "テキストのバインド解除",
@@ -163,7 +163,7 @@
     "zoomToFitViewport": "表寿範囲に合わせてズーム",
     "zoomToFitSelection": "選択範囲に合わせてズーム",
     "zoomToFit": "すべての要素が収まるようにズーム",
-    "installPWA": "Excalidrawをローカルにインストール(PWA)",
+    "installPWA": "Drawsyをローカルにインストール(PWA)",
     "autoResize": "テキストの自動サイズ変更を有効化",
     "imageCropping": "画像のトリミング",
     "unCroppedDimension": "",
@@ -248,7 +248,7 @@
     "cannotExportEmptyCanvas": "空のキャンバスはエクスポートできません。",
     "couldNotCopyToClipboard": "クリップボードにコピーできませんでした。",
     "decryptFailed": "データを復号できませんでした。",
-    "uploadedSecurly": "データのアップロードはエンドツーエンド暗号化によって保護されています。Excalidrawサーバーと第三者はデータの内容を見ることができません。",
+    "uploadedSecurly": "データのアップロードはエンドツーエンド暗号化によって保護されています。Drawsyサーバーと第三者はデータの内容を見ることができません。",
     "loadSceneOverridePrompt": "外部図面を読み込むと、既存のコンテンツが置き換わります。続行しますか？",
     "collabStopOverridePrompt": "セッションを停止すると、ローカルに保存されている図が上書きされます。 本当によろしいですか？\n\n(ローカルの図を保持したい場合は、セッションを停止せずにブラウザタブを閉じてください。)",
     "errorAddingToLibrary": "アイテムをライブラリに追加できませんでした",
@@ -256,7 +256,7 @@
     "confirmAddLibrary": "{{numShapes}} 個の図形をライブラリに追加します。よろしいですか？",
     "imageDoesNotContainScene": "この画像にはシーンデータが含まれていないようです。エクスポート時にシーンの埋め込みを有効にしましたか？",
     "cannotRestoreFromImage": "このイメージファイルからシーンを復元できませんでした",
-    "invalidSceneUrl": "指定された URL からシーンをインポートできませんでした。不正な形式であるか、有効な Excalidraw JSON データが含まれていません。",
+    "invalidSceneUrl": "指定された URL からシーンをインポートできませんでした。不正な形式であるか、有効な Drawsy JSON データが含まれていません。",
     "resetLibrary": "ライブラリを消去します。本当によろしいですか？",
     "removeItemsFromsLibrary": "{{count}} 個のアイテムをライブラリから削除しますか？",
     "invalidEncryptionKey": "暗号化キーは22文字でなければなりません。共同編集は無効化されています。",
@@ -312,7 +312,7 @@
     "laser": "レーザーポインター",
     "hand": "手 (パンニングツール)",
     "extraTools": "その他のツール",
-    "mermaidToExcalidraw": "Mermaid を Excalidraw に変換",
+    "mermaidToExcalidraw": "Mermaid を Drawsy に変換",
     "convertElementType": ""
   },
   "element": {
@@ -390,7 +390,7 @@
     "desc_inProgressIntro": "共同編集セッションが有効になっています。",
     "desc_shareLink": "下記URLを共同編集したい人に共有してください：",
     "desc_exitSession": "セッションを終了するとあなたはルームから切断されますが、ローカルで作業を続けることができます。セッションを終了しても他のメンバには影響はなく、引き続き共同作業を行うことができます。",
-    "shareTitle": "Excalidrawの共同編集セッションに参加する"
+    "shareTitle": "Drawsyの共同編集セッションに参加する"
   },
   "errorDialog": {
     "title": "エラー"
@@ -402,9 +402,9 @@
     "link_title": "共有可能なリンク",
     "link_details": "読み取り専用リンクとしてエクスポート",
     "link_button": "リンクとしてエクスポート",
-    "excalidrawplus_description": "Excalidraw+ ワークスペースにシーンを保存します。",
+    "excalidrawplus_description": "Drawsy+ ワークスペースにシーンを保存します。",
     "excalidrawplus_button": "エクスポート",
-    "excalidrawplus_exportError": "Excalidraw+ にエクスポートできませんでした..."
+    "excalidrawplus_exportError": "Drawsy+ にエクスポートできませんでした..."
   },
   "helpDialog": {
     "blog": "公式ブログを読む",
@@ -503,8 +503,8 @@
     }
   },
   "encrypted": {
-    "tooltip": "描画内容はエンドツーエンド暗号化が施されており、Excalidrawサーバーが内容を見ることはできません。",
-    "link": "Excalidrawのエンドツーエンド暗号化に関するブログ記事"
+    "tooltip": "描画内容はエンドツーエンド暗号化が施されており、Drawsyサーバーが内容を見ることはできません。",
+    "link": "Drawsyのエンドツーエンド暗号化に関するブログ記事"
   },
   "stats": {
     "angle": "角度",
@@ -560,7 +560,7 @@
       "center_heading": "",
       "center_heading_line2": "",
       "center_heading_line3": "",
-      "center_heading_plus": "代わりにExcalidraw+を開きますか？",
+      "center_heading_plus": "代わりにDrawsy+を開きますか？",
       "menuHint": "エクスポート、設定、言語..."
     },
     "defaults": {
@@ -591,9 +591,9 @@
         "description": "シーンデータを後でインポートできるファイルにエクスポートします。"
       },
       "excalidrawPlus": {
-        "title": "Excalidraw+",
-        "button": "Excalidraw+にエクスポート",
-        "description": "Excalidraw+ ワークスペースにシーンを保存します。"
+        "title": "Drawsy+",
+        "button": "Drawsy+にエクスポート",
+        "description": "Drawsy+ ワークスペースにシーンを保存します。"
       }
     },
     "modal": {
@@ -610,9 +610,9 @@
     }
   },
   "mermaid": {
-    "title": "Mermaid を Excalidraw に変換",
+    "title": "Mermaid を Drawsy に変換",
     "button": "挿入",
-    "description": "現在、<flowchartLink>Flowchart</flowchartLink>、<sequenceLink>Sequence</sequenceLink>、<classLink>Class</classLink> のダイアグラムのみに対応しています。その他の種類は、Excalidraw では画像として描画されます。",
+    "description": "現在、<flowchartLink>Flowchart</flowchartLink>、<sequenceLink>Sequence</sequenceLink>、<classLink>Class</classLink> のダイアグラムのみに対応しています。その他の種類は、Drawsy では画像として描画されます。",
     "syntax": "Mermaid 構文",
     "preview": "プレビュー",
     "label": "",

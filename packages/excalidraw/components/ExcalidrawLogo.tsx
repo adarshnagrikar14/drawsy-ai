@@ -49,6 +49,6 @@ export const ExcalidrawLogo = ({
 }: LogoProps) => (
   <div className={`ExcalidrawLogo is-${size}`} style={style}>
     <LogoIcon />
-    {withText && <span className="ExcalidrawLogo-text">Excal AI</span>}
+    {withText && <span className="ExcalidrawLogo-text">Drawsy AI</span>}
   </div>
 );

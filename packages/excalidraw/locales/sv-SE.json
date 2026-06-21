@@ -56,7 +56,7 @@
     "arrowtype_elbowed": "Vinklad",
     "fontSize": "Teckenstorlek",
     "fontFamily": "Teckensnitt",
-    "addWatermark": "Lägg till \"Skapad med Excalidraw\"",
+    "addWatermark": "Lägg till \"Skapad med Drawsy\"",
     "handDrawn": "Handritad",
     "normal": "Normal",
     "code": "Kod",
@@ -91,7 +91,7 @@
     "untitled": "Namnlös",
     "name": "Namn",
     "yourName": "Ditt namn",
-    "madeWithExcalidraw": "Skapad med Excalidraw",
+    "madeWithExcalidraw": "Skapad med Drawsy",
     "group": "Gruppera markering",
     "ungroup": "Avgruppera markering",
     "collaborators": "Medarbetare",
@@ -121,7 +121,7 @@
     "toggleTheme": "Växla ljus/mörkt tema",
     "theme": "Tema",
     "personalLib": "Personligt bibliotek",
-    "excalidrawLib": "Excalidraw bibliotek",
+    "excalidrawLib": "Drawsy bibliotek",
     "decreaseFontSize": "Minska fontstorleken",
     "increaseFontSize": "Öka fontstorleken",
     "unbindText": "Koppla bort text",
@@ -163,7 +163,7 @@
     "zoomToFitViewport": "Zooma för att passa in i vyn",
     "zoomToFitSelection": "Zooma för att passa urval",
     "zoomToFit": "Zooma för att rymma alla element",
-    "installPWA": "Installera Excalidraw lokalt (PWA)",
+    "installPWA": "Installera Drawsy lokalt (PWA)",
     "autoResize": "Aktivera automatisk skalning av text",
     "imageCropping": "Bildbeskärning",
     "unCroppedDimension": "Obeskuren dimension",
@@ -248,7 +248,7 @@
     "cannotExportEmptyCanvas": "Kan inte exportera tom canvas.",
     "couldNotCopyToClipboard": "Kunde inte kopiera till urklipp.",
     "decryptFailed": "Kunde inte avkryptera data.",
-    "uploadedSecurly": "Uppladdning har säkrats med kryptering från ände till ände. vilket innebär att Excalidraw server och tredje part inte kan läsa innehållet.",
+    "uploadedSecurly": "Uppladdning har säkrats med kryptering från ände till ände. vilket innebär att Drawsy server och tredje part inte kan läsa innehållet.",
     "loadSceneOverridePrompt": "Laddning av extern skiss kommer att ersätta ditt befintliga innehåll. Vill du fortsätta?",
     "collabStopOverridePrompt": "Att stoppa sessionen kommer att skriva över din föregående, lokalt lagrade skiss. Är du säker?\n\n(Om du vill behålla din lokala skiss, stäng bara webbläsarfliken istället.)",
     "errorAddingToLibrary": "Kunde inte lägga till objekt i biblioteket",
@@ -256,7 +256,7 @@
     "confirmAddLibrary": "Detta kommer att lägga till {{numShapes}} form(er) till ditt bibliotek. Är du säker?",
     "imageDoesNotContainScene": "Den här bilden verkar inte innehålla någon skissdata. Har du aktiverat inbäddning av skiss under export?",
     "cannotRestoreFromImage": "Skiss kunde inte återställas från denna bildfil",
-    "invalidSceneUrl": "Det gick inte att importera skiss från den angivna webbadressen. Antingen har den fel format, eller så innehåller den ingen giltig Excalidraw JSON data.",
+    "invalidSceneUrl": "Det gick inte att importera skiss från den angivna webbadressen. Antingen har den fel format, eller så innehåller den ingen giltig Drawsy JSON data.",
     "resetLibrary": "Detta kommer att rensa ditt bibliotek. Är du säker?",
     "removeItemsFromsLibrary": "Ta bort {{count}} objekt från biblioteket?",
     "invalidEncryptionKey": "Krypteringsnyckeln måste vara 22 tecken. Livesamarbetet är inaktiverat.",
@@ -312,7 +312,7 @@
     "laser": "Laserpekare",
     "hand": "Hand (panoreringsverktyg)",
     "extraTools": "Fler verktyg",
-    "mermaidToExcalidraw": "Mermaid till Excalidraw",
+    "mermaidToExcalidraw": "Mermaid till Drawsy",
     "convertElementType": ""
   },
   "element": {
@@ -390,7 +390,7 @@
     "desc_inProgressIntro": "Nu pågår en live-samarbetssession.",
     "desc_shareLink": "Dela denna länk med någon du vill samarbeta med:",
     "desc_exitSession": "Att avbryta sessionen kommer att koppla bort dig från rummet, men du kommer att kunna fortsätta arbeta med skissen, lokalt. Observera att detta inte påverkar andra människor, och de kommer fortfarande att kunna samarbeta på deras version.",
-    "shareTitle": "Delta i en live-samarbetssession på Excalidraw"
+    "shareTitle": "Delta i en live-samarbetssession på Drawsy"
   },
   "errorDialog": {
     "title": "Fel"
@@ -402,9 +402,9 @@
     "link_title": "Delbar länk",
     "link_details": "Exportera som en skrivskyddad länk.",
     "link_button": "Exportera till länk",
-    "excalidrawplus_description": "Spara skissen till din Excalidraw+ arbetsyta.",
+    "excalidrawplus_description": "Spara skissen till din Drawsy+ arbetsyta.",
     "excalidrawplus_button": "Exportera",
-    "excalidrawplus_exportError": "Det gick inte att exportera till Excalidraw+ just nu..."
+    "excalidrawplus_exportError": "Det gick inte att exportera till Drawsy+ just nu..."
   },
   "helpDialog": {
     "blog": "Läs vår blogg",
@@ -503,8 +503,8 @@
     }
   },
   "encrypted": {
-    "tooltip": "Dina skisser är krypterade från ände till ände så Excalidraws servrar kommer aldrig att se dem.",
-    "link": "Blogginlägg om kryptering från ände till ände i Excalidraw"
+    "tooltip": "Dina skisser är krypterade från ände till ände så Drawsys servrar kommer aldrig att se dem.",
+    "link": "Blogginlägg om kryptering från ände till ände i Drawsy"
   },
   "stats": {
     "angle": "Vinkel",
@@ -560,7 +560,7 @@
       "center_heading": "",
       "center_heading_line2": "",
       "center_heading_line3": "",
-      "center_heading_plus": "Ville du gå till Excalidraw+ istället?",
+      "center_heading_plus": "Ville du gå till Drawsy+ istället?",
       "menuHint": "Exportera, inställningar, språk, ..."
     },
     "defaults": {
@@ -591,9 +591,9 @@
         "description": "Exportera scendata till en fil från vilken du kan importera senare."
       },
       "excalidrawPlus": {
-        "title": "Excalidraw+",
-        "button": "Exportera till Excalidraw+",
-        "description": "Spara skissen till din Excalidraw+ arbetsyta."
+        "title": "Drawsy+",
+        "button": "Exportera till Drawsy+",
+        "description": "Spara skissen till din Drawsy+ arbetsyta."
       }
     },
     "modal": {
@@ -610,9 +610,9 @@
     }
   },
   "mermaid": {
-    "title": "Mermaid till Excalidraw",
+    "title": "Mermaid till Drawsy",
     "button": "Infoga",
-    "description": "För närvarande stöds endast <flowchartLink>Flödesdiagram</flowchartLink>,<sequenceLink> Sekvensdiagram </sequenceLink> och <classLink>Klassdiagram</classLink>. De andra typerna kommer att återges som bild i Excalidraw.",
+    "description": "För närvarande stöds endast <flowchartLink>Flödesdiagram</flowchartLink>,<sequenceLink> Sekvensdiagram </sequenceLink> och <classLink>Klassdiagram</classLink>. De andra typerna kommer att återges som bild i Drawsy.",
     "syntax": "Mermaid-syntax",
     "preview": "Förhandsgranska",
     "label": "",

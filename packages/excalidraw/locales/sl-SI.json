@@ -56,7 +56,7 @@
     "arrowtype_elbowed": "Puščica tipa komolca",
     "fontSize": "Velikost pisave",
     "fontFamily": "Družina pisave",
-    "addWatermark": "Dodaj \"Izdelano z Excalidraw\"",
+    "addWatermark": "Dodaj \"Izdelano z Drawsy\"",
     "handDrawn": "Ročno narisano",
     "normal": "Običajno",
     "code": "Koda",
@@ -91,7 +91,7 @@
     "untitled": "Neimenovana",
     "name": "Ime",
     "yourName": "Vaše ime",
-    "madeWithExcalidraw": "Izdelano z Excalidraw",
+    "madeWithExcalidraw": "Izdelano z Drawsy",
     "group": "Združi izbor",
     "ungroup": "Razdruži izbor",
     "collaborators": "Sodelavci",
@@ -121,7 +121,7 @@
     "toggleTheme": "Preklapljanje med svetlo/temno temo",
     "theme": "Tema",
     "personalLib": "Osebna knjižnica",
-    "excalidrawLib": "Knjižnica Excalidraw",
+    "excalidrawLib": "Knjižnica Drawsy",
     "decreaseFontSize": "Zmanjšaj velikost pisave",
     "increaseFontSize": "Povečaj velikost pisave",
     "unbindText": "Veži besedilo",
@@ -163,7 +163,7 @@
     "zoomToFitViewport": "Približaj na vidno polje",
     "zoomToFitSelection": "Približaj na izbor",
     "zoomToFit": "Približaj na vse elemente",
-    "installPWA": "Namesti Excalidraw lokalno (PWA)",
+    "installPWA": "Namesti Drawsy lokalno (PWA)",
     "autoResize": "Omogoči samodejno spreminjanje velikosti besedila",
     "imageCropping": "Obrezovanje slike",
     "unCroppedDimension": "Neobrezana dimenzija",
@@ -248,7 +248,7 @@
     "cannotExportEmptyCanvas": "Izvoz prazne scene ni mogoč.",
     "couldNotCopyToClipboard": "Kopiranje v odložišče ni uspelo.",
     "decryptFailed": "Dešifriranje podatkov ni uspelo.",
-    "uploadedSecurly": "Nalaganje je bilo zaščiteno s šifriranjem od konca do konca, kar pomeni, da strežnik Excalidraw in tretje osebe ne morejo brati vsebine.",
+    "uploadedSecurly": "Nalaganje je bilo zaščiteno s šifriranjem od konca do konca, kar pomeni, da strežnik Drawsy in tretje osebe ne morejo brati vsebine.",
     "loadSceneOverridePrompt": "Nalaganje zunanje risbe bo nadomestilo vašo obstoječo vsebino. Ali želite nadaljevati?",
     "collabStopOverridePrompt": "Ustavitev seje bo prepisala vašo prejšnjo, lokalno shranjeno risbo. Ali ste prepričani?\n\n(Če želite obdržati lokalno risbo, preprosto zaprite zavihek brskalnika.)",
     "errorAddingToLibrary": "Elementa ni bilo mogoče dodati v knjižnico",
@@ -256,7 +256,7 @@
     "confirmAddLibrary": "S tem boste v vašo knjižnico dodali oblike ({{numShapes}}). Ali ste prepričani?",
     "imageDoesNotContainScene": "Zdi se, da ta slika ne vsebuje podatkov o sceni. Ali ste med izvozom omogočili vdelavo scene?",
     "cannotRestoreFromImage": "Scene ni bilo mogoče obnoviti iz te slikovne datoteke",
-    "invalidSceneUrl": "S priloženega URL-ja ni bilo mogoče uvoziti scene. Je napačno oblikovana ali pa ne vsebuje veljavnih podatkov Excalidraw JSON.",
+    "invalidSceneUrl": "S priloženega URL-ja ni bilo mogoče uvoziti scene. Je napačno oblikovana ali pa ne vsebuje veljavnih podatkov Drawsy JSON.",
     "resetLibrary": "To bo počistilo vašo knjižnico. Ali ste prepričani?",
     "removeItemsFromsLibrary": "Izbriši elemente ({{count}}) iz knjižnice?",
     "invalidEncryptionKey": "Ključ za šifriranje mora vsebovati 22 znakov. Sodelovanje v živo je onemogočeno.",
@@ -312,7 +312,7 @@
     "laser": "Laserski kazalec",
     "hand": "Roka (orodje za premikanje)",
     "extraTools": "Več orodij",
-    "mermaidToExcalidraw": "Mermaid v Excalidraw",
+    "mermaidToExcalidraw": "Mermaid v Drawsy",
     "convertElementType": ""
   },
   "element": {
@@ -390,7 +390,7 @@
     "desc_inProgressIntro": "Seja sodelovanja v živo je v teku.",
     "desc_shareLink": "Delite to povezavo z vsemi, s katerimi želite sodelovati:",
     "desc_exitSession": "Ustavitev seje vas bo odklopila od sobe, vendar boste lahko lokalno nadaljevali delo s sceno. To pa ne bo vplivalo na druge osebe. Druge osebe bodo še vedno lahko sodelovale v svoji različici.",
-    "shareTitle": "Pridruži se seji sodelovanja v živo na Excalidraw"
+    "shareTitle": "Pridruži se seji sodelovanja v živo na Drawsy"
   },
   "errorDialog": {
     "title": "Napaka"
@@ -402,9 +402,9 @@
     "link_title": "Povezava za deljenje",
     "link_details": "Izvoz kot povezava samo za branje.",
     "link_button": "Izvoz kot povezava",
-    "excalidrawplus_description": "Shrani sceno v svoj delovni prostor Excalidraw+.",
+    "excalidrawplus_description": "Shrani sceno v svoj delovni prostor Drawsy+.",
     "excalidrawplus_button": "Izvoz",
-    "excalidrawplus_exportError": "Trenutno ni bilo mogoče izvoziti v Excalidraw+..."
+    "excalidrawplus_exportError": "Trenutno ni bilo mogoče izvoziti v Drawsy+..."
   },
   "helpDialog": {
     "blog": "Preberite naš blog",
@@ -503,8 +503,8 @@
     }
   },
   "encrypted": {
-    "tooltip": "Vaše risbe so šifrirane od konca do konca, tako da jih strežniki Excalidraw nikoli ne bodo videli.",
-    "link": "Blog objava o šifriranju od konca do konca v Excalidraw"
+    "tooltip": "Vaše risbe so šifrirane od konca do konca, tako da jih strežniki Drawsy nikoli ne bodo videli.",
+    "link": "Blog objava o šifriranju od konca do konca v Drawsy"
   },
   "stats": {
     "angle": "Kot",
@@ -560,7 +560,7 @@
       "center_heading": "",
       "center_heading_line2": "",
       "center_heading_line3": "",
-      "center_heading_plus": "Ste namesto tega želeli odpreti Excalidraw+?",
+      "center_heading_plus": "Ste namesto tega želeli odpreti Drawsy+?",
       "menuHint": "Izvoz, nastavitve, jeziki, ..."
     },
     "defaults": {
@@ -591,9 +591,9 @@
         "description": "Izvozite podatke scene v datoteko, iz katere jo lahko pozneje uvozite."
       },
       "excalidrawPlus": {
-        "title": "Excalidraw+",
-        "button": "Izvozi v Excalidraw+",
-        "description": "Shrani sceno v svoj delovni prostor Excalidraw+."
+        "title": "Drawsy+",
+        "button": "Izvozi v Drawsy+",
+        "description": "Shrani sceno v svoj delovni prostor Drawsy+."
       }
     },
     "modal": {
@@ -610,9 +610,9 @@
     }
   },
   "mermaid": {
-    "title": "Mermaid v Excalidraw",
+    "title": "Mermaid v Drawsy",
     "button": "Vstavi",
-    "description": "Trenutno so podprti samo <flowchartLink>diagrami poteka</flowchartLink>, <sequenceLink>diagrami zaporedij</sequenceLink> in <classLink>Razredni diagrami</classLink>. Druge vrste bodo upodobljene kot slike v Excalidraw.",
+    "description": "Trenutno so podprti samo <flowchartLink>diagrami poteka</flowchartLink>, <sequenceLink>diagrami zaporedij</sequenceLink> in <classLink>Razredni diagrami</classLink>. Druge vrste bodo upodobljene kot slike v Drawsy.",
     "syntax": "Sintaksa Mermaid",
     "preview": "Predogled",
     "label": "",

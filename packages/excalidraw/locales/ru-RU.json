@@ -56,7 +56,7 @@
     "arrowtype_elbowed": "Прямоугольная стрелка",
     "fontSize": "Размер шрифта",
     "fontFamily": "Семейство шрифтов",
-    "addWatermark": "Добавить «Создано в Excalidraw»",
+    "addWatermark": "Добавить «Создано в Drawsy»",
     "handDrawn": "От руки",
     "normal": "Обычный",
     "code": "Код",
@@ -91,7 +91,7 @@
     "untitled": "Безымянный",
     "name": "Имя",
     "yourName": "Ваше имя",
-    "madeWithExcalidraw": "Сделано в Excalidraw",
+    "madeWithExcalidraw": "Сделано в Drawsy",
     "group": "Сгруппировать выделение",
     "ungroup": "Разделить выделение",
     "collaborators": "Участники",
@@ -121,7 +121,7 @@
     "toggleTheme": "Переключить светлую/тёмную тему",
     "theme": "Тема",
     "personalLib": "Личная библиотека",
-    "excalidrawLib": "Библиотека Excalidraw",
+    "excalidrawLib": "Библиотека Drawsy",
     "decreaseFontSize": "Уменьшить шрифт",
     "increaseFontSize": "Увеличить шрифт",
     "unbindText": "Отвязать текст",
@@ -163,7 +163,7 @@
     "zoomToFitViewport": "Масштабировать до области просмотра",
     "zoomToFitSelection": "Увеличить до выделенного",
     "zoomToFit": "Приблизьте все элементы",
-    "installPWA": "Установить Excalidraw локально (PWA)",
+    "installPWA": "Установить Drawsy локально (PWA)",
     "autoResize": "Включить автоизменение размера текста",
     "imageCropping": "Обрезка изображения",
     "unCroppedDimension": "Необрезанный размер",
@@ -248,7 +248,7 @@
     "cannotExportEmptyCanvas": "Не может экспортировать пустой холст.",
     "couldNotCopyToClipboard": "Не удалось скопировать в буфер обмена.",
     "decryptFailed": "Не удалось расшифровать данные.",
-    "uploadedSecurly": "Загружаемые данные защищена сквозным шифрованием, что означает, что сервер Excalidraw и третьи стороны не могут прочитать содержимое.",
+    "uploadedSecurly": "Загружаемые данные защищена сквозным шифрованием, что означает, что сервер Drawsy и третьи стороны не могут прочитать содержимое.",
     "loadSceneOverridePrompt": "Загрузка рисунка приведёт к замене имеющегося содержимого. Вы хотите продолжить?",
     "collabStopOverridePrompt": "Остановка сессии перезапишет ваш предыдущий, локально сохранённый рисунок. Вы уверены? \n\n(Если вы хотите оставить ваш локальный рисунок, просто закройте вкладку браузера).",
     "errorAddingToLibrary": "Не удалось добавить объект в библиотеку",
@@ -256,7 +256,7 @@
     "confirmAddLibrary": "Будут добавлены фигуры ({{numShapes}}) в вашу библиотеку. Продолжить?",
     "imageDoesNotContainScene": "Это изображение не содержит данных сцены. Вы включили встраивание сцены во время экспорта?",
     "cannotRestoreFromImage": "Сцена не может быть восстановлена из этого изображения",
-    "invalidSceneUrl": "Невозможно импортировать сцену с предоставленного URL. Неверный формат, или не содержит верных Excalidraw JSON данных.",
+    "invalidSceneUrl": "Невозможно импортировать сцену с предоставленного URL. Неверный формат, или не содержит верных Drawsy JSON данных.",
     "resetLibrary": "Это очистит вашу библиотеку. Вы уверены?",
     "removeItemsFromsLibrary": "Удалить объекты ({{count}}) из библиотеки?",
     "invalidEncryptionKey": "Ключ шифрования должен состоять из 22 символов. Одновременное редактирование отключено.",
@@ -312,7 +312,7 @@
     "laser": "Лазерная указка",
     "hand": "Рука (перемещение холста)",
     "extraTools": "Дополнительные инструменты",
-    "mermaidToExcalidraw": "Mermaid в Excalidraw",
+    "mermaidToExcalidraw": "Mermaid в Drawsy",
     "convertElementType": "Переключение типа формы"
   },
   "element": {
@@ -390,7 +390,7 @@
     "desc_inProgressIntro": "Сеанс совместной работы запущен.",
     "desc_shareLink": "Поделитесь этой ссылкой со всеми участниками:",
     "desc_exitSession": "Завершив сеанс, вы выйдете из комнаты, но сможете продолжить работать с документом локально. Это не повлияет на работу других пользователей — они смогут продолжить совместную работу с их версией документа.",
-    "shareTitle": "Присоединиться к активной совместной сессии на Excalidraw"
+    "shareTitle": "Присоединиться к активной совместной сессии на Drawsy"
   },
   "errorDialog": {
     "title": "Ошибка"
@@ -402,9 +402,9 @@
     "link_title": "Поделитесь ссылкой",
     "link_details": "Экспорт ссылки только для чтения.",
     "link_button": "Экспорт в ссылку",
-    "excalidrawplus_description": "Сохраните сцену в ваше рабочее пространство Excalidraw+.",
+    "excalidrawplus_description": "Сохраните сцену в ваше рабочее пространство Drawsy+.",
     "excalidrawplus_button": "Экспорт",
-    "excalidrawplus_exportError": "Не удалось экспортировать в Excalidraw+ на данный момент..."
+    "excalidrawplus_exportError": "Не удалось экспортировать в Drawsy+ на данный момент..."
   },
   "helpDialog": {
     "blog": "Прочитайте наш блог",
@@ -503,8 +503,8 @@
     }
   },
   "encrypted": {
-    "tooltip": "Ваши данные защищены сквозным (End-to-end) шифрованием. Серверы Excalidraw никогда не получат доступ к ним.",
-    "link": "Запись блога о сквозном шифровании в Excalidraw"
+    "tooltip": "Ваши данные защищены сквозным (End-to-end) шифрованием. Серверы Drawsy никогда не получат доступ к ним.",
+    "link": "Запись блога о сквозном шифровании в Drawsy"
   },
   "stats": {
     "angle": "Угол",
@@ -560,7 +560,7 @@
       "center_heading": "",
       "center_heading_line2": "",
       "center_heading_line3": "",
-      "center_heading_plus": "Хотите перейти на Excalidraw+?",
+      "center_heading_plus": "Хотите перейти на Drawsy+?",
       "menuHint": "Экспорт, настройки, языки, ..."
     },
     "defaults": {
@@ -591,9 +591,9 @@
         "description": "Экспортировать данные сцены в файл, из которого можно импортировать позже."
       },
       "excalidrawPlus": {
-        "title": "Excalidraw+",
-        "button": "Экспорт в Excalidraw+",
-        "description": "Сохраните сцену в ваше рабочее пространство Excalidraw+."
+        "title": "Drawsy+",
+        "button": "Экспорт в Drawsy+",
+        "description": "Сохраните сцену в ваше рабочее пространство Drawsy+."
       }
     },
     "modal": {
@@ -610,9 +610,9 @@
     }
   },
   "mermaid": {
-    "title": "Из Mermaid в Excalidraw",
+    "title": "Из Mermaid в Drawsy",
     "button": "Вставить",
-    "description": "В настоящее время поддерживаются только <flowchartLink>блок-схемы</flowchartLink>, <sequenceLink>диаграммы последовательности</sequenceLink> и <classLink>диаграммы классов</classLink>. Другие типы будут отображаться в виде изображения в Excalidraw.",
+    "description": "В настоящее время поддерживаются только <flowchartLink>блок-схемы</flowchartLink>, <sequenceLink>диаграммы последовательности</sequenceLink> и <classLink>диаграммы классов</classLink>. Другие типы будут отображаться в виде изображения в Drawsy.",
     "syntax": "Синтаксис Mermaid",
     "preview": "Предпросмотр",
     "label": "Mermaid",
@@ -658,7 +658,7 @@
       "mermaidParseError": ""
     },
     "rateLimit": {
-      "messageLimit": "Вы достигли лимита ИИ на бесплатном тарифном плане. Попробуйте Excalidraw+ или вернитесь завтра.",
+      "messageLimit": "Вы достигли лимита ИИ на бесплатном тарифном плане. Попробуйте Drawsy+ или вернитесь завтра.",
       "generalRateLimit": "Подождите, вы слишком быстры для нас! Пожалуйста, подождите немного, прежде чем повторить попытку.",
       "messageLimitInputPlaceholder": "Вы достигли лимита сообщений"
     },

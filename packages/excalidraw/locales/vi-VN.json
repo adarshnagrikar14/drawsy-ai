@@ -56,7 +56,7 @@
     "arrowtype_elbowed": "Mũi tên gấp khúc",
     "fontSize": "Cỡ chữ",
     "fontFamily": "Phông chữ",
-    "addWatermark": "Làm với Excalidraw\"",
+    "addWatermark": "Làm với Drawsy\"",
     "handDrawn": "Vẽ tay",
     "normal": "Bình thường",
     "code": "Mã",
@@ -91,7 +91,7 @@
     "untitled": "Không có tiêu đề",
     "name": "Tên",
     "yourName": "Tên của bạn",
-    "madeWithExcalidraw": "Làm với Excalidraw",
+    "madeWithExcalidraw": "Làm với Drawsy",
     "group": "Gộp nhóm lại lựa chọn",
     "ungroup": "Tách nhóm lựa chọn",
     "collaborators": "Cộng tác viên",
@@ -121,7 +121,7 @@
     "toggleTheme": "Chuyển đổi giao diện sáng/tối",
     "theme": "Chủ đề",
     "personalLib": "Thư viện cá nhân",
-    "excalidrawLib": "Thư viện Excalidraw",
+    "excalidrawLib": "Thư viện Drawsy",
     "decreaseFontSize": "Giảm cỡ chữ",
     "increaseFontSize": "Tăng cỡ chữ",
     "unbindText": "Bỏ liên kết văn bản",
@@ -163,7 +163,7 @@
     "zoomToFitViewport": "Thu phóng vừa với khung nhìn",
     "zoomToFitSelection": "Thu phóng vừa với vùng chọn",
     "zoomToFit": "Thu phóng để hiển thị toàn bộ các phần tử",
-    "installPWA": "Cài đặt Excalidraw trên máy (PWA)",
+    "installPWA": "Cài đặt Drawsy trên máy (PWA)",
     "autoResize": "Bật tự động thay đổi kích thước văn bản",
     "imageCropping": "Cắt ảnh",
     "unCroppedDimension": "Kích thước gốc (chưa cắt)",
@@ -248,7 +248,7 @@
     "cannotExportEmptyCanvas": "Không thể xuất canvas trống.",
     "couldNotCopyToClipboard": "Không thể sao chép vào bộ nhớ tạm.",
     "decryptFailed": "Không thể giải mã dữ liệu.",
-    "uploadedSecurly": "Việc tải lên đã được bảo mật với mã hóa đầu cuối, có nghĩa là máy chủ Excalidraw và bên thứ ba không thể đọc nội dung.",
+    "uploadedSecurly": "Việc tải lên đã được bảo mật với mã hóa đầu cuối, có nghĩa là máy chủ Drawsy và bên thứ ba không thể đọc nội dung.",
     "loadSceneOverridePrompt": "Mở bản vẽ bên ngoài sẽ thay thế nội dung hiện tại của bạn. Bạn có muốn tiếp tục không?",
     "collabStopOverridePrompt": "Dừng phiên sẽ ghi đè lên bản vẽ được lưu trữ cục bộ trước đó của bạn. Bạn có chắc không?\n\n(Nếu bạn muốn giữ bản vẽ cục bộ của mình, chỉ cần đóng tab trình duyệt.)",
     "errorAddingToLibrary": "Không thể thêm món vào thư viện",
@@ -256,7 +256,7 @@
     "confirmAddLibrary": "Hình {{numShapes}} sẽ được thêm vào thư viện. Bạn chắc chứ?",
     "imageDoesNotContainScene": "Hình ảnh này dường như không chứa bất kỳ dữ liệu cảnh nào. Bạn đã bật tính năng nhúng cảnh khi xuất chưa?",
     "cannotRestoreFromImage": "Không thể khôi phục bản vẽ từ tệp hình ảnh này.",
-    "invalidSceneUrl": "Không thể nhập nội dung từ URL đã cung cấp. Đó có thể là do URL không đúng cú pháp hoặc không chứa dữ liệu JSON hợp lệ với Excalidraw.",
+    "invalidSceneUrl": "Không thể nhập nội dung từ URL đã cung cấp. Đó có thể là do URL không đúng cú pháp hoặc không chứa dữ liệu JSON hợp lệ với Drawsy.",
     "resetLibrary": "Hành động này sẽ xóa toàn bộ thư viện của bạn. Bạn chắc chắn chứ?",
     "removeItemsFromsLibrary": "Xoá {{count}} món từ thư viện?",
     "invalidEncryptionKey": "Khóa mã hóa phải có 22 ký tự. Hợp tác trực tiếp bị vô hiệu hóa.",
@@ -312,7 +312,7 @@
     "laser": "Con trỏ laser",
     "hand": "Tay kéo",
     "extraTools": "Công cụ khác",
-    "mermaidToExcalidraw": "Mermaid sang Excalidraw",
+    "mermaidToExcalidraw": "Mermaid sang Drawsy",
     "convertElementType": ""
   },
   "element": {
@@ -390,7 +390,7 @@
     "desc_inProgressIntro": "Phiên làm việc trực tiếp hiện đang diễn ra.",
     "desc_shareLink": "Chia sẻ liên kết này với người bạn muốn cộng tác cùng:",
     "desc_exitSession": "Dừng phiên sẽ đưa bạn ra khỏi phòng, nhưng bạn vẫn có thể làm việc tiếp trên máy. Những người khác sẽ không bị ảnh hưởng và vẫn cộng tác trên bản của họ.",
-    "shareTitle": "Vào phiên làm việc chung trên Excalidraw"
+    "shareTitle": "Vào phiên làm việc chung trên Drawsy"
   },
   "errorDialog": {
     "title": "Lỗi"
@@ -402,9 +402,9 @@
     "link_title": "Liên kết có thể chia sẻ",
     "link_details": "Tạo liên kết chỉ xem",
     "link_button": "Tạo liên kết",
-    "excalidrawplus_description": "Lưu bản vẽ vào không gian làm việc Excalidraw+ của bạn.",
+    "excalidrawplus_description": "Lưu bản vẽ vào không gian làm việc Drawsy+ của bạn.",
     "excalidrawplus_button": "Xuất",
-    "excalidrawplus_exportError": "Hiện tại không thể xuất sang Excalidraw+..."
+    "excalidrawplus_exportError": "Hiện tại không thể xuất sang Drawsy+..."
   },
   "helpDialog": {
     "blog": "Đọc blog của chúng tôi",
@@ -503,8 +503,8 @@
     }
   },
   "encrypted": {
-    "tooltip": "Bản vẽ của bạn được bảo mật bằng mã hóa đầu cuối, vì vậy máy chủ Excalidraw sẽ không thể xem chúng.",
-    "link": "Bài blog về mã hóa đầu cuối trong Excalidraw"
+    "tooltip": "Bản vẽ của bạn được bảo mật bằng mã hóa đầu cuối, vì vậy máy chủ Drawsy sẽ không thể xem chúng.",
+    "link": "Bài blog về mã hóa đầu cuối trong Drawsy"
   },
   "stats": {
     "angle": "Góc",

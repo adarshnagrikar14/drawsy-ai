@@ -91,7 +91,7 @@
     "untitled": "නිර්නාමික",
     "name": "නම",
     "yourName": "ඔබගේ නම",
-    "madeWithExcalidraw": "Excalidraw සමඟ සාදන ලද",
+    "madeWithExcalidraw": "Drawsy සමඟ සාදන ලද",
     "group": "කණ්ඩායම",
     "ungroup": "කණ්ඩායම් ඉවත් කරන්න",
     "collaborators": "සහයෝගිකයන්",
@@ -121,7 +121,7 @@
     "toggleTheme": "තේමාව ටොගල් කරන්න",
     "theme": "",
     "personalLib": "පුද්ගලික පුස්තකාලය",
-    "excalidrawLib": "Excalidraw පුස්තකාලය",
+    "excalidrawLib": "Drawsy පුස්තකාලය",
     "decreaseFontSize": "අකුරු ප්‍රමාණය අඩු කරන්න",
     "increaseFontSize": "අකුරු ප්‍රමාණය වැඩි කරන්න",
     "unbindText": "පෙළ විසන්ධි කරන්න",
@@ -312,7 +312,7 @@
     "laser": "ලේසර්",
     "hand": "අත",
     "extraTools": "අමතර මෙවලම්",
-    "mermaidToExcalidraw": "Mermaid වලින් Excalidraw වෙත",
+    "mermaidToExcalidraw": "Mermaid වලින් Drawsy වෙත",
     "convertElementType": ""
   },
   "element": {
@@ -402,9 +402,9 @@
     "link_title": "සබැඳි මාතෘකාව",
     "link_details": "සබැඳි විස්තර",
     "link_button": "සබැඳි බොත්තම",
-    "excalidrawplus_description": "ExcalidrawPlus විස්තර",
-    "excalidrawplus_button": "ExcalidrawPlus බොත්තම",
-    "excalidrawplus_exportError": "ExcalidrawPlus නිර්යාත දෝෂය"
+    "excalidrawplus_description": "DrawsyPlus විස්තර",
+    "excalidrawplus_button": "DrawsyPlus බොත්තම",
+    "excalidrawplus_exportError": "DrawsyPlus නිර්යාත දෝෂය"
   },
   "helpDialog": {
     "blog": "බ්ලොග්",
@@ -591,9 +591,9 @@
         "description": "තැටියට සුරැකීම විස්තර"
       },
       "excalidrawPlus": {
-        "title": "ExcalidrawPlus ආවරණය",
-        "button": "ExcalidrawPlus බොත්තම",
-        "description": "ExcalidrawPlus විස්තර"
+        "title": "DrawsyPlus ආවරණය",
+        "button": "DrawsyPlus බොත්තම",
+        "description": "DrawsyPlus විස්තර"
       }
     },
     "modal": {

@@ -56,7 +56,7 @@
     "arrowtype_elbowed": "Seta em cotovelo",
     "fontSize": "Tamanho do tipo de letra",
     "fontFamily": "Família do tipo de letra",
-    "addWatermark": "Adicionar \"Feito com Excalidraw\"",
+    "addWatermark": "Adicionar \"Feito com Drawsy\"",
     "handDrawn": "Manuscrito",
     "normal": "Normal",
     "code": "Código",
@@ -91,7 +91,7 @@
     "untitled": "Sem título",
     "name": "Nome",
     "yourName": "O seu nome",
-    "madeWithExcalidraw": "Feito com Excalidraw",
+    "madeWithExcalidraw": "Feito com Drawsy",
     "group": "Agrupar seleção",
     "ungroup": "Desagrupar seleção",
     "collaborators": "Colaboradores",
@@ -121,7 +121,7 @@
     "toggleTheme": "Alternar tema claro/escuro",
     "theme": "Tema",
     "personalLib": "Biblioteca pessoal",
-    "excalidrawLib": "Biblioteca do Excalidraw",
+    "excalidrawLib": "Biblioteca do Drawsy",
     "decreaseFontSize": "Reduzir o tamanho do tipo de letra",
     "increaseFontSize": "Aumentar o tamanho do tipo de letra",
     "unbindText": "Desligar texto",
@@ -163,7 +163,7 @@
     "zoomToFitViewport": "Aproximar para enquadrar no cisualizador",
     "zoomToFitSelection": "Aproximar para enquadrar a seleção",
     "zoomToFit": "Aproximar para enquadrar todos os elementos",
-    "installPWA": "Instalar Excalidraw localmente (PWA)",
+    "installPWA": "Instalar Drawsy localmente (PWA)",
     "autoResize": "Ativar redimensionamento automático do texto",
     "imageCropping": "Corte de imagem",
     "unCroppedDimension": "Dimensão sem corte",
@@ -248,7 +248,7 @@
     "cannotExportEmptyCanvas": "Não é possível exportar uma área de desenho vazia.",
     "couldNotCopyToClipboard": "Não foi possível copiar para a área de transferência.",
     "decryptFailed": "Não foi possível desencriptar os dados.",
-    "uploadedSecurly": "O envio foi protegido com encriptação de ponta a ponta, o que significa que o servidor do Excalidraw e terceiros não podem ler o conteúdo.",
+    "uploadedSecurly": "O envio foi protegido com encriptação de ponta a ponta, o que significa que o servidor do Drawsy e terceiros não podem ler o conteúdo.",
     "loadSceneOverridePrompt": "Se carregar um desenho externo substituirá o conteúdo existente. Quer continuar?",
     "collabStopOverridePrompt": "Ao interromper a sessão irá substituir o último desenho guardado. Tem a certeza?\n\n(Caso queira manter o último desenho, simplesmente feche a janela do navegador.)",
     "errorAddingToLibrary": "Não foi possível adicionar o item à biblioteca",
@@ -256,7 +256,7 @@
     "confirmAddLibrary": "Isto irá adicionar {{numShapes}} forma(s) à sua biblioteca. Tem a certeza?",
     "imageDoesNotContainScene": "Esta imagem parece não conter dados de cenas. Ativou a incorporação da cena durante a exportação?",
     "cannotRestoreFromImage": "Não foi possível restaurar a cena deste ficheiro de imagem",
-    "invalidSceneUrl": "Não foi possível importar a cena a partir do URL fornecido. Ou está mal formado ou não contém dados JSON do Excalidraw válidos.",
+    "invalidSceneUrl": "Não foi possível importar a cena a partir do URL fornecido. Ou está mal formado ou não contém dados JSON do Drawsy válidos.",
     "resetLibrary": "Isto irá limpar a sua biblioteca. Tem a certeza?",
     "removeItemsFromsLibrary": "Apagar {{count}} item(ns) da biblioteca?",
     "invalidEncryptionKey": "A chave de encriptação deve ter 22 caracteres. A colaboração ao vivo está desativada.",
@@ -312,7 +312,7 @@
     "laser": "Ponteiro laser",
     "hand": "Mão (ferramenta de deslocar vista)",
     "extraTools": "Mais ferramentas",
-    "mermaidToExcalidraw": "Mermaid para Excalidraw",
+    "mermaidToExcalidraw": "Mermaid para Drawsy",
     "convertElementType": ""
   },
   "element": {
@@ -390,7 +390,7 @@
     "desc_inProgressIntro": "A sessão de colaboração ao vivo está agora a decorrer.",
     "desc_shareLink": "Partilhe esta hiperligação com qualquer pessoa com quem queira colaborar:",
     "desc_exitSession": "Se interromper a sessão, será desconectado da sala, mas poderá continuar a trabalhar com a cena localmente. Tenha em atenção que isto não afetará as outras pessoas, que poderão continuar a colaborar na sua versão.",
-    "shareTitle": "Participe numa sessão de colaboração ao vivo no Excalidraw"
+    "shareTitle": "Participe numa sessão de colaboração ao vivo no Drawsy"
   },
   "errorDialog": {
     "title": "Erro"
@@ -402,9 +402,9 @@
     "link_title": "Hiperligação partilhável",
     "link_details": "Exportar como uma hiperligação de apenas leitura.",
     "link_button": "Exportar para hiperligação",
-    "excalidrawplus_description": "Guardar a cena no seu espaço de trabalho do Excalidraw+.",
+    "excalidrawplus_description": "Guardar a cena no seu espaço de trabalho do Drawsy+.",
     "excalidrawplus_button": "Exportar",
-    "excalidrawplus_exportError": "Não foi possível exportar para o Excalidraw+ neste momento..."
+    "excalidrawplus_exportError": "Não foi possível exportar para o Drawsy+ neste momento..."
   },
   "helpDialog": {
     "blog": "Leia o nosso blogue",
@@ -503,8 +503,8 @@
     }
   },
   "encrypted": {
-    "tooltip": "Os seus desenhos são encriptados de ponta a ponta para que os servidores do Excalidraw nunca os vejam.",
-    "link": "Publicação no blogue sobre a encriptação de ponta a ponta no Excalidraw"
+    "tooltip": "Os seus desenhos são encriptados de ponta a ponta para que os servidores do Drawsy nunca os vejam.",
+    "link": "Publicação no blogue sobre a encriptação de ponta a ponta no Drawsy"
   },
   "stats": {
     "angle": "Ângulo",
@@ -560,7 +560,7 @@
       "center_heading": "",
       "center_heading_line2": "",
       "center_heading_line3": "",
-      "center_heading_plus": "Queria antes ir para o Excalidraw+?",
+      "center_heading_plus": "Queria antes ir para o Drawsy+?",
       "menuHint": "Exportar, preferências, idiomas..."
     },
     "defaults": {
@@ -591,9 +591,9 @@
         "description": "Exportar os dados da cena para um ficheiro do qual poderá importar mais tarde."
       },
       "excalidrawPlus": {
-        "title": "Excalidraw+",
-        "button": "Exportar para Excalidraw+",
-        "description": "Guardar a cena no seu espaço de trabalho do Excalidraw+."
+        "title": "Drawsy+",
+        "button": "Exportar para Drawsy+",
+        "description": "Guardar a cena no seu espaço de trabalho do Drawsy+."
       }
     },
     "modal": {
@@ -610,9 +610,9 @@
     }
   },
   "mermaid": {
-    "title": "Mermaid para Excalidraw",
+    "title": "Mermaid para Drawsy",
     "button": "Inserir",
-    "description": "Atualmente apenas são suportados diagramas <flowchartLink>fluxo</flowchartLink>, <sequenceLink>sequência, </sequenceLink> e <classLink>classe</classLink>. Os outros tipos serão renderizados como imagem no Excalidraw.",
+    "description": "Atualmente apenas são suportados diagramas <flowchartLink>fluxo</flowchartLink>, <sequenceLink>sequência, </sequenceLink> e <classLink>classe</classLink>. Os outros tipos serão renderizados como imagem no Drawsy.",
     "syntax": "Sintaxe Mermaid",
     "preview": "Pré-visualizar",
     "label": "",

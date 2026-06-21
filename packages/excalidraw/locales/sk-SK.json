@@ -56,7 +56,7 @@
     "arrowtype_elbowed": "Zalomená šípka",
     "fontSize": "Veľkosť písma",
     "fontFamily": "Písmo",
-    "addWatermark": "Pridať \"Vytvorené s Excalidraw\"",
+    "addWatermark": "Pridať \"Vytvorené s Drawsy\"",
     "handDrawn": "Ručne písané",
     "normal": "Normálne",
     "code": "Kód",
@@ -91,7 +91,7 @@
     "untitled": "Bez názvu",
     "name": "Meno",
     "yourName": "Vaše meno",
-    "madeWithExcalidraw": "Vytvorené s Excalidraw",
+    "madeWithExcalidraw": "Vytvorené s Drawsy",
     "group": "Zoskupiť",
     "ungroup": "Zrušiť zoskupenie",
     "collaborators": "Spolupracovníci",
@@ -121,7 +121,7 @@
     "toggleTheme": "Prepnúť svetlú/tmavú tému",
     "theme": "Téma",
     "personalLib": "Moja knižnica",
-    "excalidrawLib": "Excalidraw knižnica",
+    "excalidrawLib": "Drawsy knižnica",
     "decreaseFontSize": "Zmenšiť veľkosť písma",
     "increaseFontSize": "Zväčšiť veľkosť písma",
     "unbindText": "Zrušiť previazanie textu",
@@ -163,7 +163,7 @@
     "zoomToFitViewport": "Priblížiť na veľkosť zobrazenia",
     "zoomToFitSelection": "Priblížiť na výber",
     "zoomToFit": "Priblížiť aby boli zahrnuté všetky prvky",
-    "installPWA": "Inštalovať Excalidraw lokálne (PWA)",
+    "installPWA": "Inštalovať Drawsy lokálne (PWA)",
     "autoResize": "Zapnúť automatickú zmenu veľkosti textu",
     "imageCropping": "Orezanie obrázka",
     "unCroppedDimension": "Pôvodné rozmery",
@@ -248,7 +248,7 @@
     "cannotExportEmptyCanvas": "Nie je možné exportovať prázdne plátno.",
     "couldNotCopyToClipboard": "Kopírovanie do schránky sa nepodarilo.",
     "decryptFailed": "Nepodarilo sa rozšifrovať údaje.",
-    "uploadedSecurly": "Nahratie je zabezpečené end-to-end šifrovaním, takže Excalidraw server a tretie strany nedokážu prečítať jeho obsah.",
+    "uploadedSecurly": "Nahratie je zabezpečené end-to-end šifrovaním, takže Drawsy server a tretie strany nedokážu prečítať jeho obsah.",
     "loadSceneOverridePrompt": "Nahratie externej kresby nahradí existujúci obsah. Prajete si pokračovať?",
     "collabStopOverridePrompt": "Ukončenie schôdze nahradí vašu predchádzajúcu lokálne uloženú scénu. Ste si istý?\n\n(Ak si chcete ponechať lokálnu scénu, jednoducho iba zavrite kartu prehliadača.)",
     "errorAddingToLibrary": "Nepodarilo sa pridať položku do knižnice",
@@ -256,7 +256,7 @@
     "confirmAddLibrary": "Týmto sa pridá {{numShapes}} tvar(ov) do vašej knižnice. Ste si istí?",
     "imageDoesNotContainScene": "Tento obrázok neobsahuje žiadne údaje scény. Zvolili ste možnosť zahrnúť scénu počas exportu?",
     "cannotRestoreFromImage": "Nepodarilo sa obnoviť scénu z tohto obrázkového súboru",
-    "invalidSceneUrl": "Nepodarilo sa načítať scénu z poskytnutej URL. Je nevalidná alebo neobsahuje žiadne validné Excalidraw JSON dáta.",
+    "invalidSceneUrl": "Nepodarilo sa načítať scénu z poskytnutej URL. Je nevalidná alebo neobsahuje žiadne validné Drawsy JSON dáta.",
     "resetLibrary": "Týmto vyprázdnite vašu knižnicu. Ste si istý?",
     "removeItemsFromsLibrary": "Odstrániť {{count}} položiek z knižnice?",
     "invalidEncryptionKey": "Šifrovací kľúč musí mať 22 znakov. Živá spolupráca je vypnutá.",
@@ -312,7 +312,7 @@
     "laser": "Laserový ukazovateľ",
     "hand": "Ruka (nástroj pre pohyb plátna)",
     "extraTools": "Ďalšie nástroje",
-    "mermaidToExcalidraw": "Mermaid do Excalidraw",
+    "mermaidToExcalidraw": "Mermaid do Drawsy",
     "convertElementType": "Prepnúť typ tvaru"
   },
   "element": {
@@ -390,7 +390,7 @@
     "desc_inProgressIntro": "Práve prebieha živá schôdza.",
     "desc_shareLink": "Zdieľajte tento odkaz s osobou, s ktorou chcete spolupracovať:",
     "desc_exitSession": "Ukončenie schôdze vás odpojí z miestnosti, avšak naďalej budete môcť pokračovať v práci na scéne lokálne. Toto neovplyvní ostatných spolupracovníkov a stále budú môcť spolupracovať na ich verzii.",
-    "shareTitle": "Pripojiť sa k živej schôdzi na Excalidraw"
+    "shareTitle": "Pripojiť sa k živej schôdzi na Drawsy"
   },
   "errorDialog": {
     "title": "Chyba"
@@ -402,9 +402,9 @@
     "link_title": "Odkaz na zdieľanie",
     "link_details": "Exportovať ako odkaz iba na čítanie.",
     "link_button": "Exportovať ako odkaz",
-    "excalidrawplus_description": "Uložiť scénu do vášho Excalidraw+ pracovného priestoru.",
+    "excalidrawplus_description": "Uložiť scénu do vášho Drawsy+ pracovného priestoru.",
     "excalidrawplus_button": "Exportovať",
-    "excalidrawplus_exportError": "Nepodarilo sa vykonať export do Excalidraw+..."
+    "excalidrawplus_exportError": "Nepodarilo sa vykonať export do Drawsy+..."
   },
   "helpDialog": {
     "blog": "Prečítajte si náš blog",
@@ -503,8 +503,8 @@
     }
   },
   "encrypted": {
-    "tooltip": "Vaše kresby používajú end-to-end šifrovanie, takže ich Excalidraw server nedokáže prečítať.",
-    "link": "Blog o end-to-end šifrovaní v Excalidraw"
+    "tooltip": "Vaše kresby používajú end-to-end šifrovanie, takže ich Drawsy server nedokáže prečítať.",
+    "link": "Blog o end-to-end šifrovaní v Drawsy"
   },
   "stats": {
     "angle": "Uhol",
@@ -560,7 +560,7 @@
       "center_heading": "",
       "center_heading_line2": "",
       "center_heading_line3": "",
-      "center_heading_plus": "Chceli ste namiesto toho prejsť do Excalidraw+?",
+      "center_heading_plus": "Chceli ste namiesto toho prejsť do Drawsy+?",
       "menuHint": "Exportovanie, nastavenia, jazyky, ..."
     },
     "defaults": {
@@ -591,9 +591,9 @@
         "description": "Exportovať údaje scény do súboru, z ktorého môžu byť neskôr importované."
       },
       "excalidrawPlus": {
-        "title": "Excalidraw+",
-        "button": "Exportovať ako Excalidraw+",
-        "description": "Uložiť scénu do vášho Excalidraw+ pracovného priestoru."
+        "title": "Drawsy+",
+        "button": "Exportovať ako Drawsy+",
+        "description": "Uložiť scénu do vášho Drawsy+ pracovného priestoru."
       }
     },
     "modal": {
@@ -610,9 +610,9 @@
     }
   },
   "mermaid": {
-    "title": "Mermaid do Excalidraw",
+    "title": "Mermaid do Drawsy",
     "button": "Vložiť",
-    "description": "Aktuálne sú podporované iba <flowchartLink>vývojové diagramy</flowchartLink>, <sequenceLink>sekvenčné diagramy</sequenceLink> a <classLink>diagramy tried</classLink>. Ostatné typy budú v Excalidraw vykreslené ako obrázky.",
+    "description": "Aktuálne sú podporované iba <flowchartLink>vývojové diagramy</flowchartLink>, <sequenceLink>sekvenčné diagramy</sequenceLink> a <classLink>diagramy tried</classLink>. Ostatné typy budú v Drawsy vykreslené ako obrázky.",
     "syntax": "Mermaid syntax",
     "preview": "Ukážka",
     "label": "",

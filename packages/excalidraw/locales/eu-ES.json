@@ -56,7 +56,7 @@
     "arrowtype_elbowed": "",
     "fontSize": "Letra-tamaina",
     "fontFamily": "Letra-tipoa",
-    "addWatermark": "Gehitu \"Excalidraw bidez egina\"",
+    "addWatermark": "Gehitu \"Drawsy bidez egina\"",
     "handDrawn": "Eskuz marraztua",
     "normal": "Normala",
     "code": "Kodea",
@@ -91,7 +91,7 @@
     "untitled": "Izengabea",
     "name": "Izena",
     "yourName": "Zure izena",
-    "madeWithExcalidraw": "Excalidraw bidez egina",
+    "madeWithExcalidraw": "Drawsy bidez egina",
     "group": "Hautapena taldea bihurtu",
     "ungroup": "Desegin hautapenaren taldea",
     "collaborators": "Kolaboratzaileak",
@@ -121,7 +121,7 @@
     "toggleTheme": "Gaia argia/iluna aktibatu",
     "theme": "Itxura",
     "personalLib": "Liburutegi pertsonala",
-    "excalidrawLib": "Excalidraw liburutegia",
+    "excalidrawLib": "Drawsy liburutegia",
     "decreaseFontSize": "Txikitu letra tamaina",
     "increaseFontSize": "Handitu letra tamaina",
     "unbindText": "Askatu testua",
@@ -163,7 +163,7 @@
     "zoomToFitViewport": "Zoom ikuspegira",
     "zoomToFitSelection": "Zoom hautapenera",
     "zoomToFit": "Egin zoom elementu guztiak ikusteko",
-    "installPWA": "Instalatu Excalidraw lokalean (PWA)",
+    "installPWA": "Instalatu Drawsy lokalean (PWA)",
     "autoResize": "Textu zabalera automatikoa aktibatu",
     "imageCropping": "",
     "unCroppedDimension": "",
@@ -248,7 +248,7 @@
     "cannotExportEmptyCanvas": "Ezin izan da oihal hutsa esportatu.",
     "couldNotCopyToClipboard": "Ezin izan da arbelean kopiatu.",
     "decryptFailed": "Ezin izan da deszifratu.",
-    "uploadedSecurly": "Kargatzea muturretik muturrerako zifratze bidez ziurtatu da, hau da, Excalidraw zerbitzariak eta hirugarrenek ezin dutela edukia irakurri.",
+    "uploadedSecurly": "Kargatzea muturretik muturrerako zifratze bidez ziurtatu da, hau da, Drawsy zerbitzariak eta hirugarrenek ezin dutela edukia irakurri.",
     "loadSceneOverridePrompt": "Kanpoko marrazkia kargatzeak lehendik duzun edukia ordezkatuko du. Jarraitu nahi duzu?",
     "collabStopOverridePrompt": "Saioa gelditzeak lokalean gordetako zure aurreko marrazkia gainidatziko du. Ziur zaude?\n\n(Zure marrazki lokala mantendu nahi baduzu, itxi arakatzailearen fitxa.)",
     "errorAddingToLibrary": "Ezin izan da elementua liburutegian gehitu",
@@ -256,7 +256,7 @@
     "confirmAddLibrary": "Honek {{numShapes}} forma gehituko ditu zure liburutegian. Ziur zaude?",
     "imageDoesNotContainScene": "Irudi honek ez dirudi eszena daturik duenik. Eszena kapsulatzea gaitu al duzu esportazioan?",
     "cannotRestoreFromImage": "Ezin izan da eszena leheneratu irudi fitxategi honetatik",
-    "invalidSceneUrl": "Ezin izan da eszena inportatu emandako URLtik. Gaizki eratuta dago edo ez du baliozko Excalidraw JSON daturik.",
+    "invalidSceneUrl": "Ezin izan da eszena inportatu emandako URLtik. Gaizki eratuta dago edo ez du baliozko Drawsy JSON daturik.",
     "resetLibrary": "Honek zure liburutegia garbituko du. Ziur zaude?",
     "removeItemsFromsLibrary": "Liburutegitik {{count}} elementu ezabatu?",
     "invalidEncryptionKey": "Enkriptazio-gakoak 22 karaktere izan behar ditu. Zuzeneko lankidetza desgaituta dago.",
@@ -312,7 +312,7 @@
     "laser": "Laser punteroa",
     "hand": "Eskua (panoratze tresna)",
     "extraTools": "Tresna gehiago",
-    "mermaidToExcalidraw": "Mermaid-etik Excalidraw-ra",
+    "mermaidToExcalidraw": "Mermaid-etik Drawsy-ra",
     "convertElementType": ""
   },
   "element": {
@@ -390,7 +390,7 @@
     "desc_inProgressIntro": "Zuzeneko lankidetza saioa abian da.",
     "desc_shareLink": "Partekatu esteka hau elkarlanean aritu nahi duzun edonorekin:",
     "desc_exitSession": "Saioa ixteak aretotik deskonektatuko zaitu, baina eszenarekin lanean jarraitu ahal izango duzu lokalean. Kontuan izan honek ez diela beste pertsonei eragingo, eta euren bertsioan elkarlanean aritu ahal izango dira.",
-    "shareTitle": "Sartu Excalidraw-en zuzeneko lankidetza-saio batean"
+    "shareTitle": "Sartu Drawsy-en zuzeneko lankidetza-saio batean"
   },
   "errorDialog": {
     "title": "Errorea"
@@ -402,9 +402,9 @@
     "link_title": "Partekatzeko esteka",
     "link_details": "Esportatu irakurtzeko soilik moduko esteka.",
     "link_button": "Esportatu esteka",
-    "excalidrawplus_description": "Gorde eszena zure Excalidraw+ laneko areara.",
+    "excalidrawplus_description": "Gorde eszena zure Drawsy+ laneko areara.",
     "excalidrawplus_button": "Esportatu",
-    "excalidrawplus_exportError": "Une honetan ezin izan da esportatu Excalidraw+era..."
+    "excalidrawplus_exportError": "Une honetan ezin izan da esportatu Drawsy+era..."
   },
   "helpDialog": {
     "blog": "Irakurri gure bloga",
@@ -503,8 +503,8 @@
     }
   },
   "encrypted": {
-    "tooltip": "Zure marrazkiak muturretik muturrera enkriptatu dira, beraz Excalidraw-ren zerbitzariek ezingo dituzte ikusi.",
-    "link": "Excalidraw-ren muturretik muturrerako enkriptatzearen gaineko mezua blogean"
+    "tooltip": "Zure marrazkiak muturretik muturrera enkriptatu dira, beraz Drawsy-ren zerbitzariek ezingo dituzte ikusi.",
+    "link": "Drawsy-ren muturretik muturrerako enkriptatzearen gaineko mezua blogean"
   },
   "stats": {
     "angle": "Angelua",
@@ -560,7 +560,7 @@
       "center_heading": "",
       "center_heading_line2": "",
       "center_heading_line3": "",
-      "center_heading_plus": "Horren ordez Excalidraw+-era joan nahi al zenuen?",
+      "center_heading_plus": "Horren ordez Drawsy+-era joan nahi al zenuen?",
       "menuHint": "Esportatu, hobespenak, hizkuntzak..."
     },
     "defaults": {
@@ -591,9 +591,9 @@
         "description": "Esportatu eszenaren datuak geroago inportatu ahal izango duzun fitxategi batan."
       },
       "excalidrawPlus": {
-        "title": "Excalidraw+",
-        "button": "Esportatu Excalidraw+ra",
-        "description": "Gorde eszena zure Excalidraw+ laneko areara."
+        "title": "Drawsy+",
+        "button": "Esportatu Drawsy+ra",
+        "description": "Gorde eszena zure Drawsy+ laneko areara."
       }
     },
     "modal": {
@@ -610,9 +610,9 @@
     }
   },
   "mermaid": {
-    "title": "Mermaid-etik Excalidraw-ra",
+    "title": "Mermaid-etik Drawsy-ra",
     "button": "Txertatu",
-    "description": "Momentu honetan <flowchartLink>Flowchart</flowchartLink>, <sequenceLink> Sequence, </sequenceLink> eta <classLink>Class </classLink>Diagramak onartzen dira. Beste motak irudi gisa errendatuko dira Excalidrawn.",
+    "description": "Momentu honetan <flowchartLink>Flowchart</flowchartLink>, <sequenceLink> Sequence, </sequenceLink> eta <classLink>Class </classLink>Diagramak onartzen dira. Beste motak irudi gisa errendatuko dira Drawsyn.",
     "syntax": "Mermaid sintaxia",
     "preview": "Aurrebista",
     "label": "",
