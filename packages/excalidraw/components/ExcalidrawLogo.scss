@@ -24,13 +24,16 @@
 
     .ExcalidrawLogo-icon {
       width: auto;
-      color: var(--color-logo-icon);
     }
 
     .ExcalidrawLogo-text {
       margin-left: 0.75rem;
       width: auto;
       color: var(--color-logo-text);
+      font-family: var(--ui-font);
+      font-weight: 700;
+      line-height: 1;
+      white-space: nowrap;
     }
 
     &.is-mobile {
@@ -39,7 +42,7 @@
       }
 
       .ExcalidrawLogo-text {
-        height: var(--logo-text--mobile);
+        font-size: var(--logo-text--mobile);
         margin-left: 0.5rem;
       }
     }
@@ -50,7 +53,7 @@
       }
 
       .ExcalidrawLogo-text {
-        height: var(--logo-text--xs);
+        font-size: var(--logo-text--xs);
       }
     }
 
@@ -60,7 +63,7 @@
       }
 
       .ExcalidrawLogo-text {
-        height: var(--logo-text--small);
+        font-size: var(--logo-text--small);
       }
     }
 
@@ -70,7 +73,7 @@
       }
 
       .ExcalidrawLogo-text {
-        height: var(--logo-text--normal);
+        font-size: var(--logo-text--normal);
       }
     }
 
@@ -80,7 +83,7 @@
       }
 
       .ExcalidrawLogo-text {
-        height: var(--logo-text--large);
+        font-size: var(--logo-text--large);
       }
     }
   }
