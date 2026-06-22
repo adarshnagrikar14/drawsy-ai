@@ -15,7 +15,6 @@ import {
   runTransaction,
   Bytes,
 } from "firebase/firestore";
-import { getStorage, ref, uploadBytes } from "firebase/storage";
 
 import type { RemoteExcalidrawElement } from "@excalidraw/excalidraw/data/reconcile";
 import type {
@@ -31,6 +30,7 @@ import type {
 } from "@excalidraw/excalidraw/types";
 
 import { FILE_CACHE_MAX_AGE_SEC } from "../app_constants";
+import { downloadObjectFromStorage, uploadObjectToStorage } from "./remoteStorage";
 
 import { getSyncableElements } from ".";
 
@@ -55,7 +55,6 @@ try {
 
 let firebaseApp: ReturnType<typeof initializeApp> | null = null;
 let firestore: ReturnType<typeof getFirestore> | null = null;
-let firebaseStorage: ReturnType<typeof getStorage> | null = null;
 
 const _initializeFirebase = () => {
   if (!firebaseApp) {
@@ -71,18 +70,7 @@ const _getFirestore = () => {
   return firestore;
 };
 
-const _getStorage = () => {
-  if (!firebaseStorage) {
-    firebaseStorage = getStorage(_initializeFirebase());
-  }
-  return firebaseStorage;
-};
-
 // -----------------------------------------------------------------------------
-
-export const loadFirebaseStorage = async () => {
-  return _getStorage();
-};
 
 type FirebaseStoredScene = {
   sceneVersion: number;
@@ -149,16 +137,16 @@ export const saveFilesToFirebase = async ({
   prefix: string;
   files: { id: FileId; buffer: Uint8Array }[];
 }) => {
-  const storage = await loadFirebaseStorage();
-
   const erroredFiles: FileId[] = [];
   const savedFiles: FileId[] = [];
 
   await Promise.all(
     files.map(async ({ id, buffer }) => {
       try {
-        const storageRef = ref(storage, `${prefix}/${id}`);
-        await uploadBytes(storageRef, buffer, {
+        await uploadObjectToStorage({
+          objectKey: `${prefix}/${id}`,
+          body: buffer.slice().buffer as ArrayBuffer,
+          contentType: MIME_TYPES.binary,
           cacheControl: `public, max-age=${FILE_CACHE_MAX_AGE_SEC}`,
         });
         savedFiles.push(id);
@@ -282,32 +270,24 @@ export const loadFilesFromFirebase = async (
   await Promise.all(
     [...new Set(filesIds)].map(async (id) => {
       try {
-        const url = `https://firebasestorage.googleapis.com/v0/b/${
-          FIREBASE_CONFIG.storageBucket
-        }/o/${encodeURIComponent(prefix.replace(/^\//, ""))}%2F${id}`;
-        const response = await fetch(`${url}?alt=media`);
-        if (response.status < 400) {
-          const arrayBuffer = await response.arrayBuffer();
+        const arrayBuffer = await downloadObjectFromStorage(`${prefix}/${id}`);
 
-          const { data, metadata } = await decompressData<BinaryFileMetadata>(
-            new Uint8Array(arrayBuffer),
-            {
-              decryptionKey,
-            },
-          );
+        const { data, metadata } = await decompressData<BinaryFileMetadata>(
+          new Uint8Array(arrayBuffer),
+          {
+            decryptionKey,
+          },
+        );
 
-          const dataURL = new TextDecoder().decode(data) as DataURL;
+        const dataURL = new TextDecoder().decode(data) as DataURL;
 
-          loadedFiles.push({
-            mimeType: metadata.mimeType || MIME_TYPES.binary,
-            id,
-            dataURL,
-            created: metadata?.created || Date.now(),
-            lastRetrieved: metadata?.created || Date.now(),
-          });
-        } else {
-          erroredFiles.set(id, true);
-        }
+        loadedFiles.push({
+          mimeType: metadata.mimeType || MIME_TYPES.binary,
+          id,
+          dataURL,
+          created: metadata?.created || Date.now(),
+          lastRetrieved: metadata?.created || Date.now(),
+        });
       } catch (error: any) {
         erroredFiles.set(id, true);
         console.error(error);
