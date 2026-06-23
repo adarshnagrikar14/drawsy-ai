@@ -30,6 +30,7 @@ export const LibraryDropdownMenuButton: React.FC<{
   onSelectItems: (items: LibraryItem["id"][]) => void;
   appState: UIAppState;
   className?: string;
+  triggerIcon?: JSX.Element;
 }> = ({
   setAppState,
   selectedItems,
@@ -39,6 +40,7 @@ export const LibraryDropdownMenuButton: React.FC<{
   onSelectItems,
   appState,
   className,
+  triggerIcon = DotsIcon,
 }) => {
   const [libraryItemsData] = useAtom(libraryItemsAtom);
   const [isLibraryMenuOpen, setIsLibraryMenuOpen] = useAtom(
@@ -186,7 +188,7 @@ export const LibraryDropdownMenuButton: React.FC<{
         <DropdownMenu.Trigger
           onToggle={() => setIsLibraryMenuOpen(!isLibraryMenuOpen)}
         >
-          {DotsIcon}
+          {triggerIcon}
         </DropdownMenu.Trigger>
         <DropdownMenu.Content
           onClickOutside={() => setIsLibraryMenuOpen(false)}
@@ -271,10 +273,12 @@ export const LibraryDropdownMenu = ({
   selectedItems,
   onSelectItems,
   className,
+  triggerIcon,
 }: {
   selectedItems: LibraryItem["id"][];
   onSelectItems: (id: LibraryItem["id"][]) => void;
   className?: string;
+  triggerIcon?: JSX.Element;
 }) => {
   const { library } = useApp();
   const { clearLibraryCache, deleteItemsFromLibraryCache } = useLibraryCache();
@@ -313,6 +317,7 @@ export const LibraryDropdownMenu = ({
       }
       resetLibrary={resetLibrary}
       className={className}
+      triggerIcon={triggerIcon}
     />
   );
 };

@@ -49,7 +49,7 @@ import { TextField } from "./TextField";
 import { useEditorInterface } from "./App";
 
 import { Button } from "./Button";
-import { chevronLeftIcon } from "./icons";
+import { chevronLeftIcon, settingsIcon } from "./icons";
 
 import type { ExcalidrawLibraryIds } from "../data/types";
 import type { DrawsyImportedLibraryPack } from "../data/drawsyLibraryPacks";
@@ -1012,158 +1012,153 @@ export default function LibraryMenuItems({
       ) : null}
 
       {view.type === "marketplace" ? (
-        <Stack.Col className="library-menu-items-container__items" gap={1}>
-          <PackHeader
-            title="Marketplace"
-            onBack={() => setView({ type: "overview" })}
-          />
-          <div className="drawsy-library-sheet__toolbar">
+        <>
+          <div className="library-menu-items-header">
             <TextField
               type="search"
-              className="library-menu-items-container__search"
-              placeholder="Search marketplace"
+              className={clsx("library-menu-items-container__search", {
+                hideCancelButton: editorInterface.formFactor !== "phone",
+              })}
+              placeholder={t("library.search.inputPlaceholder")}
               value={marketplaceQuery}
               onChange={setMarketplaceQuery}
             />
-            <select
-              className="drawsy-library-sheet__sort"
-              value={marketplaceSort}
-              onChange={(event) =>
-                setMarketplaceSort(event.target.value as MarketplaceSort)
-              }
-            >
-              <option value="popular">Popular</option>
-              <option value="updated">Updated</option>
-              <option value="new">New</option>
-              <option value="name">Name</option>
-            </select>
+            <LibraryDropdownMenu
+              selectedItems={[]}
+              onSelectItems={() => {}}
+              className="library-menu-dropdown-container--in-heading"
+              triggerIcon={settingsIcon}
+            />
           </div>
 
-          {catalogStatus === "loading" ? (
-            <div className="drawsy-library-state">
-              <Spinner />
-              <span>Loading marketplace...</span>
-            </div>
-          ) : null}
-
-          {catalogStatus === "error" ? (
-            <div className="drawsy-library-state drawsy-library-state--error">
-              {catalogErrorMessage}
-            </div>
-          ) : null}
-
-          {catalogStatus === "loaded" ? (
-            <>
-              <div className="drawsy-library-card-grid drawsy-library-card-grid--marketplace">
-                {paginatedMarketplaceEntries.map((entry) => (
-                  <PackCard
-                    key={entry.id}
-                    entry={entry}
-                    onSelect={() => setSelectedMarketplaceEntryId(entry.id)}
-                    isSelected={selectedMarketplaceEntry?.id === entry.id}
-                  />
-                ))}
+          <Stack.Col className="library-menu-items-container__items" gap={1}>
+            {catalogStatus === "loading" ? (
+              <div className="drawsy-library-state">
+                <Spinner />
+                <span>Loading marketplace...</span>
               </div>
+            ) : null}
 
-              {selectedMarketplaceEntry ? (
-                <div className="drawsy-library-selected-pack">
-                  <div className="drawsy-library-pack__header">
-                    <div className="drawsy-library-pack__header-copy">
-                      <div
-                        className="drawsy-library-pack__title"
-                        title={selectedMarketplaceEntry.name}
-                      >
-                        {selectedMarketplaceEntry.name}
-                      </div>
-                      <div className="drawsy-library-pack__meta">
-                        Preview before importing
-                      </div>
-                    </div>
-                  </div>
+            {catalogStatus === "error" ? (
+              <div className="drawsy-library-state drawsy-library-state--error">
+                {catalogErrorMessage}
+              </div>
+            ) : null}
 
-                  {selectedMarketplacePackState?.status === "loaded" ? (
-                    <LibraryMenuSectionGrid>
-                      <LibraryMenuSection
-                        items={selectedMarketplacePackState.items.slice(
-                          0,
-                          MARKETPLACE_PACK_PREVIEW_ITEMS,
-                        )}
-                        onItemSelectToggle={noopSelectToggle}
-                        onItemDrag={noopItemDrag}
-                        onClick={(itemId) => {
-                          if (!itemId) {
-                            return;
-                          }
-                          const item = selectedMarketplacePackState.items.find(
-                            (libraryItem) => libraryItem.id === itemId,
-                          );
-                          if (item) {
-                            onInsertLibraryItems([item]);
-                          }
-                        }}
-                        isItemSelected={noopIsItemSelected}
-                        svgCache={svgCache}
-                        itemsRenderedPerBatch={itemsRenderedPerBatch}
-                      />
-                      <LibraryMoreTile
-                        label={
-                          importingPackId === selectedMarketplaceEntry.id
-                            ? "Importing..."
-                            : "Import Library"
-                        }
-                        onSelect={() =>
-                          handleImportPack(selectedMarketplaceEntry)
-                        }
-                        disabled={
-                          importingPackId === selectedMarketplaceEntry.id
-                        }
-                        variant="primary"
-                      />
-                    </LibraryMenuSectionGrid>
-                  ) : null}
-
-                  {selectedMarketplacePackState?.status === "loading" ||
-                  !selectedMarketplacePackState ? (
-                    <div className="drawsy-library-state">
-                      <Spinner />
-                      <span>Loading preview...</span>
-                    </div>
-                  ) : null}
-
-                  {selectedMarketplacePackState?.status === "error" ? (
-                    <div className="drawsy-library-state drawsy-library-state--error">
-                      {selectedMarketplacePackState.errorMessage}
-                    </div>
-                  ) : null}
+            {catalogStatus === "loaded" ? (
+              <>
+                <div className="drawsy-library-card-grid drawsy-library-card-grid--marketplace">
+                  {paginatedMarketplaceEntries.map((entry) => (
+                    <PackCard
+                      key={entry.id}
+                      entry={entry}
+                      onSelect={() => setSelectedMarketplaceEntryId(entry.id)}
+                      isSelected={selectedMarketplaceEntry?.id === entry.id}
+                    />
+                  ))}
                 </div>
-              ) : null}
 
-              <div className="drawsy-library-pagination drawsy-library-pagination--sticky">
-                <Button
-                  onSelect={() =>
-                    setMarketplacePage((page) => Math.max(1, page - 1))
-                  }
-                  disabled={marketplacePage === 1}
-                >
-                  Prev
-                </Button>
-                <span>
-                  {marketplacePage} / {marketplacePageCount}
-                </span>
-                <Button
-                  onSelect={() =>
-                    setMarketplacePage((page) =>
-                      Math.min(marketplacePageCount, page + 1),
-                    )
-                  }
-                  disabled={marketplacePage === marketplacePageCount}
-                >
-                  Next
-                </Button>
-              </div>
-            </>
-          ) : null}
-        </Stack.Col>
+                {selectedMarketplaceEntry ? (
+                  <div className="drawsy-library-selected-pack">
+                    <div className="drawsy-library-pack__header">
+                      <div className="drawsy-library-pack__header-copy">
+                        <div
+                          className="drawsy-library-pack__title"
+                          title={selectedMarketplaceEntry.name}
+                        >
+                          {selectedMarketplaceEntry.name}
+                        </div>
+                        <div className="drawsy-library-pack__meta">
+                          Preview before importing
+                        </div>
+                      </div>
+                    </div>
+
+                    {selectedMarketplacePackState?.status === "loaded" ? (
+                      <LibraryMenuSectionGrid>
+                        <LibraryMenuSection
+                          items={selectedMarketplacePackState.items.slice(
+                            0,
+                            MARKETPLACE_PACK_PREVIEW_ITEMS,
+                          )}
+                          onItemSelectToggle={noopSelectToggle}
+                          onItemDrag={noopItemDrag}
+                          onClick={(itemId) => {
+                            if (!itemId) {
+                              return;
+                            }
+                            const item =
+                              selectedMarketplacePackState.items.find(
+                                (libraryItem) => libraryItem.id === itemId,
+                              );
+                            if (item) {
+                              onInsertLibraryItems([item]);
+                            }
+                          }}
+                          isItemSelected={noopIsItemSelected}
+                          svgCache={svgCache}
+                          itemsRenderedPerBatch={itemsRenderedPerBatch}
+                        />
+                        <LibraryMoreTile
+                          label={
+                            importingPackId === selectedMarketplaceEntry.id
+                              ? "Importing..."
+                              : "Import Library"
+                          }
+                          onSelect={() =>
+                            handleImportPack(selectedMarketplaceEntry)
+                          }
+                          disabled={
+                            importingPackId === selectedMarketplaceEntry.id
+                          }
+                          variant="primary"
+                        />
+                      </LibraryMenuSectionGrid>
+                    ) : null}
+
+                    {selectedMarketplacePackState?.status === "loading" ||
+                    !selectedMarketplacePackState ? (
+                      <div className="drawsy-library-state">
+                        <Spinner />
+                        <span>Loading preview...</span>
+                      </div>
+                    ) : null}
+
+                    {selectedMarketplacePackState?.status === "error" ? (
+                      <div className="drawsy-library-state drawsy-library-state--error">
+                        {selectedMarketplacePackState.errorMessage}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                <div className="drawsy-library-pagination drawsy-library-pagination--sticky">
+                  <Button
+                    onSelect={() =>
+                      setMarketplacePage((page) => Math.max(1, page - 1))
+                    }
+                    disabled={marketplacePage === 1}
+                  >
+                    Prev
+                  </Button>
+                  <span>
+                    {marketplacePage} / {marketplacePageCount}
+                  </span>
+                  <Button
+                    onSelect={() =>
+                      setMarketplacePage((page) =>
+                        Math.min(marketplacePageCount, page + 1),
+                      )
+                    }
+                    disabled={marketplacePage === marketplacePageCount}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </>
+            ) : null}
+          </Stack.Col>
+        </>
       ) : null}
 
       {view.type === "pack" ? (
