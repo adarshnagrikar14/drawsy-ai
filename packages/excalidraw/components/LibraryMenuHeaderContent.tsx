@@ -1,5 +1,6 @@
 import clsx from "clsx";
 import { useState } from "react";
+import type { JSX } from "react";
 
 import { muteFSAbortError } from "@excalidraw/common";
 

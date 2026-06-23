@@ -141,40 +141,122 @@ const matchesCatalogQuery = (
   );
 };
 
-const PackCard = ({
+const formatRelativeTime = (value: string) => {
+  const timestamp = new Date(value).getTime();
+  const diff = Date.now() - timestamp;
+
+  if (!Number.isFinite(timestamp) || diff < 0) {
+    return value;
+  }
+
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+  const month = 30 * day;
+  const year = 365 * day;
+
+  if (diff < hour) {
+    return `${Math.max(1, Math.floor(diff / minute))} min ago`;
+  }
+  if (diff < day) {
+    return `${Math.floor(diff / hour)} hr ago`;
+  }
+  if (diff < month) {
+    return `${Math.floor(diff / day)}d ago`;
+  }
+  if (diff < year) {
+    return `${Math.floor(diff / month)}mo ago`;
+  }
+
+  return `${Math.floor(diff / year)}y ago`;
+};
+
+const MarketplacePackGroup = ({
   entry,
-  onSelect,
-  isSelected = false,
+  packState,
+  svgCache,
+  itemsRenderedPerBatch,
+  onItemClick,
+  onImportPack,
+  isImporting,
 }: {
   entry: DrawsyLibraryCatalogEntry;
-  onSelect: () => void;
-  isSelected?: boolean;
+  packState: PackCacheEntry | null;
+  svgCache: ReturnType<typeof useLibraryCache>["svgCache"];
+  itemsRenderedPerBatch: number;
+  onItemClick: (id: LibraryItem["id"] | null) => void;
+  onImportPack: () => void;
+  isImporting: boolean;
 }) => {
-  const primaryAuthor = entry.authors[0];
+  const authorNodes = entry.authors.length
+    ? entry.authors.map((author, index) => (
+        <React.Fragment key={`${entry.id}-${author.name}-${index}`}>
+          {index > 0 ? ", " : null}
+          {author.url ? (
+            <a href={author.url} target="_blank" rel="noreferrer">
+              {author.name}
+            </a>
+          ) : (
+            <span>{author.name}</span>
+          )}
+        </React.Fragment>
+      ))
+    : "Unknown creator";
 
   return (
-    <button
-      type="button"
-      className={clsx("drawsy-library-card", {
-        "drawsy-library-card--selected": isSelected,
-      })}
-      onClick={onSelect}
-    >
-      <div className="drawsy-library-card__topline">
-        <div className="drawsy-library-card__title" title={entry.name}>
-          {entry.name}
+    <div className="drawsy-library-pack drawsy-library-pack--marketplace">
+      <div className="drawsy-library-pack__header">
+        <div className="drawsy-library-pack__header-copy">
+          <div className="drawsy-library-pack__title" title={entry.name}>
+            {entry.name}
+          </div>
+          <div className="drawsy-library-pack__meta-row">
+            <div className="drawsy-library-pack__meta-authors">
+              {authorNodes}
+            </div>
+            <time
+              className="drawsy-library-pack__meta-time"
+              dateTime={entry.updated}
+            >
+              {formatRelativeTime(entry.updated)}
+            </time>
+          </div>
         </div>
-        <time className="drawsy-library-card__date" dateTime={entry.updated}>
-          {entry.updated}
-        </time>
       </div>
-      <div
-        className="drawsy-library-card__author"
-        title={primaryAuthor?.name || ""}
-      >
-        {primaryAuthor?.name || "Unknown creator"}
-      </div>
-    </button>
+
+      {packState?.status === "loaded" ? (
+        <LibraryMenuSectionGrid>
+          <LibraryMenuSection
+            items={packState.items.slice(0, MARKETPLACE_PACK_PREVIEW_ITEMS)}
+            onItemSelectToggle={noopSelectToggle}
+            onItemDrag={noopItemDrag}
+            onClick={onItemClick}
+            isItemSelected={noopIsItemSelected}
+            svgCache={svgCache}
+            itemsRenderedPerBatch={itemsRenderedPerBatch}
+          />
+          <LibraryMoreTile
+            label={isImporting ? "Importing..." : "Import Library"}
+            onSelect={onImportPack}
+            disabled={isImporting}
+            variant="primary"
+          />
+        </LibraryMenuSectionGrid>
+      ) : null}
+
+      {packState?.status === "loading" || !packState ? (
+        <div className="drawsy-library-state">
+          <Spinner />
+          <span>Loading preview...</span>
+        </div>
+      ) : null}
+
+      {packState?.status === "error" ? (
+        <div className="drawsy-library-state drawsy-library-state--error">
+          {packState.errorMessage}
+        </div>
+      ) : null}
+    </div>
   );
 };
 
@@ -319,12 +401,8 @@ export default function LibraryMenuItems({
   const [searchInputValue, setSearchInputValue] = useState("");
   const [view, setView] = useState<ViewState>({ type: "overview" });
   const [marketplaceQuery, setMarketplaceQuery] = useState("");
-  const [marketplaceSort, setMarketplaceSort] =
-    useState<MarketplaceSort>("popular");
+  const marketplaceSort: MarketplaceSort = "popular";
   const [marketplacePage, setMarketplacePage] = useState(1);
-  const [selectedMarketplaceEntryId, setSelectedMarketplaceEntryId] = useState<
-    string | null
-  >(null);
   const [catalogStatus, setCatalogStatus] = useState<
     "loading" | "loaded" | "error"
   >("loading");
@@ -491,23 +569,9 @@ export default function LibraryMenuItems({
     );
   }, [filteredMarketplaceEntries, marketplacePage]);
 
-  const selectedMarketplaceEntry = useMemo(
-    () =>
-      paginatedMarketplaceEntries.find(
-        (entry) => entry.id === selectedMarketplaceEntryId,
-      ) ||
-      paginatedMarketplaceEntries[0] ||
-      null,
-    [paginatedMarketplaceEntries, selectedMarketplaceEntryId],
-  );
-
-  const selectedMarketplacePackState = selectedMarketplaceEntry
-    ? packCache[selectedMarketplaceEntry.id] || null
-    : null;
-
   useEffect(() => {
     setMarketplacePage(1);
-  }, [marketplaceQuery, marketplaceSort]);
+  }, [marketplaceQuery]);
 
   useEffect(() => {
     setMarketplacePage((currentPage) =>
@@ -705,10 +769,14 @@ export default function LibraryMenuItems({
   );
 
   useEffect(() => {
-    if (view.type === "marketplace" && selectedMarketplaceEntry) {
-      ensurePackLoaded(selectedMarketplaceEntry);
+    if (view.type !== "marketplace") {
+      return;
     }
-  }, [ensurePackLoaded, selectedMarketplaceEntry, view.type]);
+
+    paginatedMarketplaceEntries.forEach((entry) => {
+      void ensurePackLoaded(entry);
+    });
+  }, [ensurePackLoaded, paginatedMarketplaceEntries, view.type]);
 
   useEffect(() => {
     if (view.type === "pack") {
@@ -1047,90 +1115,33 @@ export default function LibraryMenuItems({
 
             {catalogStatus === "loaded" ? (
               <>
-                <div className="drawsy-library-card-grid drawsy-library-card-grid--marketplace">
-                  {paginatedMarketplaceEntries.map((entry) => (
-                    <PackCard
-                      key={entry.id}
-                      entry={entry}
-                      onSelect={() => setSelectedMarketplaceEntryId(entry.id)}
-                      isSelected={selectedMarketplaceEntry?.id === entry.id}
-                    />
-                  ))}
+                <div className="drawsy-library-selected-pack">
+                  {paginatedMarketplaceEntries.map((entry) => {
+                    const packState = packCache[entry.id] || null;
+                    return (
+                      <MarketplacePackGroup
+                        key={entry.id}
+                        entry={entry}
+                        packState={packState}
+                        svgCache={svgCache}
+                        itemsRenderedPerBatch={itemsRenderedPerBatch}
+                        onItemClick={(itemId) => {
+                          if (!itemId || packState?.status !== "loaded") {
+                            return;
+                          }
+                          const item = packState.items.find(
+                            (libraryItem) => libraryItem.id === itemId,
+                          );
+                          if (item) {
+                            onInsertLibraryItems([item]);
+                          }
+                        }}
+                        onImportPack={() => handleImportPack(entry)}
+                        isImporting={importingPackId === entry.id}
+                      />
+                    );
+                  })}
                 </div>
-
-                {selectedMarketplaceEntry ? (
-                  <div className="drawsy-library-selected-pack">
-                    <div className="drawsy-library-pack__header">
-                      <div className="drawsy-library-pack__header-copy">
-                        <div
-                          className="drawsy-library-pack__title"
-                          title={selectedMarketplaceEntry.name}
-                        >
-                          {selectedMarketplaceEntry.name}
-                        </div>
-                        <div className="drawsy-library-pack__meta">
-                          Preview before importing
-                        </div>
-                      </div>
-                    </div>
-
-                    {selectedMarketplacePackState?.status === "loaded" ? (
-                      <LibraryMenuSectionGrid>
-                        <LibraryMenuSection
-                          items={selectedMarketplacePackState.items.slice(
-                            0,
-                            MARKETPLACE_PACK_PREVIEW_ITEMS,
-                          )}
-                          onItemSelectToggle={noopSelectToggle}
-                          onItemDrag={noopItemDrag}
-                          onClick={(itemId) => {
-                            if (!itemId) {
-                              return;
-                            }
-                            const item =
-                              selectedMarketplacePackState.items.find(
-                                (libraryItem) => libraryItem.id === itemId,
-                              );
-                            if (item) {
-                              onInsertLibraryItems([item]);
-                            }
-                          }}
-                          isItemSelected={noopIsItemSelected}
-                          svgCache={svgCache}
-                          itemsRenderedPerBatch={itemsRenderedPerBatch}
-                        />
-                        <LibraryMoreTile
-                          label={
-                            importingPackId === selectedMarketplaceEntry.id
-                              ? "Importing..."
-                              : "Import Library"
-                          }
-                          onSelect={() =>
-                            handleImportPack(selectedMarketplaceEntry)
-                          }
-                          disabled={
-                            importingPackId === selectedMarketplaceEntry.id
-                          }
-                          variant="primary"
-                        />
-                      </LibraryMenuSectionGrid>
-                    ) : null}
-
-                    {selectedMarketplacePackState?.status === "loading" ||
-                    !selectedMarketplacePackState ? (
-                      <div className="drawsy-library-state">
-                        <Spinner />
-                        <span>Loading preview...</span>
-                      </div>
-                    ) : null}
-
-                    {selectedMarketplacePackState?.status === "error" ? (
-                      <div className="drawsy-library-state drawsy-library-state--error">
-                        {selectedMarketplacePackState.errorMessage}
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
 
                 <div className="drawsy-library-pagination drawsy-library-pagination--sticky">
                   <Button
