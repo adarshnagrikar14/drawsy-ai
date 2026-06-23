@@ -856,7 +856,10 @@ export default function LibraryMenuItems({
           </div>
 
           <Stack.Col
-            className="library-menu-items-container__items"
+            className={clsx("library-menu-items-container__items", {
+              "library-menu-items-container__items--with-sticky-action":
+                !isLibraryEmpty && catalogStatus === "loaded",
+            })}
             align="start"
             gap={1}
             style={{
@@ -885,6 +888,15 @@ export default function LibraryMenuItems({
                 </div>
                 <div className="library-menu-items__no-items__hint">
                   {t("library.hint_emptyLibrary")}
+                </div>
+                <div className="library-menu-items__no-items__actions">
+                  <button
+                    type="button"
+                    className="library-menu-browse-button drawsy-library-primary-button"
+                    onClick={() => setView({ type: "marketplace" })}
+                  >
+                    Browse libraries
+                  </button>
                 </div>
               </div>
             ) : null}
@@ -971,14 +983,15 @@ export default function LibraryMenuItems({
               </>
             ) : null}
 
-            {catalogStatus === "loaded" ? (
+            {!isLibraryEmpty && catalogStatus === "loaded" ? (
               <div className="drawsy-library-sticky-actions">
-                <Button
-                  className="drawsy-library-primary-button"
-                  onSelect={() => setView({ type: "marketplace" })}
+                <button
+                  type="button"
+                  className="library-menu-browse-button drawsy-library-primary-button"
+                  onClick={() => setView({ type: "marketplace" })}
                 >
                   Browse libraries
-                </Button>
+                </button>
               </div>
             ) : null}
 
