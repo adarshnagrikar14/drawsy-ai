@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { useCallback, useState } from "react";
+import { useState } from "react";
 
 import { muteFSAbortError } from "@excalidraw/common";
 
@@ -13,27 +13,13 @@ import { t } from "../i18n";
 
 import { useApp, useExcalidrawSetAppState } from "./App";
 import ConfirmDialog from "./ConfirmDialog";
-import { Dialog } from "./Dialog";
 import { isLibraryMenuOpenAtom } from "./LibraryMenu";
-import PublishLibrary from "./PublishLibrary";
-import { ToolButton } from "./ToolButton";
-import Trans from "./Trans";
+// import PublishLibrary from "./PublishLibrary";
 import DropdownMenu from "./dropdownMenu/DropdownMenu";
-import {
-  DotsIcon,
-  ExportIcon,
-  LoadIcon,
-  publishIcon,
-  TrashIcon,
-} from "./icons";
+import { DotsIcon, ExportIcon, LoadIcon, TrashIcon } from "./icons";
 
 import type Library from "../data/library";
 import type { LibraryItem, LibraryItems, UIAppState } from "../types";
-
-const getSelectedItems = (
-  libraryItems: LibraryItems,
-  selectedItems: LibraryItem["id"][],
-) => libraryItems.filter((item) => selectedItems.includes(item.id));
 
 export const LibraryDropdownMenuButton: React.FC<{
   setAppState: React.Component<any, UIAppState>["setState"];
@@ -98,62 +84,67 @@ export const LibraryDropdownMenuButton: React.FC<{
     ? t("buttons.remove")
     : t("buttons.resetLibrary");
 
-  const [showPublishLibraryDialog, setShowPublishLibraryDialog] =
-    useState(false);
-  const [publishLibSuccess, setPublishLibSuccess] = useState<null | {
-    url: string;
-    authorName: string;
-  }>(null);
-  const renderPublishSuccess = useCallback(() => {
-    return (
-      <Dialog
-        onCloseRequest={() => setPublishLibSuccess(null)}
-        title={t("publishSuccessDialog.title")}
-        className="publish-library-success"
-        size="small"
-      >
-        <p>
-          <Trans
-            i18nKey="publishSuccessDialog.content"
-            authorName={publishLibSuccess!.authorName}
-            link={(el) => (
-              <a
-                href={publishLibSuccess?.url}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                {el}
-              </a>
-            )}
-          />
-        </p>
-        <ToolButton
-          type="button"
-          title={t("buttons.close")}
-          aria-label={t("buttons.close")}
-          label={t("buttons.close")}
-          onClick={() => setPublishLibSuccess(null)}
-          data-testid="publish-library-success-close"
-          className="publish-library-success-close"
-        />
-      </Dialog>
-    );
-  }, [setPublishLibSuccess, publishLibSuccess]);
-
-  const onPublishLibSuccess = (
-    data: { url: string; authorName: string },
-    libraryItems: LibraryItems,
-  ) => {
-    setShowPublishLibraryDialog(false);
-    setPublishLibSuccess({ url: data.url, authorName: data.authorName });
-    const nextLibItems = libraryItems.slice();
-    nextLibItems.forEach((libItem) => {
-      if (selectedItems.includes(libItem.id)) {
-        libItem.status = "published";
-      }
-    });
-    library.setLibrary(nextLibItems);
-  };
+  // Drawsy V1:
+  // Publishing marketplace packs is intentionally disabled.
+  // Keep the implementation referenced here for future re-enable, but do not
+  // expose any publish affordance in the current product flow.
+  //
+  // const [showPublishLibraryDialog, setShowPublishLibraryDialog] =
+  //   useState(false);
+  // const [publishLibSuccess, setPublishLibSuccess] = useState<null | {
+  //   url: string;
+  //   authorName: string;
+  // }>(null);
+  // const renderPublishSuccess = useCallback(() => {
+  //   return (
+  //     <Dialog
+  //       onCloseRequest={() => setPublishLibSuccess(null)}
+  //       title={t("publishSuccessDialog.title")}
+  //       className="publish-library-success"
+  //       size="small"
+  //     >
+  //       <p>
+  //         <Trans
+  //           i18nKey="publishSuccessDialog.content"
+  //           authorName={publishLibSuccess!.authorName}
+  //           link={(el) => (
+  //             <a
+  //               href={publishLibSuccess?.url}
+  //               target="_blank"
+  //               rel="noopener noreferrer"
+  //             >
+  //               {el}
+  //             </a>
+  //           )}
+  //         />
+  //       </p>
+  //       <ToolButton
+  //         type="button"
+  //         title={t("buttons.close")}
+  //         aria-label={t("buttons.close")}
+  //         label={t("buttons.close")}
+  //         onClick={() => setPublishLibSuccess(null)}
+  //         data-testid="publish-library-success-close"
+  //         className="publish-library-success-close"
+  //       />
+  //     </Dialog>
+  //   );
+  // }, [setPublishLibSuccess, publishLibSuccess]);
+  //
+  // const onPublishLibSuccess = (
+  //   data: { url: string; authorName: string },
+  //   libraryItems: LibraryItems,
+  // ) => {
+  //   setShowPublishLibraryDialog(false);
+  //   setPublishLibSuccess({ url: data.url, authorName: data.authorName });
+  //   const nextLibItems = libraryItems.slice();
+  //   nextLibItems.forEach((libItem) => {
+  //     if (selectedItems.includes(libItem.id)) {
+  //       libItem.status = "published";
+  //     }
+  //   });
+  //   library.setLibrary(nextLibItems);
+  // };
 
   const onLibraryImport = async () => {
     try {
@@ -220,7 +211,8 @@ export const LibraryDropdownMenuButton: React.FC<{
               {t("buttons.export")}
             </DropdownMenu.Item>
           )}
-          {itemsSelected && (
+          {/* Drawsy V1: intentionally hide publish from library actions. */}
+          {/* {itemsSelected && (
             <DropdownMenu.Item
               icon={publishIcon}
               onSelect={() => setShowPublishLibraryDialog(true)}
@@ -228,7 +220,7 @@ export const LibraryDropdownMenuButton: React.FC<{
             >
               {t("buttons.publishLibrary")}
             </DropdownMenu.Item>
-          )}
+          )} */}
           {!!items.length && (
             <DropdownMenu.Item
               onSelect={() => setShowRemoveLibAlert(true)}
@@ -249,7 +241,8 @@ export const LibraryDropdownMenuButton: React.FC<{
         <div className="library-actions-counter">{selectedItems.length}</div>
       )}
       {showRemoveLibAlert && renderRemoveLibAlert()}
-      {showPublishLibraryDialog && (
+      {/* Drawsy V1: publish dialog/success intentionally disabled. */}
+      {/* {showPublishLibraryDialog && (
         <PublishLibrary
           onClose={() => setShowPublishLibraryDialog(false)}
           libraryItems={getSelectedItems(
@@ -268,8 +261,8 @@ export const LibraryDropdownMenuButton: React.FC<{
             onSelectItems(selectedItems.filter((_id) => _id !== id))
           }
         />
-      )}
-      {publishLibSuccess && renderPublishSuccess()}
+      )} */}
+      {/* {publishLibSuccess && renderPublishSuccess()} */}
     </div>
   );
 };

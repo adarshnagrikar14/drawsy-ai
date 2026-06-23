@@ -40,7 +40,6 @@ import {
   useExcalidrawElements,
   useExcalidrawSetAppState,
 } from "./App";
-import { LibraryMenuControlButtons } from "./LibraryMenuControlButtons";
 import LibraryMenuItems from "./LibraryMenuItems";
 import Spinner from "./Spinner";
 
@@ -64,6 +63,7 @@ const LibraryMenuWrapper = ({ children }: { children: React.ReactNode }) => {
 const LibraryMenuContent = memo(
   ({
     onInsertLibraryItems,
+    onImportLibraryPack,
     pendingElements,
     onAddToLibrary,
     setAppState,
@@ -76,6 +76,7 @@ const LibraryMenuContent = memo(
   }: {
     pendingElements: LibraryItem["elements"];
     onInsertLibraryItems: (libraryItems: LibraryItems) => void;
+    onImportLibraryPack: (libraryItems: LibraryItems) => Promise<void>;
     onAddToLibrary: () => void;
     setAppState: React.Component<any, UIAppState>["setState"];
     libraryReturnUrl: ExcalidrawProps["libraryReturnUrl"];
@@ -141,9 +142,6 @@ const LibraryMenuContent = memo(
       );
     }
 
-    const showBtn =
-      libraryItemsData.libraryItems.length > 0 || pendingElements.length > 0;
-
     return (
       <LibraryMenuWrapper>
         <LibraryMenuItems
@@ -151,6 +149,7 @@ const LibraryMenuContent = memo(
           libraryItems={libraryItems}
           onAddToLibrary={_onAddToLibrary}
           onInsertLibraryItems={onInsertLibraryItems}
+          onImportLibraryPack={onImportLibraryPack}
           pendingElements={pendingElements}
           id={id}
           libraryReturnUrl={libraryReturnUrl}
@@ -158,15 +157,6 @@ const LibraryMenuContent = memo(
           onSelectItems={onSelectItems}
           selectedItems={selectedItems}
         />
-        {showBtn && (
-          <LibraryMenuControlButtons
-            className="library-menu-control-buttons--at-bottom"
-            style={{ padding: "16px 12px 0 12px" }}
-            id={id}
-            libraryReturnUrl={libraryReturnUrl}
-            theme={theme}
-          />
-        )}
       </LibraryMenuWrapper>
     );
   },
@@ -319,6 +309,17 @@ export const LibraryMenu = memo(() => {
     [onInsertElements, app],
   );
 
+  const onImportLibraryPack = useCallback(
+    async (libraryItems: LibraryItems) => {
+      await memoizedLibrary.updateLibrary({
+        libraryItems,
+        merge: true,
+        openLibraryMenu: true,
+      });
+    },
+    [memoizedLibrary],
+  );
+
   const deselectItems = useCallback(() => {
     setAppState({
       selectedElementIds: {},
@@ -331,6 +332,7 @@ export const LibraryMenu = memo(() => {
     <LibraryMenuContent
       pendingElements={pendingElements}
       onInsertLibraryItems={onInsertLibraryItems}
+      onImportLibraryPack={onImportLibraryPack}
       onAddToLibrary={deselectItems}
       setAppState={setAppState}
       libraryReturnUrl={appProps.libraryReturnUrl}
