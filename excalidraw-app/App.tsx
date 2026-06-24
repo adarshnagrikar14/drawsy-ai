@@ -1,6 +1,6 @@
 import {
+  DefaultSidebar,
   Excalidraw,
-  LiveCollaborationTrigger,
   TTDDialogTrigger,
   CaptureUpdateAction,
   reconcileElements,
@@ -31,6 +31,7 @@ import {
   resolvablePromise,
   isRunningInIframe,
   isDevEnv,
+  DEFAULT_SIDEBAR,
 } from "@excalidraw/common";
 import polyfill from "@excalidraw/excalidraw/polyfill";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -45,8 +46,12 @@ import {
   usersIcon,
   exportToPlus,
   share,
+  messageCircleIcon,
   youtubeIcon,
 } from "@excalidraw/excalidraw/components/icons";
+import { Button } from "@excalidraw/excalidraw/components/Button";
+import { useExcalidrawSetAppState } from "@excalidraw/excalidraw/components/App";
+import { useUIAppState } from "@excalidraw/excalidraw/context/ui-appState";
 import { isElementLink } from "@excalidraw/element";
 import {
   bumpElementVersions,
@@ -210,6 +215,63 @@ const shareableLinkConfirmDialog = {
   actionLabel: t("overwriteConfirm.modal.shareableLink.button"),
   color: "danger",
 } as const;
+
+const TopRightToolbar = ({
+  onShareSelect,
+}: {
+  onShareSelect: () => void;
+}) => {
+  const { openSidebar } = useUIAppState();
+  const setAppState = useExcalidrawSetAppState();
+
+  const isSidebarTabOpen = useCallback(
+    (tab: string) => {
+      return (
+        openSidebar?.name === DEFAULT_SIDEBAR.name && openSidebar?.tab === tab
+      );
+    },
+    [openSidebar],
+  );
+
+  const toggleSidebarTab = useCallback(
+    (tab: string) => {
+      document.querySelector(".layer-ui__wrapper")?.classList.remove("animate");
+
+      setAppState({
+        openSidebar: isSidebarTabOpen(tab)
+          ? null
+          : { name: DEFAULT_SIDEBAR.name, tab },
+        openMenu: null,
+        openPopup: null,
+      });
+    },
+    [isSidebarTabOpen, setAppState],
+  );
+
+  return (
+    <>
+      <Button
+        className="sidebar-trigger default-sidebar-trigger"
+        title={t("labels.share")}
+        aria-label={t("labels.share")}
+        onSelect={onShareSelect}
+      >
+        {share}
+      </Button>
+      <Button
+        className={clsx("sidebar-trigger", "default-sidebar-trigger", {
+          active: isSidebarTabOpen("comments"),
+        })}
+        title="Comments"
+        aria-label="Comments"
+        onSelect={() => toggleSidebarTab("comments")}
+      >
+        {messageCircleIcon}
+      </Button>
+      <ExcalidrawPlusPromoBanner isSignedIn={isExcalidrawPlusSignedUser} />
+    </>
+  );
+};
 
 const initializeScene = async (opts: {
   collabAPI: CollabAPI | null;
@@ -958,20 +1020,14 @@ const ExcalidrawWrapper = () => {
 
           return (
             <div className="excalidraw-ui-top-right">
+              {collabError.message && <CollabError collabError={collabError} />}
               {excalidrawAPI?.getEditorInterface().formFactor === "desktop" && (
-                <ExcalidrawPlusPromoBanner
-                  isSignedIn={isExcalidrawPlusSignedUser}
+                <TopRightToolbar
+                  onShareSelect={() =>
+                    setShareDialogState({ isOpen: true, type: "share" })
+                  }
                 />
               )}
-
-              {collabError.message && <CollabError collabError={collabError} />}
-              <LiveCollaborationTrigger
-                isCollaborating={isCollaborating}
-                onSelect={() =>
-                  setShareDialogState({ isOpen: true, type: "share" })
-                }
-                editorInterface={editorInterface}
-              />
             </div>
           );
         }}
@@ -989,6 +1045,7 @@ const ExcalidrawWrapper = () => {
           theme={appTheme}
           refresh={() => forceRefresh((prev) => !prev)}
         />
+        <DefaultSidebar.Trigger style={{ display: "none" }} />
         <AppWelcomeScreen
           onCollabDialogOpen={onCollabDialogOpen}
           isCollabEnabled={!isCollabDisabled}

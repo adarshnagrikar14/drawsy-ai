@@ -14,9 +14,9 @@ export const ExcalidrawPlusPromoBanner = ({
       }
       target="_blank"
       rel="noopener"
-      className="plus-banner"
+      className="plus-banner plus-banner--solid"
     >
-      Drawsy+
+      Drawsy AI
     </a>
   );
 };

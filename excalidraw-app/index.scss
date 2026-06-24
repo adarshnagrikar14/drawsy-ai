@@ -92,7 +92,7 @@
   cursor: pointer;
   align-items: center;
   border: 1px solid var(--color-primary);
-  padding: 0.5rem 0.875rem;
+  padding: 0.5rem 0.75rem;
   border-radius: var(--border-radius-lg);
   background-color: var(--island-bg-color);
   text-decoration: none !important;
@@ -121,8 +121,25 @@
   }
 }
 
+.plus-banner--solid {
+  background-color: var(--color-primary);
+  color: var(--color-surface-lowest) !important;
+
+  &:hover,
+  &:active {
+    background-color: var(--color-primary-darker);
+    color: var(--color-surface-lowest) !important;
+  }
+}
+
+.layer-ui__wrapper__top-right > .sidebar-trigger__label-element:has(
+    > .default-sidebar-trigger[style*="display: none"]
+  ) {
+  display: none;
+}
+
 .theme--dark {
-  .plus-banner {
+  .plus-banner:not(.plus-banner--solid) {
     &:hover {
       color: black !important;
     }
