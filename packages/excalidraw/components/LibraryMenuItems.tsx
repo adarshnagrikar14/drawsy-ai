@@ -49,7 +49,8 @@ import { TextField } from "./TextField";
 import { useEditorInterface } from "./App";
 
 import { Button } from "./Button";
-import { chevronLeftIcon, settingsIcon } from "./icons";
+import DropdownMenu from "./dropdownMenu/DropdownMenu";
+import { checkIcon, chevronLeftIcon, settingsIcon } from "./icons";
 
 import type { ExcalidrawLibraryIds } from "../data/types";
 import type { DrawsyImportedLibraryPack } from "../data/drawsyLibraryPacks";
@@ -179,6 +180,7 @@ const MarketplacePackGroup = ({
   onItemClick,
   onImportPack,
   isImporting,
+  isJustImported,
 }: {
   entry: DrawsyLibraryCatalogEntry;
   packState: PackCacheEntry | null;
@@ -187,6 +189,7 @@ const MarketplacePackGroup = ({
   onItemClick: (id: LibraryItem["id"] | null) => void;
   onImportPack: () => void;
   isImporting: boolean;
+  isJustImported: boolean;
 }) => {
   const authorNodes = entry.authors.length
     ? entry.authors.map((author, index) => (
@@ -236,10 +239,12 @@ const MarketplacePackGroup = ({
             itemsRenderedPerBatch={itemsRenderedPerBatch}
           />
           <LibraryMoreTile
-            label={isImporting ? "Importing..." : "Import Library"}
+            label={
+              isJustImported ? "✓ Added!" : isImporting ? "Adding..." : "Import Library"
+            }
             onSelect={onImportPack}
-            disabled={isImporting}
-            variant="primary"
+            disabled={isImporting || isJustImported}
+            variant={isJustImported ? "success" : "primary"}
           />
         </LibraryMenuSectionGrid>
       ) : null}
@@ -269,12 +274,13 @@ const LibraryMoreTile = ({
   label: string;
   onSelect: () => void;
   disabled?: boolean;
-  variant?: "muted" | "primary";
+  variant?: "muted" | "primary" | "success";
 }) => (
   <button
     type="button"
     className={clsx("drawsy-library-more-tile", {
       "drawsy-library-more-tile--primary": variant === "primary",
+      "drawsy-library-more-tile--success": variant === "success",
     })}
     onClick={onSelect}
     disabled={disabled}
@@ -401,7 +407,8 @@ export default function LibraryMenuItems({
   const [searchInputValue, setSearchInputValue] = useState("");
   const [view, setView] = useState<ViewState>({ type: "overview" });
   const [marketplaceQuery, setMarketplaceQuery] = useState("");
-  const marketplaceSort: MarketplaceSort = "popular";
+  const [marketplaceSort, setMarketplaceSort] =
+    useState<MarketplaceSort>("popular");
   const [marketplacePage, setMarketplacePage] = useState(1);
   const [catalogStatus, setCatalogStatus] = useState<
     "loading" | "loaded" | "error"
@@ -414,7 +421,11 @@ export default function LibraryMenuItems({
     {},
   );
   const [importingPackId, setImportingPackId] = useState<string | null>(null);
+  const [justImportedPackId, setJustImportedPackId] = useState<string | null>(
+    null,
+  );
   const [importedPacks, setImportedPacks] = useState(loadImportedLibraryPacks);
+  const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
   const [isRecoveringImportedPacks, setIsRecoveringImportedPacks] =
     useState(false);
 
@@ -569,6 +580,17 @@ export default function LibraryMenuItems({
     );
   }, [filteredMarketplaceEntries, marketplacePage]);
 
+  const paginationWindow = useMemo(() => {
+    const windowSize = 7;
+    const half = Math.floor(windowSize / 2);
+    let winStart = Math.max(1, marketplacePage - half);
+    let winEnd = Math.min(marketplacePageCount, winStart + windowSize - 1);
+    if (winEnd - winStart + 1 < windowSize) {
+      winStart = Math.max(1, winEnd - windowSize + 1);
+    }
+    return Array.from({ length: winEnd - winStart + 1 }, (_, i) => winStart + i);
+  }, [marketplacePage, marketplacePageCount]);
+
   useEffect(() => {
     setMarketplacePage(1);
   }, [marketplaceQuery]);
@@ -580,9 +602,7 @@ export default function LibraryMenuItems({
   }, [marketplacePageCount]);
 
   const isLibraryEmpty =
-    !libraryItems.length &&
-    !pendingElements.length &&
-    importedPackSections.length === 0;
+    !libraryItems.length && importedPackSections.length === 0;
 
   const getInsertedElements = useCallback(
     (id: string) => {
@@ -800,6 +820,10 @@ export default function LibraryMenuItems({
             itemIds: items.map((item) => item.id),
           }),
         );
+        setJustImportedPackId(entry.id);
+        setTimeout(() => {
+          setJustImportedPackId((id) => (id === entry.id ? null : id));
+        }, 1800);
       } finally {
         setImportingPackId((currentPackId) =>
           currentPackId === entry.id ? null : currentPackId,
@@ -897,11 +921,7 @@ export default function LibraryMenuItems({
   return (
     <div
       className="library-menu-items-container"
-      style={
-        libraryItems.length || pendingElements.length
-          ? { justifyContent: "flex-start" }
-          : { borderBottom: 0 }
-      }
+      style={libraryItems.length ? { justifyContent: "flex-start" } : { borderBottom: 0 }}
     >
       {view.type === "overview" ? (
         <>
@@ -925,8 +945,8 @@ export default function LibraryMenuItems({
 
           <Stack.Col
             className={clsx("library-menu-items-container__items", {
-              "library-menu-items-container__items--with-sticky-action":
-                !isLibraryEmpty && catalogStatus === "loaded",
+              "library-menu-items-container__items--empty":
+                isLibraryEmpty && catalogStatus === "loaded",
             })}
             align="start"
             gap={1}
@@ -957,15 +977,6 @@ export default function LibraryMenuItems({
                 <div className="library-menu-items__no-items__hint">
                   {t("library.hint_emptyLibrary")}
                 </div>
-                <div className="library-menu-items__no-items__actions">
-                  <button
-                    type="button"
-                    className="library-menu-browse-button drawsy-library-primary-button"
-                    onClick={() => setView({ type: "marketplace" })}
-                  >
-                    Browse libraries
-                  </button>
-                </div>
               </div>
             ) : null}
 
@@ -975,20 +986,8 @@ export default function LibraryMenuItems({
               </div>
             ) : null}
 
-            {pendingElements.length > 0 ||
-            filteredLooseItems.looseUnpublishedItems.length > 0 ? (
+            {filteredLooseItems.looseUnpublishedItems.length > 0 ? (
               <LibraryMenuSectionGrid>
-                {pendingElements.length > 0 ? (
-                  <LibraryMenuSection
-                    items={[{ id: null, elements: pendingElements }]}
-                    onItemSelectToggle={onItemSelectToggle}
-                    onItemDrag={onItemDrag}
-                    onClick={onAddToLibraryClick}
-                    isItemSelected={isItemSelected}
-                    svgCache={svgCache}
-                    itemsRenderedPerBatch={itemsRenderedPerBatch}
-                  />
-                ) : null}
                 <LibraryMenuSection
                   items={filteredLooseItems.looseUnpublishedItems}
                   onItemSelectToggle={onItemSelectToggle}
@@ -1051,18 +1050,6 @@ export default function LibraryMenuItems({
               </>
             ) : null}
 
-            {!isLibraryEmpty && catalogStatus === "loaded" ? (
-              <div className="drawsy-library-sticky-actions">
-                <button
-                  type="button"
-                  className="library-menu-browse-button drawsy-library-primary-button"
-                  onClick={() => setView({ type: "marketplace" })}
-                >
-                  Browse libraries
-                </button>
-              </div>
-            ) : null}
-
             {catalogStatus === "loading" ? (
               <div className="drawsy-library-state">
                 <Spinner />
@@ -1076,6 +1063,18 @@ export default function LibraryMenuItems({
               </div>
             ) : null}
           </Stack.Col>
+
+          {catalogStatus === "loaded" ? (
+            <div className="drawsy-library-bottom-actions">
+              <button
+                type="button"
+                className="library-menu-browse-button drawsy-library-primary-button"
+                onClick={() => setView({ type: "marketplace" })}
+              >
+                Browse libraries
+              </button>
+            </div>
+          ) : null}
         </>
       ) : null}
 
@@ -1091,12 +1090,37 @@ export default function LibraryMenuItems({
               value={marketplaceQuery}
               onChange={setMarketplaceQuery}
             />
-            <LibraryDropdownMenu
-              selectedItems={[]}
-              onSelectItems={() => {}}
-              className="library-menu-dropdown-container--in-heading"
-              triggerIcon={settingsIcon}
-            />
+            <div className="library-menu-dropdown-container library-menu-dropdown-container--in-heading">
+              <DropdownMenu open={isSortMenuOpen}>
+                <DropdownMenu.Trigger
+                  onToggle={() => setIsSortMenuOpen((v) => !v)}
+                >
+                  {settingsIcon}
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Content
+                  onClickOutside={() => setIsSortMenuOpen(false)}
+                  onSelect={() => setIsSortMenuOpen(false)}
+                  className="library-menu"
+                >
+                  {(
+                    [
+                      ["popular", "Popular"],
+                      ["new", "Newest"],
+                      ["updated", "Recently Updated"],
+                      ["name", "A – Z"],
+                    ] as [MarketplaceSort, string][]
+                  ).map(([sort, label]) => (
+                    <DropdownMenu.Item
+                      key={sort}
+                      onSelect={() => setMarketplaceSort(sort)}
+                      icon={marketplaceSort === sort ? checkIcon : undefined}
+                    >
+                      {label}
+                    </DropdownMenu.Item>
+                  ))}
+                </DropdownMenu.Content>
+              </DropdownMenu>
+            </div>
           </div>
 
           <Stack.Col className="library-menu-items-container__items" gap={1}>
@@ -1114,61 +1138,88 @@ export default function LibraryMenuItems({
             ) : null}
 
             {catalogStatus === "loaded" ? (
-              <>
-                <div className="drawsy-library-selected-pack">
-                  {paginatedMarketplaceEntries.map((entry) => {
-                    const packState = packCache[entry.id] || null;
-                    return (
-                      <MarketplacePackGroup
-                        key={entry.id}
-                        entry={entry}
-                        packState={packState}
-                        svgCache={svgCache}
-                        itemsRenderedPerBatch={itemsRenderedPerBatch}
-                        onItemClick={(itemId) => {
-                          if (!itemId || packState?.status !== "loaded") {
-                            return;
-                          }
-                          const item = packState.items.find(
-                            (libraryItem) => libraryItem.id === itemId,
-                          );
-                          if (item) {
-                            onInsertLibraryItems([item]);
-                          }
-                        }}
-                        onImportPack={() => handleImportPack(entry)}
-                        isImporting={importingPackId === entry.id}
-                      />
-                    );
-                  })}
-                </div>
-
-                <div className="drawsy-library-pagination drawsy-library-pagination--sticky">
-                  <Button
-                    onSelect={() =>
-                      setMarketplacePage((page) => Math.max(1, page - 1))
-                    }
-                    disabled={marketplacePage === 1}
-                  >
-                    Prev
-                  </Button>
-                  <span>
-                    {marketplacePage} / {marketplacePageCount}
-                  </span>
-                  <Button
-                    onSelect={() =>
-                      setMarketplacePage((page) =>
-                        Math.min(marketplacePageCount, page + 1),
-                      )
-                    }
-                    disabled={marketplacePage === marketplacePageCount}
-                  >
-                    Next
-                  </Button>
-                </div>
-              </>
+              <div className="drawsy-library-selected-pack">
+                {paginatedMarketplaceEntries.map((entry) => {
+                  const packState = packCache[entry.id] || null;
+                  return (
+                    <MarketplacePackGroup
+                      key={entry.id}
+                      entry={entry}
+                      packState={packState}
+                      svgCache={svgCache}
+                      itemsRenderedPerBatch={itemsRenderedPerBatch}
+                      onItemClick={(itemId) => {
+                        if (!itemId || packState?.status !== "loaded") {
+                          return;
+                        }
+                        const item = packState.items.find(
+                          (libraryItem) => libraryItem.id === itemId,
+                        );
+                        if (item) {
+                          onInsertLibraryItems([item]);
+                        }
+                      }}
+                      onImportPack={() => handleImportPack(entry)}
+                      isImporting={importingPackId === entry.id}
+                      isJustImported={justImportedPackId === entry.id}
+                    />
+                  );
+                })}
+              </div>
             ) : null}
           </Stack.Col>
+
+          {catalogStatus === "loaded" ? (
+            <div className="drawsy-library-pagination">
+              <button
+                type="button"
+                className="drawsy-library-pagination__nav"
+                onClick={() =>
+                  setMarketplacePage((p) => Math.max(1, p - 1))
+                }
+                disabled={marketplacePage === 1}
+                aria-label="Previous page"
+              >
+                ‹
+              </button>
+              {paginationWindow.map((page) => (
+                <button
+                  key={page}
+                  type="button"
+                  className={clsx("drawsy-library-pagination__page", {
+                    "drawsy-library-pagination__page--active":
+                      page === marketplacePage,
+                  })}
+                  onClick={() => setMarketplacePage(page)}
+                >
+                  {page}
+                </button>
+              ))}
+              <button
+                type="button"
+                className="drawsy-library-pagination__nav"
+                onClick={() =>
+                  setMarketplacePage((p) =>
+                    Math.min(marketplacePageCount, p + 1),
+                  )
+                }
+                disabled={marketplacePage === marketplacePageCount}
+                aria-label="Next page"
+              >
+                ›
+              </button>
+            </div>
+          ) : null}
+
+          <div className="drawsy-library-bottom-actions">
+            <button
+              type="button"
+              className="library-menu-browse-button drawsy-library-primary-button"
+              onClick={() => setView({ type: "overview" })}
+            >
+              Back
+            </button>
+          </div>
         </>
       ) : null}
 
