@@ -10,7 +10,7 @@ import { UserList } from "../UserList";
 import DropdownMenu from "../dropdownMenu/DropdownMenu";
 import DropdownMenuSub from "../dropdownMenu/DropdownMenuSub";
 import { withInternalFallback } from "../hoc/withInternalFallback";
-import { HamburgerMenuIcon } from "../icons";
+import { HamburgerMenuIcon, PlusIcon } from "../icons";
 
 import * as DefaultItems from "./DefaultItems";
 
@@ -34,42 +34,52 @@ const MainMenu = Object.assign(
 
       return (
         <MainMenuTunnel.In>
-          <DropdownMenu open={appState.openMenu === "canvas"}>
-            <DropdownMenu.Trigger
-              onToggle={() => {
-                setAppState({
-                  openMenu: appState.openMenu === "canvas" ? null : "canvas",
-                  openPopup: null,
-                  openDialog: null,
-                });
-              }}
-              data-testid="main-menu-trigger"
-              className="main-menu-trigger"
+          <div className="main-menu-trigger-group">
+            <DropdownMenu open={appState.openMenu === "canvas"}>
+              <DropdownMenu.Trigger
+                onToggle={() => {
+                  setAppState({
+                    openMenu: appState.openMenu === "canvas" ? null : "canvas",
+                    openPopup: null,
+                    openDialog: null,
+                  });
+                }}
+                data-testid="main-menu-trigger"
+                className="main-menu-trigger"
+              >
+                {HamburgerMenuIcon}
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Content
+                onClickOutside={() => setAppState({ openMenu: null })}
+                onSelect={composeEventHandlers(onSelect, () => {
+                  setAppState({ openMenu: null });
+                })}
+                className="main-menu"
+                align="start"
+              >
+                {children}
+                {editorInterface.formFactor === "phone" &&
+                  appState.collaborators.size > 0 && (
+                    <fieldset className="UserList-Wrapper">
+                      <legend>{t("labels.collaborators")}</legend>
+                      <UserList
+                        mobile={true}
+                        collaborators={appState.collaborators}
+                        userToFollow={appState.userToFollow?.socketId || null}
+                      />
+                    </fieldset>
+                  )}
+              </DropdownMenu.Content>
+            </DropdownMenu>
+            <button
+              type="button"
+              className="dropdown-menu-button main-menu-add-button zen-mode-transition"
+              aria-label="Add"
+              title="Add"
             >
-              {HamburgerMenuIcon}
-            </DropdownMenu.Trigger>
-            <DropdownMenu.Content
-              onClickOutside={() => setAppState({ openMenu: null })}
-              onSelect={composeEventHandlers(onSelect, () => {
-                setAppState({ openMenu: null });
-              })}
-              className="main-menu"
-              align="start"
-            >
-              {children}
-              {editorInterface.formFactor === "phone" &&
-                appState.collaborators.size > 0 && (
-                  <fieldset className="UserList-Wrapper">
-                    <legend>{t("labels.collaborators")}</legend>
-                    <UserList
-                      mobile={true}
-                      collaborators={appState.collaborators}
-                      userToFollow={appState.userToFollow?.socketId || null}
-                    />
-                  </fieldset>
-                )}
-            </DropdownMenu.Content>
-          </DropdownMenu>
+              {PlusIcon}
+            </button>
+          </div>
         </MainMenuTunnel.In>
       );
     },
