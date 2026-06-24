@@ -3,8 +3,11 @@ import { useRef, useState } from "react";
 import { Popover } from "radix-ui";
 
 import {
+  CANVAS_SEARCH_TAB,
   CLASSES,
+  DEFAULT_SIDEBAR,
   KEYS,
+  LIBRARY_SIDEBAR_TAB,
   capitalizeString,
   isTransparent,
 } from "@excalidraw/common";
@@ -68,6 +71,7 @@ import DropdownMenu from "./dropdownMenu/DropdownMenu";
 import { PropertiesPopover } from "./PropertiesPopover";
 import {
   EmbedIcon,
+  LibraryIcon,
   extraToolsIcon,
   frameToolIcon,
   mermaidLogoIcon,
@@ -82,6 +86,7 @@ import {
   DotsHorizontalIcon,
   SelectionIcon,
   pencilIcon,
+  searchIcon,
 } from "./icons";
 
 import { Island } from "./Island";
@@ -1182,39 +1187,37 @@ export const ShapesSwitcher = ({
       )}
       <div className="App-toolbar__divider" />
 
-      <DropdownMenu open={isExtraToolsMenuOpen}>
-        <DropdownMenu.Trigger
-          className={clsx("App-toolbar__extra-tools-trigger", {
-            "App-toolbar__extra-tools-trigger--selected":
-              frameToolSelected ||
-              embeddableToolSelected ||
-              lassoToolSelected ||
-              // in collab we're already highlighting the laser button
-              // outside toolbar, so let's not highlight extra-tools button
-              // on top of it
-              (laserToolSelected && !app.props.isCollaborating),
-          })}
-          onToggle={() => {
-            setIsExtraToolsMenuOpen(!isExtraToolsMenuOpen);
-            setAppState({ openMenu: null, openPopup: null });
-          }}
-          title={t("toolBar.extraTools")}
-        >
-          {frameToolSelected
-            ? frameToolIcon
-            : embeddableToolSelected
-            ? EmbedIcon
-            : laserToolSelected && !app.props.isCollaborating
-            ? laserPointerToolIcon
-            : lassoToolSelected
-            ? LassoIcon
-            : extraToolsIcon}
-        </DropdownMenu.Trigger>
-        <DropdownMenu.Content
-          onClickOutside={() => setIsExtraToolsMenuOpen(false)}
-          onSelect={() => setIsExtraToolsMenuOpen(false)}
-          className="App-toolbar__extra-tools-dropdown"
-        >
+      <div className="App-toolbar__drawer-buttons">
+        <DropdownMenu open={isExtraToolsMenuOpen}>
+          <DropdownMenu.Trigger
+            className={clsx("App-toolbar__extra-tools-trigger", {
+              "App-toolbar__extra-tools-trigger--selected":
+                frameToolSelected ||
+                embeddableToolSelected ||
+                lassoToolSelected ||
+                (laserToolSelected && !app.props.isCollaborating),
+            })}
+            onToggle={() => {
+              setIsExtraToolsMenuOpen(!isExtraToolsMenuOpen);
+              setAppState({ openMenu: null, openPopup: null });
+            }}
+            title={t("toolBar.extraTools")}
+          >
+            {frameToolSelected
+              ? frameToolIcon
+              : embeddableToolSelected
+              ? EmbedIcon
+              : laserToolSelected && !app.props.isCollaborating
+              ? laserPointerToolIcon
+              : lassoToolSelected
+              ? LassoIcon
+              : extraToolsIcon}
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Content
+            onClickOutside={() => setIsExtraToolsMenuOpen(false)}
+            onSelect={() => setIsExtraToolsMenuOpen(false)}
+            className="App-toolbar__extra-tools-dropdown"
+          >
           <DropdownMenu.Item
             onSelect={() => app.setActiveTool({ type: "frame" })}
             icon={frameToolIcon}
@@ -1272,8 +1275,53 @@ export const ShapesSwitcher = ({
               {t("toolBar.magicframe")}
             </DropdownMenu.Item>
           )}
-        </DropdownMenu.Content>
-      </DropdownMenu>
+          </DropdownMenu.Content>
+        </DropdownMenu>
+        <ToolButton
+          type="icon"
+          icon={searchIcon}
+          title={capitalizeString(t("search.title"))}
+          aria-label={capitalizeString(t("search.title"))}
+          className={clsx("App-toolbar__extra-tools-trigger", {
+            "App-toolbar__extra-tools-trigger--selected":
+              app.state.openSidebar?.name === DEFAULT_SIDEBAR.name &&
+              app.state.openSidebar?.tab === CANVAS_SEARCH_TAB,
+          })}
+          onClick={() =>
+            setAppState({
+              openSidebar:
+                app.state.openSidebar?.name === DEFAULT_SIDEBAR.name &&
+                app.state.openSidebar?.tab === CANVAS_SEARCH_TAB
+                  ? null
+                  : { name: DEFAULT_SIDEBAR.name, tab: CANVAS_SEARCH_TAB },
+              openMenu: null,
+              openPopup: null,
+            })
+          }
+        />
+        <ToolButton
+          type="icon"
+          icon={LibraryIcon}
+          title={capitalizeString(t("labels.libraries"))}
+          aria-label={capitalizeString(t("labels.libraries"))}
+          className={clsx("App-toolbar__extra-tools-trigger", {
+            "App-toolbar__extra-tools-trigger--selected":
+              app.state.openSidebar?.name === DEFAULT_SIDEBAR.name &&
+              app.state.openSidebar?.tab === LIBRARY_SIDEBAR_TAB,
+          })}
+          onClick={() =>
+            setAppState({
+              openSidebar:
+                app.state.openSidebar?.name === DEFAULT_SIDEBAR.name &&
+                app.state.openSidebar?.tab === LIBRARY_SIDEBAR_TAB
+                  ? null
+                  : { name: DEFAULT_SIDEBAR.name, tab: LIBRARY_SIDEBAR_TAB },
+              openMenu: null,
+              openPopup: null,
+            })
+          }
+        />
+      </div>
     </>
   );
 };
