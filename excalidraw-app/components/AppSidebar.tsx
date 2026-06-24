@@ -1,5 +1,6 @@
 import { DefaultSidebar, Sidebar, THEME } from "@excalidraw/excalidraw";
 import {
+  messageCircleIcon,
   presentationIcon,
 } from "@excalidraw/excalidraw/components/icons";
 import { LinkButton } from "@excalidraw/excalidraw/components/LinkButton";
@@ -13,6 +14,12 @@ export const AppSidebar = () => {
   return (
     <DefaultSidebar>
       <DefaultSidebar.TabTriggers>
+        <Sidebar.TabTrigger
+          tab="comments"
+          style={{ opacity: openSidebar?.tab === "comments" ? 1 : 0.4 }}
+        >
+          {messageCircleIcon}
+        </Sidebar.TabTrigger>
         <Sidebar.TabTrigger
           tab="presentation"
           style={{ opacity: openSidebar?.tab === "presentation" ? 1 : 0.4 }}

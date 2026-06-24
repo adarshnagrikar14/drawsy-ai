@@ -718,6 +718,8 @@ body.excalidraw-cursor-resize * {
   }
 
   .main-menu-add-button {
+    @include filledButtonOnCanvas;
+
     display: flex;
     align-items: center;
     justify-content: center;
@@ -725,6 +727,10 @@ body.excalidraw-cursor-resize * {
     font-size: 0.75rem;
     line-height: 1;
     letter-spacing: 0.4px;
+
+    &:focus-visible {
+      box-shadow: 0 0 0 1px var(--color-surface-lowest);
+    }
   }
 
   .App-mobile-menu,

@@ -73,7 +73,7 @@ const MainMenu = Object.assign(
             </DropdownMenu>
             <button
               type="button"
-              className="dropdown-menu-button main-menu-add-button zen-mode-transition"
+              className="dropdown-menu-button main-menu-trigger main-menu-add-button zen-mode-transition"
               aria-label="Add"
               title="Add"
             >
