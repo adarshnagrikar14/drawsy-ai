@@ -4,7 +4,6 @@ import {
   TTDDialogTrigger,
   CaptureUpdateAction,
   reconcileElements,
-  useEditorInterface,
   ExcalidrawAPIProvider,
   useExcalidrawAPI,
 } from "@excalidraw/excalidraw";
@@ -216,11 +215,7 @@ const shareableLinkConfirmDialog = {
   color: "danger",
 } as const;
 
-const TopRightToolbar = ({
-  onShareSelect,
-}: {
-  onShareSelect: () => void;
-}) => {
+const TopRightToolbar = ({ onShareSelect }: { onShareSelect: () => void }) => {
   const { openSidebar } = useUIAppState();
   const setAppState = useExcalidrawSetAppState();
 
@@ -440,8 +435,6 @@ const ExcalidrawWrapper = () => {
   const { editorTheme, appTheme, setAppTheme } = useHandleAppTheme();
 
   const [langCode, setLangCode] = useAppLangCode();
-
-  const editorInterface = useEditorInterface();
 
   // initial state
   // ---------------------------------------------------------------------------

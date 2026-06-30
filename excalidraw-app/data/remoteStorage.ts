@@ -62,16 +62,19 @@ export const downloadObjectFromStorage = async (
   objectKey: string,
   expiresInSeconds?: number,
 ) => {
-  const response = await fetch(`${getStorageSignerUrl()}/v1/downloads/presign`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
+  const response = await fetch(
+    `${getStorageSignerUrl()}/v1/downloads/presign`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        object_key: normalizeObjectKey(objectKey),
+        expires_in_seconds: expiresInSeconds,
+      }),
     },
-    body: JSON.stringify({
-      object_key: normalizeObjectKey(objectKey),
-      expires_in_seconds: expiresInSeconds,
-    }),
-  });
+  );
 
   if (!response.ok) {
     throw new Error(`Storage download presign failed: ${response.status}`);

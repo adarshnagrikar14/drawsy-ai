@@ -30,7 +30,11 @@ import type {
 } from "@excalidraw/excalidraw/types";
 
 import { FILE_CACHE_MAX_AGE_SEC } from "../app_constants";
-import { downloadObjectFromStorage, uploadObjectToStorage } from "./remoteStorage";
+
+import {
+  downloadObjectFromStorage,
+  uploadObjectToStorage,
+} from "./remoteStorage";
 
 import { getSyncableElements } from ".";
 
