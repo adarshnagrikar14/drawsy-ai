@@ -31,6 +31,66 @@ const MainMenu = Object.assign(
       const editorInterface = useEditorInterface();
       const appState = useUIAppState();
       const setAppState = useExcalidrawSetAppState();
+      const addMenuCloseTimer = React.useRef<number | null>(null);
+
+      const clearAddMenuCloseTimer = React.useCallback(() => {
+        if (addMenuCloseTimer.current !== null) {
+          window.clearTimeout(addMenuCloseTimer.current);
+          addMenuCloseTimer.current = null;
+        }
+      }, []);
+
+      const openAddMenu = React.useCallback(() => {
+        clearAddMenuCloseTimer();
+        if (appState.openMenu !== "add") {
+          setAppState({
+            openMenu: "add",
+            openPopup: null,
+            openDialog: null,
+          });
+        }
+      }, [appState.openMenu, clearAddMenuCloseTimer, setAppState]);
+
+      const scheduleAddMenuClose = React.useCallback(() => {
+        clearAddMenuCloseTimer();
+        addMenuCloseTimer.current = window.setTimeout(() => {
+          setAppState({ openMenu: null });
+        }, 140);
+      }, [clearAddMenuCloseTimer, setAppState]);
+
+      React.useEffect(
+        () => () => {
+          clearAddMenuCloseTimer();
+        },
+        [clearAddMenuCloseTimer],
+      );
+
+      React.useEffect(() => {
+        if (appState.openMenu !== "add") {
+          return;
+        }
+
+        const onMouseMove = (event: MouseEvent) => {
+          const target = event.target;
+          if (!(target instanceof Node)) {
+            return;
+          }
+
+          const trigger = document.querySelector(
+            '[data-testid="add-menu-trigger"]',
+          );
+          const menu = document.querySelector(".add-menu");
+
+          if (trigger?.contains(target) || menu?.contains(target)) {
+            clearAddMenuCloseTimer();
+          } else if (addMenuCloseTimer.current === null) {
+            scheduleAddMenuClose();
+          }
+        };
+
+        document.addEventListener("mousemove", onMouseMove);
+        return () => document.removeEventListener("mousemove", onMouseMove);
+      }, [appState.openMenu, clearAddMenuCloseTimer, scheduleAddMenuClose]);
 
       return (
         <MainMenuTunnel.In>
@@ -38,6 +98,7 @@ const MainMenu = Object.assign(
             <DropdownMenu open={appState.openMenu === "canvas"}>
               <DropdownMenu.Trigger
                 onToggle={() => {
+                  clearAddMenuCloseTimer();
                   setAppState({
                     openMenu: appState.openMenu === "canvas" ? null : "canvas",
                     openPopup: null,
@@ -71,14 +132,39 @@ const MainMenu = Object.assign(
                   )}
               </DropdownMenu.Content>
             </DropdownMenu>
-            <button
-              type="button"
-              className="dropdown-menu-button main-menu-trigger main-menu-add-button zen-mode-transition"
-              aria-label="Add"
-              title="Add"
-            >
-              {PlusIcon}
-            </button>
+            <DropdownMenu open={appState.openMenu === "add"}>
+              <DropdownMenu.Trigger
+                onToggle={() => {
+                  setAppState({
+                    openMenu: appState.openMenu === "add" ? null : "add",
+                    openPopup: null,
+                    openDialog: null,
+                  });
+                }}
+                data-testid="add-menu-trigger"
+                className="main-menu-trigger main-menu-add-button"
+                aria-label="Add"
+                title="Add"
+                onMouseEnter={openAddMenu}
+                onMouseLeave={scheduleAddMenuClose}
+              >
+                {PlusIcon}
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Content
+                onClickOutside={() => setAppState({ openMenu: null })}
+                className="add-menu"
+                align="start"
+              >
+                {Array.from({ length: 5 }, (_, index) => (
+                  <button
+                    key={index}
+                    type="button"
+                    className="add-menu-card"
+                    aria-label={`Add option ${index + 1}`}
+                  />
+                ))}
+              </DropdownMenu.Content>
+            </DropdownMenu>
           </div>
         </MainMenuTunnel.In>
       );

@@ -25,4 +25,17 @@ describe("Test <DropdownMenu/>", () => {
       expect(window.h.state.openMenu).toBe(null);
     });
   });
+
+  it("opens the add menu on hover and closes it after leaving", async () => {
+    const { container } = await render(<Excalidraw />);
+    const addMenuTrigger = getByTestId(container, "add-menu-trigger");
+
+    fireEvent.mouseEnter(addMenuTrigger);
+    expect(window.h.state.openMenu).toBe("add");
+
+    fireEvent.mouseLeave(addMenuTrigger);
+    await waitFor(() => {
+      expect(window.h.state.openMenu).toBe(null);
+    });
+  });
 });
