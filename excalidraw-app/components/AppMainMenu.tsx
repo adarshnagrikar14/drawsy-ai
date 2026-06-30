@@ -21,9 +21,11 @@ export const AppMainMenu: React.FC<{
   isCollabEnabled: boolean;
   theme: Theme | "system";
   refresh: () => void;
+  addMenu: React.ReactNode;
+  header: React.ReactNode;
 }> = React.memo((props) => {
   return (
-    <MainMenu>
+    <MainMenu addMenu={props.addMenu} header={props.header}>
       <MainMenu.DefaultItems.LoadScene />
       <MainMenu.DefaultItems.SaveToActiveFile />
       <MainMenu.DefaultItems.Export />

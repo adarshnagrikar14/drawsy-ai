@@ -8,7 +8,10 @@ import {
   useExcalidrawAPI,
 } from "@excalidraw/excalidraw";
 import { trackEvent } from "@excalidraw/excalidraw/analytics";
-import { getDefaultAppState } from "@excalidraw/excalidraw/appState";
+import {
+  clearAppStateForLocalStorage,
+  getDefaultAppState,
+} from "@excalidraw/excalidraw/appState";
 import {
   CommandPalette,
   DEFAULT_CATEGORIES,
@@ -69,6 +72,7 @@ import type { RemoteExcalidrawElement } from "@excalidraw/excalidraw/data/reconc
 import type { RestoredDataState } from "@excalidraw/excalidraw/data/restore";
 import type {
   FileId,
+  ExcalidrawElement,
   NonDeletedExcalidrawElement,
   OrderedExcalidrawElement,
 } from "@excalidraw/element/types";
@@ -84,6 +88,14 @@ import type { ResolutionType } from "@excalidraw/common/utility-types";
 import type { ResolvablePromise } from "@excalidraw/common/utils";
 
 import CustomStats from "./CustomStats";
+import { WorkspaceMenu } from "./components/WorkspaceMenu";
+import { WorkspaceTitle } from "./components/WorkspaceTitle";
+import {
+  WorkspaceStore,
+  type CanvasDocument,
+  type CanvasScene,
+  type WorkspaceIndex,
+} from "./data/WorkspaceStore";
 import {
   Provider,
   useAtom,
@@ -95,6 +107,7 @@ import {
   FIREBASE_STORAGE_PREFIXES,
   isExcalidrawPlusSignedUser,
   STORAGE_KEYS,
+  SAVE_TO_LOCAL_STORAGE_TIMEOUT,
   SYNC_BROWSER_TABS_TIMEOUT,
 } from "./app_constants";
 import Collab, {
@@ -426,6 +439,26 @@ const initializeScene = async (opts: {
   return { scene: null, isExternalScene: false };
 };
 
+const getWorkspaceSceneFingerprint = (
+  elements: readonly ExcalidrawElement[],
+  appState: AppState,
+  files: BinaryFiles,
+) =>
+  JSON.stringify({
+    elements: elements.map((element) => [
+      element.id,
+      element.version,
+      element.versionNonce,
+      element.isDeleted,
+    ]),
+    appState: clearAppStateForLocalStorage(appState),
+    files: Object.values(files)
+      .map((file) => [file.id, file.version])
+      .sort(([firstId], [secondId]) =>
+        String(firstId).localeCompare(String(secondId)),
+      ),
+  });
+
 const ExcalidrawWrapper = () => {
   const excalidrawAPI = useExcalidrawAPI();
 
@@ -472,6 +505,76 @@ const ExcalidrawWrapper = () => {
   });
 
   const [, forceRefresh] = useState(false);
+  const [workspaceIndex, setWorkspaceIndex] = useState<WorkspaceIndex | null>(
+    null,
+  );
+  const workspaceIndexRef = useRef<WorkspaceIndex | null>(null);
+  const workspaceOperationRef = useRef<Promise<void>>(Promise.resolve());
+  const workspaceSaveTimerRef = useRef<number | null>(null);
+  const workspaceSceneFingerprintsRef = useRef(new Map<string, string>());
+  const [projectTitleToFocus, setProjectTitleToFocus] = useState<string | null>(
+    null,
+  );
+
+  const commitWorkspaceIndex = useCallback((index: WorkspaceIndex) => {
+    workspaceIndexRef.current = index;
+    setWorkspaceIndex(index);
+  }, []);
+
+  const queueWorkspaceOperation = useCallback(
+    <T,>(operation: () => Promise<T>): Promise<T> => {
+      const result = workspaceOperationRef.current.then(operation, operation);
+      workspaceOperationRef.current = result.then(
+        () => undefined,
+        () => undefined,
+      );
+      return result;
+    },
+    [],
+  );
+
+  const saveWorkspaceCanvas = useCallback(
+    async (
+      canvasId: string,
+      elements: readonly OrderedExcalidrawElement[],
+      appState: AppState,
+      files: BinaryFiles,
+    ) => {
+      const fingerprint = getWorkspaceSceneFingerprint(
+        elements,
+        appState,
+        files,
+      );
+      if (workspaceSceneFingerprintsRef.current.get(canvasId) === fingerprint) {
+        return;
+      }
+      workspaceSceneFingerprintsRef.current.set(canvasId, fingerprint);
+
+      try {
+        await queueWorkspaceOperation(async () => {
+          const index = workspaceIndexRef.current;
+          if (!index) {
+            return;
+          }
+          commitWorkspaceIndex(
+            await WorkspaceStore.saveCanvas(index, canvasId, {
+              elements,
+              appState,
+              files,
+            }),
+          );
+        });
+      } catch (error) {
+        if (
+          workspaceSceneFingerprintsRef.current.get(canvasId) === fingerprint
+        ) {
+          workspaceSceneFingerprintsRef.current.delete(canvasId);
+        }
+        throw error;
+      }
+    },
+    [commitWorkspaceIndex, queueWorkspaceOperation],
+  );
 
   useEffect(() => {
     if (isDevEnv()) {
@@ -579,6 +682,19 @@ const ExcalidrawWrapper = () => {
     }
 
     initializeScene({ collabAPI, excalidrawAPI }).then(async (data) => {
+      if (
+        data.scene &&
+        !data.isExternalScene &&
+        !isCollaborationLink(window.location.href)
+      ) {
+        try {
+          const workspace = await WorkspaceStore.initialize(data.scene);
+          commitWorkspaceIndex(workspace.index);
+          data.scene = workspace.document.scene;
+        } catch (error) {
+          console.error("Failed to initialize workspace storage", error);
+        }
+      }
       loadImages(data, /* isInitialLoad */ true);
       initialStatePromiseRef.current.promise.resolve(data.scene);
     });
@@ -701,7 +817,14 @@ const ExcalidrawWrapper = () => {
         false,
       );
     };
-  }, [isCollabDisabled, collabAPI, excalidrawAPI, setLangCode, loadImages]);
+  }, [
+    isCollabDisabled,
+    collabAPI,
+    excalidrawAPI,
+    setLangCode,
+    loadImages,
+    commitWorkspaceIndex,
+  ]);
 
   useEffect(() => {
     const unloadHandler = (event: BeforeUnloadEvent) => {
@@ -769,6 +892,17 @@ const ExcalidrawWrapper = () => {
       });
     }
 
+    const activeCanvasId = workspaceIndexRef.current?.activeCanvasId;
+    if (activeCanvasId && !collabAPI?.isCollaborating()) {
+      if (workspaceSaveTimerRef.current !== null) {
+        window.clearTimeout(workspaceSaveTimerRef.current);
+      }
+      workspaceSaveTimerRef.current = window.setTimeout(() => {
+        workspaceSaveTimerRef.current = null;
+        void saveWorkspaceCanvas(activeCanvasId, elements, appState, files);
+      }, SAVE_TO_LOCAL_STORAGE_TIMEOUT);
+    }
+
     // Render the debug scene if the debug canvas is available
     if (debugCanvasRef.current && excalidrawAPI) {
       debugRenderer(
@@ -779,6 +913,163 @@ const ExcalidrawWrapper = () => {
       );
     }
   };
+
+  useEffect(
+    () => () => {
+      if (workspaceSaveTimerRef.current !== null) {
+        window.clearTimeout(workspaceSaveTimerRef.current);
+      }
+    },
+    [],
+  );
+
+  const createBlankScene = useCallback((): CanvasScene => {
+    const currentAppState = excalidrawAPI?.getAppState();
+    return {
+      elements: [],
+      appState: {
+        ...getDefaultAppState(),
+        theme: currentAppState?.theme || getDefaultAppState().theme,
+        name: "Untitled",
+        isLoading: false,
+        openMenu: null,
+      },
+      files: {},
+    };
+  }, [excalidrawAPI]);
+
+  const applyWorkspaceDocument = useCallback(
+    (document: CanvasDocument) => {
+      if (!excalidrawAPI || !document) {
+        return;
+      }
+
+      LocalData.pauseSave("workspace-switch");
+      try {
+        excalidrawAPI.resetScene({ resetLoadingState: true });
+        excalidrawAPI.updateScene({
+          elements: restoreElements(document.scene.elements, null, {
+            repairBindings: true,
+          }),
+          appState: {
+            ...restoreAppState(document.scene.appState, null),
+            isLoading: false,
+            openMenu: null,
+          },
+          captureUpdate: CaptureUpdateAction.NEVER,
+        });
+        excalidrawAPI.replaceFiles(document.scene.files || {});
+        excalidrawAPI.history.clear();
+      } finally {
+        LocalData.resumeSave("workspace-switch");
+      }
+    },
+    [excalidrawAPI],
+  );
+
+  const runWorkspaceSwitch = useCallback(
+    async (
+      operation: (
+        index: WorkspaceIndex,
+      ) => Promise<{ index: WorkspaceIndex; document: CanvasDocument } | null>,
+    ) => {
+      if (!excalidrawAPI || collabAPI?.isCollaborating()) {
+        excalidrawAPI?.setToast({
+          message: "Leave collaboration before switching canvases.",
+        });
+        return null;
+      }
+
+      if (workspaceSaveTimerRef.current !== null) {
+        window.clearTimeout(workspaceSaveTimerRef.current);
+        workspaceSaveTimerRef.current = null;
+      }
+
+      try {
+        return await queueWorkspaceOperation(async () => {
+          let index = workspaceIndexRef.current;
+          if (!index) {
+            return null;
+          }
+
+          LocalData.flushSave();
+          index = await WorkspaceStore.saveCanvas(index, index.activeCanvasId, {
+            elements: excalidrawAPI.getSceneElementsIncludingDeleted(),
+            appState: excalidrawAPI.getAppState(),
+            files: excalidrawAPI.getFiles(),
+          });
+          workspaceSceneFingerprintsRef.current.set(
+            index.activeCanvasId,
+            getWorkspaceSceneFingerprint(
+              excalidrawAPI.getSceneElementsIncludingDeleted(),
+              excalidrawAPI.getAppState(),
+              excalidrawAPI.getFiles(),
+            ),
+          );
+
+          const result = await operation(index);
+          if (!result) {
+            commitWorkspaceIndex(index);
+            return null;
+          }
+          commitWorkspaceIndex(result.index);
+          applyWorkspaceDocument(result.document);
+          return result;
+        });
+      } catch (error) {
+        console.error("Workspace operation failed", error);
+        excalidrawAPI.setToast({
+          message: "Couldn't update local workspace storage.",
+        });
+        return null;
+      }
+    },
+    [
+      applyWorkspaceDocument,
+      collabAPI,
+      commitWorkspaceIndex,
+      excalidrawAPI,
+      queueWorkspaceOperation,
+    ],
+  );
+
+  const createWorkspaceCanvas = useCallback(() => {
+    void runWorkspaceSwitch((index) =>
+      WorkspaceStore.createCanvas(index, createBlankScene()),
+    );
+  }, [createBlankScene, runWorkspaceSwitch]);
+
+  const createWorkspaceProject = useCallback(() => {
+    void runWorkspaceSwitch((index) =>
+      WorkspaceStore.createProject(index, createBlankScene()),
+    ).then((result) => {
+      if (result?.document.projectId) {
+        setProjectTitleToFocus(result.document.projectId);
+      }
+    });
+  }, [createBlankScene, runWorkspaceSwitch]);
+
+  const createWorkspaceProjectCanvas = useCallback(
+    (projectId: string) => {
+      void runWorkspaceSwitch((index) =>
+        WorkspaceStore.createCanvas(index, createBlankScene(), projectId),
+      );
+    },
+    [createBlankScene, runWorkspaceSwitch],
+  );
+
+  const openWorkspaceCanvas = useCallback(
+    (canvasId: string) => {
+      if (canvasId === workspaceIndexRef.current?.activeCanvasId) {
+        excalidrawAPI?.updateScene({ appState: { openMenu: null } });
+        return;
+      }
+      void runWorkspaceSwitch((index) =>
+        WorkspaceStore.openCanvas(index, canvasId),
+      );
+    },
+    [excalidrawAPI, runWorkspaceSwitch],
+  );
 
   const [latestShareableLink, setLatestShareableLink] = useState<string | null>(
     null,
@@ -838,6 +1129,61 @@ const ExcalidrawWrapper = () => {
   };
 
   const isOffline = useAtomValue(isOfflineAtom);
+
+  const activeCanvas = workspaceIndex?.canvases.find(
+    (canvas) => canvas.id === workspaceIndex.activeCanvasId,
+  );
+  const activeProject = workspaceIndex?.projects.find(
+    (project) => project.id === activeCanvas?.projectId,
+  );
+
+  const renameActiveCanvas = useCallback(
+    (title: string) => {
+      if (!excalidrawAPI || !activeCanvas) {
+        return;
+      }
+      const index = workspaceIndexRef.current;
+      if (!index) {
+        return;
+      }
+      const normalizedTitle = title.trim() || "Untitled";
+      commitWorkspaceIndex({
+        ...index,
+        canvases: index.canvases.map((canvas) =>
+          canvas.id === activeCanvas.id
+            ? { ...canvas, title: normalizedTitle }
+            : canvas,
+        ),
+      });
+      excalidrawAPI.updateScene({
+        appState: { name: normalizedTitle },
+        captureUpdate: CaptureUpdateAction.NEVER,
+      });
+    },
+    [activeCanvas, commitWorkspaceIndex, excalidrawAPI],
+  );
+
+  const renameActiveProject = useCallback(
+    (title: string) => {
+      if (!activeProject) {
+        return;
+      }
+      void queueWorkspaceOperation(async () => {
+        const index = workspaceIndexRef.current;
+        if (index) {
+          commitWorkspaceIndex(
+            await WorkspaceStore.renameProject(index, activeProject.id, title),
+          );
+        }
+      });
+    },
+    [activeProject, commitWorkspaceIndex, queueWorkspaceOperation],
+  );
+
+  const clearProjectTitleFocus = useCallback(
+    () => setProjectTitleToFocus(null),
+    [],
+  );
 
   const localStorageQuotaExceeded = useAtomValue(localStorageQuotaExceededAtom);
 
@@ -1037,6 +1383,30 @@ const ExcalidrawWrapper = () => {
           isCollabEnabled={!isCollabDisabled}
           theme={appTheme}
           refresh={() => forceRefresh((prev) => !prev)}
+          addMenu={
+            <WorkspaceMenu
+              index={workspaceIndex}
+              disabled={!workspaceIndex || isCollaborating}
+              onCreateCanvas={createWorkspaceCanvas}
+              onCreateProject={createWorkspaceProject}
+              onCreateProjectCanvas={createWorkspaceProjectCanvas}
+              onOpenCanvas={openWorkspaceCanvas}
+            />
+          }
+          header={
+            activeCanvas ? (
+              <WorkspaceTitle
+                canvasTitle={activeCanvas.title}
+                projectTitle={activeProject?.title || null}
+                focusProjectTitle={
+                  !!activeProject && projectTitleToFocus === activeProject.id
+                }
+                onCanvasTitleChange={renameActiveCanvas}
+                onProjectTitleChange={renameActiveProject}
+                onProjectTitleFocused={clearProjectTitleFocus}
+              />
+            ) : null
+          }
         />
         <DefaultSidebar.Trigger style={{ display: "none" }} />
         <AppWelcomeScreen
