@@ -20,12 +20,16 @@ const MainMenu = Object.assign(
     ({
       children,
       onSelect,
+      addMenu,
+      header,
     }: {
       children?: React.ReactNode;
       /**
        * Called when any menu item is selected (clicked on).
        */
       onSelect?: (event: Event) => void;
+      addMenu?: React.ReactNode;
+      header?: React.ReactNode;
     }) => {
       const { MainMenuTunnel } = useTunnels();
       const editorInterface = useEditorInterface();
@@ -155,16 +159,18 @@ const MainMenu = Object.assign(
                 className="add-menu"
                 align="start"
               >
-                {Array.from({ length: 5 }, (_, index) => (
-                  <button
-                    key={index}
-                    type="button"
-                    className="add-menu-card"
-                    aria-label={`Add option ${index + 1}`}
-                  />
-                ))}
+                {addMenu ||
+                  Array.from({ length: 5 }, (_, index) => (
+                    <button
+                      key={index}
+                      type="button"
+                      className="add-menu-card"
+                      aria-label={`Add option ${index + 1}`}
+                    />
+                  ))}
               </DropdownMenu.Content>
             </DropdownMenu>
+            {header}
           </div>
         </MainMenuTunnel.In>
       );

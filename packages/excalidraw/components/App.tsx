@@ -766,6 +766,7 @@ class App extends React.Component<AppProps, AppState> {
       },
       refresh: this.refresh,
       setToast: this.setToast,
+      replaceFiles: this.replaceFiles,
       id: this.id,
       setActiveTool: this.setActiveTool,
       setCursor: this.setCursor,
@@ -4528,6 +4529,16 @@ class App extends React.Component<AppProps, AppState> {
       this.addNewImagesToImageCache();
     },
   );
+
+  public replaceFiles: ExcalidrawImperativeAPI["replaceFiles"] =
+    withBatchedUpdates((files) => {
+      this.clearImageShapeCache();
+      this.imageCache.clear();
+      const { addedFiles } = this.addMissingFiles(files, true);
+      this.clearImageShapeCache(addedFiles);
+      this.scene.triggerUpdate();
+      this.addNewImagesToImageCache();
+    });
 
   private addMissingFiles = (
     files: BinaryFiles | BinaryFileData[],
