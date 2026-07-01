@@ -50,10 +50,18 @@
       animation: successStatusAnimation 0.5s cubic-bezier(0.3, 1, 0.6, 1);
     }
 
-    &.ExcButton--status-loading,
+    &.ExcButton--status-loading {
+      pointer-events: none;
+
+      .ExcButton__contents {
+        visibility: hidden;
+      }
+    }
+
     &.ExcButton--status-success {
       pointer-events: none;
-      background-color: var(--color-success);
+      --back-color: var(--color-success) !important;
+      --text-color: var(--color-success-text) !important;
 
       .ExcButton__contents {
         visibility: hidden;
@@ -63,16 +71,18 @@
     &[disabled] {
       cursor: not-allowed;
 
-      &.ExcButton--variant-filled,
-      &:hover {
-        --back-color: var(--color-surface-low) !important;
-        --text-color: var(--color-on-surface-variant) !important;
-      }
+      &:not(.ExcButton--status-loading):not(.ExcButton--status-success) {
+        &.ExcButton--variant-filled,
+        &:hover {
+          --back-color: var(--color-surface-low) !important;
+          --text-color: var(--color-on-surface-variant) !important;
+        }
 
-      &.ExcButton--variant-outlined,
-      &.ExcButton--variant-icon {
-        --text-color: var(--color-on-surface-variant);
-        --border-color: var(--color-surface-high);
+        &.ExcButton--variant-outlined,
+        &.ExcButton--variant-icon {
+          --text-color: var(--color-on-surface-variant);
+          --border-color: var(--color-surface-high);
+        }
       }
     }
 
