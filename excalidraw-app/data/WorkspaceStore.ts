@@ -52,6 +52,21 @@ const createId = () => randomId();
 const getSceneTitle = (scene: CanvasScene) =>
   scene.appState?.name?.trim() || "Untitled";
 
+const getUniqueCanvasTitle = (index: WorkspaceIndex, title: string) => {
+  const existingTitles = new Set(
+    index.canvases.map((canvas) => canvas.title.trim().toLocaleLowerCase()),
+  );
+  if (!existingTitles.has(title.toLocaleLowerCase())) {
+    return title;
+  }
+
+  let suffix = 2;
+  while (existingTitles.has(`${title} (${suffix})`.toLocaleLowerCase())) {
+    suffix += 1;
+  }
+  return `${title} (${suffix})`;
+};
+
 const normalizeScene = (scene: CanvasScene): CanvasScene => ({
   elements: scene.elements || [],
   appState: clearAppStateForLocalStorage(scene.appState || {}),
@@ -174,9 +189,15 @@ export class WorkspaceStore {
 
   static async importCanvas(scene: CanvasScene) {
     const workspace = await this.initialize(scene);
-    return workspace.isNewWorkspace
-      ? workspace
-      : this.createCanvas(workspace.index, scene);
+    if (workspace.isNewWorkspace) {
+      return workspace;
+    }
+
+    const title = getUniqueCanvasTitle(workspace.index, getSceneTitle(scene));
+    return this.createCanvas(workspace.index, {
+      ...scene,
+      appState: { ...scene.appState, name: title },
+    });
   }
 
   static async saveCanvas(

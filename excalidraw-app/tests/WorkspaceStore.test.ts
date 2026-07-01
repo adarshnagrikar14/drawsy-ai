@@ -68,4 +68,20 @@ describe("WorkspaceStore", () => {
     expect(imported.index.activeCanvasId).toBe(imported.document.id);
     expect(imported.document.title).toBe("Shared drawing");
   });
+
+  it("gives repeated shared imports unique synchronized titles", async () => {
+    await WorkspaceStore.initialize(createScene("Shared drawing"));
+
+    const second = await WorkspaceStore.importCanvas(
+      createScene("Shared drawing"),
+    );
+    const third = await WorkspaceStore.importCanvas(
+      createScene("Shared drawing"),
+    );
+
+    expect(second.document.title).toBe("Shared drawing (2)");
+    expect(second.document.scene.appState?.name).toBe("Shared drawing (2)");
+    expect(third.document.title).toBe("Shared drawing (3)");
+    expect(third.document.scene.appState?.name).toBe("Shared drawing (3)");
+  });
 });
