@@ -1046,9 +1046,10 @@ const ExcalidrawWrapper = () => {
 
   const runWorkspaceSwitch = useCallback(
     async (
-      operation: (
-        index: WorkspaceIndex,
-      ) => Promise<{ index: WorkspaceIndex; document: CanvasDocument } | null>,
+      operation: (index: WorkspaceIndex) => Promise<{
+        index: WorkspaceIndex;
+        document?: CanvasDocument;
+      } | null>,
     ) => {
       if (!excalidrawAPI || collabAPI?.isCollaborating()) {
         excalidrawAPI?.setToast({
@@ -1101,7 +1102,9 @@ const ExcalidrawWrapper = () => {
             return null;
           }
           commitWorkspaceIndex(result.index);
-          applyWorkspaceDocument(result.document);
+          if (result.document) {
+            applyWorkspaceDocument(result.document);
+          }
           return result;
         });
       } catch (error) {
@@ -1131,7 +1134,7 @@ const ExcalidrawWrapper = () => {
     void runWorkspaceSwitch((index) =>
       WorkspaceStore.createProject(index, createBlankScene()),
     ).then((result) => {
-      if (result?.document.projectId) {
+      if (result?.document?.projectId) {
         setProjectTitleToFocus(result.document.projectId);
       }
     });
@@ -1157,6 +1160,62 @@ const ExcalidrawWrapper = () => {
       );
     },
     [excalidrawAPI, runWorkspaceSwitch],
+  );
+
+  const deleteWorkspaceCanvas = useCallback(
+    async (canvasId: string, title: string) => {
+      if (
+        !(await openConfirmModal({
+          title: "Delete canvas?",
+          description: (
+            <>
+              <strong>{title}</strong> will be permanently deleted.
+              <br />
+              This cannot be undone.
+            </>
+          ),
+          actionLabel: "Delete canvas",
+          color: "danger",
+        }))
+      ) {
+        return;
+      }
+      void runWorkspaceSwitch((index) =>
+        WorkspaceStore.deleteCanvas(index, canvasId, createBlankScene()),
+      );
+    },
+    [createBlankScene, runWorkspaceSwitch],
+  );
+
+  const deleteWorkspaceProject = useCallback(
+    async (projectId: string, title: string) => {
+      const canvasCount =
+        workspaceIndexRef.current?.projects.find(
+          (project) => project.id === projectId,
+        )?.canvasIds.length || 0;
+      if (
+        !(await openConfirmModal({
+          title: "Delete project?",
+          description: (
+            <>
+              <strong>{title}</strong> and {canvasCount}{" "}
+              {canvasCount === 1 ? "canvas" : "canvases"} will be permanently
+              deleted.
+              <br />
+              This cannot be undone.
+            </>
+          ),
+          actionLabel: "Delete project",
+          color: "danger",
+        }))
+      ) {
+        return;
+      }
+      void runWorkspaceSwitch((index) =>
+        WorkspaceStore.deleteProject(index, projectId, createBlankScene()),
+      );
+    },
+    [createBlankScene, runWorkspaceSwitch],
   );
 
   const [latestShareableLink, setLatestShareableLink] = useState<string | null>(
@@ -1479,6 +1538,8 @@ const ExcalidrawWrapper = () => {
               onCreateProject={createWorkspaceProject}
               onCreateProjectCanvas={createWorkspaceProjectCanvas}
               onOpenCanvas={openWorkspaceCanvas}
+              onDeleteCanvas={deleteWorkspaceCanvas}
+              onDeleteProject={deleteWorkspaceProject}
             />
           }
           header={
