@@ -2,7 +2,13 @@ import {
   ArrowRightIcon,
   PlusIcon,
 } from "@excalidraw/excalidraw/components/icons";
-import React, { useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import type {
   CanvasDocumentMetadata,
@@ -30,6 +36,9 @@ const HistoryPanel = ({
   emptyLabel,
   onSelect,
   onHover,
+  onScroll,
+  onItemRef,
+  disabled,
   className = "",
   style,
   footer,
@@ -37,22 +46,34 @@ const HistoryPanel = ({
   items: Array<CanvasDocumentMetadata | WorkspaceProject>;
   emptyLabel: string;
   onSelect: (item: CanvasDocumentMetadata | WorkspaceProject) => void;
-  onHover?: (item: CanvasDocumentMetadata | WorkspaceProject) => void;
+  onHover?: (
+    item: CanvasDocumentMetadata | WorkspaceProject,
+    anchor: HTMLButtonElement,
+  ) => void;
+  onScroll?: React.UIEventHandler<HTMLDivElement>;
+  onItemRef?: (itemId: string, element: HTMLButtonElement | null) => void;
+  disabled?: boolean;
   className?: string;
   style?: React.CSSProperties;
   footer?: React.ReactNode;
 }) => (
   <div className={`workspace-history-panel ${className}`} style={style}>
-    <div className="workspace-history-list">
+    <div className="workspace-history-list" onScroll={onScroll}>
       {items.length ? (
         items.map((item) => (
           <button
             type="button"
             className="workspace-history-item"
             key={item.id}
+            ref={(element) => onItemRef?.(item.id, element)}
             onClick={() => onSelect(item)}
-            onMouseEnter={() => onHover?.(item)}
-            onFocus={() => onHover?.(item)}
+            onMouseEnter={(event) =>
+              !disabled && onHover?.(item, event.currentTarget)
+            }
+            onFocus={(event) =>
+              !disabled && onHover?.(item, event.currentTarget)
+            }
+            disabled={disabled}
           >
             <span>{item.title}</span>
             {"canvasIds" in item && ArrowRightIcon}
@@ -76,6 +97,9 @@ export const WorkspaceMenu = ({
 }: Props) => {
   const [branch, setBranch] = useState<"canvases" | "projects" | null>(null);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+  const [projectPanelTop, setProjectPanelTop] = useState<number | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const projectButtonRefs = useRef(new Map<string, HTMLButtonElement>());
 
   const standaloneCanvases = useMemo(
     () => byRecent(index?.canvases.filter((canvas) => !canvas.projectId) || []),
@@ -91,19 +115,66 @@ export const WorkspaceMenu = ({
       ),
     [activeProjectId, index],
   );
-  const activeProjectIndex = projects.findIndex(
-    (project) => project.id === activeProjectId,
+  const updateProjectPanelPosition = useCallback(
+    (projectId: string, anchor?: HTMLButtonElement) => {
+      const menu = menuRef.current;
+      const button = anchor || projectButtonRefs.current.get(projectId);
+      const list = button?.closest<HTMLElement>(".workspace-history-list");
+      if (!menu || !button || !list) {
+        return;
+      }
+
+      const buttonRect = button.getBoundingClientRect();
+      const listRect = list.getBoundingClientRect();
+      if (
+        buttonRect.bottom <= listRect.top ||
+        buttonRect.top >= listRect.bottom
+      ) {
+        setActiveProjectId((current) =>
+          current === projectId ? null : current,
+        );
+        setProjectPanelTop(null);
+        return;
+      }
+
+      setProjectPanelTop(buttonRect.top - menu.getBoundingClientRect().top);
+    },
+    [],
   );
 
+  const activateProject = useCallback(
+    (project: WorkspaceProject, anchor?: HTMLButtonElement) => {
+      setActiveProjectId(project.id);
+      updateProjectPanelPosition(project.id, anchor);
+    },
+    [updateProjectPanelPosition],
+  );
+
+  useEffect(() => {
+    if (disabled) {
+      setBranch(null);
+      setActiveProjectId(null);
+      setProjectPanelTop(null);
+    }
+  }, [disabled]);
+
   const showBranch = (nextBranch: "canvases" | "projects") => {
+    if (disabled) {
+      return;
+    }
     setBranch(nextBranch);
     if (nextBranch === "canvases") {
       setActiveProjectId(null);
+      setProjectPanelTop(null);
     }
   };
 
   return (
-    <div className="workspace-add-menu" data-testid="workspace-add-menu">
+    <div
+      ref={menuRef}
+      className="workspace-add-menu"
+      data-testid="workspace-add-menu"
+    >
       <div className="workspace-create-card add-menu-card">
         <button
           type="button"
@@ -162,6 +233,7 @@ export const WorkspaceMenu = ({
           items={standaloneCanvases}
           emptyLabel="No recent canvases"
           onSelect={(item) => onOpenCanvas(item.id)}
+          disabled={disabled}
           className="workspace-history-panel--canvases"
         />
       )}
@@ -172,30 +244,42 @@ export const WorkspaceMenu = ({
           emptyLabel="No recent projects"
           onSelect={(item) => {
             if ("canvasIds" in item) {
-              setActiveProjectId(item.id);
+              activateProject(item);
             }
           }}
-          onHover={(item) => {
+          onHover={(item, anchor) => {
             if ("canvasIds" in item) {
-              setActiveProjectId(item.id);
+              activateProject(item, anchor);
             }
           }}
+          onScroll={() => {
+            if (activeProjectId) {
+              updateProjectPanelPosition(activeProjectId);
+            }
+          }}
+          onItemRef={(itemId, element) => {
+            if (element) {
+              projectButtonRefs.current.set(itemId, element);
+            } else {
+              projectButtonRefs.current.delete(itemId);
+            }
+          }}
+          disabled={disabled}
           className="workspace-history-panel--projects"
         />
       )}
 
-      {branch === "projects" && activeProjectId && (
+      {branch === "projects" && activeProjectId && projectPanelTop !== null && (
         <HistoryPanel
           items={projectCanvases}
           emptyLabel="No canvases"
           onSelect={(item) => onOpenCanvas(item.id)}
+          disabled={disabled}
           className="workspace-history-panel--project-canvases"
           style={
             {
-              "--workspace-panel-top": `${
-                5.125 + Math.max(0, activeProjectIndex) * 4.25
-              }rem`,
-              top: `${5.125 + Math.max(0, activeProjectIndex) * 4.25}rem`,
+              "--workspace-panel-top": `${projectPanelTop}px`,
+              top: `${projectPanelTop}px`,
             } as React.CSSProperties
           }
           footer={
