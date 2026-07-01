@@ -1,5 +1,5 @@
 import { randomId } from "@excalidraw/common";
-import { createStore, get, set } from "idb-keyval";
+import { createStore, del, get, set } from "idb-keyval";
 
 import { clearAppStateForLocalStorage } from "@excalidraw/excalidraw/appState";
 
@@ -301,6 +301,92 @@ export class WorkspaceStore {
     };
     await set(WORKSPACE_INDEX_KEY, nextIndex, workspaceStore);
     return { index: nextIndex, document };
+  }
+
+  private static async deleteCanvases(
+    index: WorkspaceIndex,
+    canvasIds: Set<string>,
+    replacementScene: CanvasScene,
+    projectId?: string,
+  ) {
+    const remainingCanvases = index.canvases.filter(
+      (canvas) => !canvasIds.has(canvas.id),
+    );
+    const activeCanvasDeleted = canvasIds.has(index.activeCanvasId);
+    const nextIndex: WorkspaceIndex = {
+      ...index,
+      activeCanvasId: activeCanvasDeleted
+        ? [...remainingCanvases].sort(
+            (a, b) => b.lastOpenedAt - a.lastOpenedAt,
+          )[0]?.id || index.activeCanvasId
+        : index.activeCanvasId,
+      canvases: remainingCanvases,
+      projects: index.projects
+        .filter((project) => project.id !== projectId)
+        .map((project) => ({
+          ...project,
+          canvasIds: project.canvasIds.filter(
+            (canvasId) => !canvasIds.has(canvasId),
+          ),
+        })),
+    };
+
+    if (remainingCanvases.length === 0) {
+      const replacement = await this.createCanvas(nextIndex, replacementScene);
+      await Promise.all(
+        [...canvasIds].map((canvasId) =>
+          del(canvasKey(canvasId), workspaceStore),
+        ),
+      );
+      return replacement;
+    }
+
+    await set(WORKSPACE_INDEX_KEY, nextIndex, workspaceStore);
+    await Promise.all(
+      [...canvasIds].map((canvasId) =>
+        del(canvasKey(canvasId), workspaceStore),
+      ),
+    );
+    return {
+      index: nextIndex,
+      document: activeCanvasDeleted
+        ? await getDocument(nextIndex.activeCanvasId)
+        : undefined,
+    };
+  }
+
+  static async deleteCanvas(
+    index: WorkspaceIndex,
+    canvasId: string,
+    replacementScene: CanvasScene,
+  ) {
+    if (!index.canvases.some((canvas) => canvas.id === canvasId)) {
+      return null;
+    }
+    return this.deleteCanvases(index, new Set([canvasId]), replacementScene);
+  }
+
+  static async deleteProject(
+    index: WorkspaceIndex,
+    projectId: string,
+    replacementScene: CanvasScene,
+  ) {
+    const project = index.projects.find((project) => project.id === projectId);
+    if (!project) {
+      return null;
+    }
+    const projectCanvasIds = new Set([
+      ...project.canvasIds,
+      ...index.canvases
+        .filter((canvas) => canvas.projectId === projectId)
+        .map((canvas) => canvas.id),
+    ]);
+    return this.deleteCanvases(
+      index,
+      projectCanvasIds,
+      replacementScene,
+      projectId,
+    );
   }
 
   static async renameProject(

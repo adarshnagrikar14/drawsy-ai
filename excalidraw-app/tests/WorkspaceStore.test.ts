@@ -84,4 +84,54 @@ describe("WorkspaceStore", () => {
     expect(third.document.title).toBe("Shared drawing (3)");
     expect(third.document.scene.appState?.name).toBe("Shared drawing (3)");
   });
+
+  it("deletes a project and every canvas it contains", async () => {
+    const initial = await WorkspaceStore.initialize(createScene("Original"));
+    const project = await WorkspaceStore.createProject(
+      initial.index,
+      createScene("Project canvas"),
+    );
+    const projectId = project.document.projectId!;
+    const secondProjectCanvas = await WorkspaceStore.createCanvas(
+      project.index,
+      createScene("Second project canvas"),
+      projectId,
+    );
+
+    const deleted = await WorkspaceStore.deleteProject(
+      secondProjectCanvas.index,
+      projectId,
+      createScene("Replacement"),
+    );
+
+    expect(deleted?.index.projects).toHaveLength(0);
+    expect(deleted?.index.canvases.map((canvas) => canvas.title)).toEqual([
+      "Original",
+    ]);
+    expect(deleted?.document?.id).toBe(initial.document.id);
+    expect(
+      await WorkspaceStore.openCanvas(deleted!.index, project.document.id),
+    ).toBeNull();
+    expect(
+      await WorkspaceStore.openCanvas(
+        deleted!.index,
+        secondProjectCanvas.document.id,
+      ),
+    ).toBeNull();
+  });
+
+  it("creates a blank replacement after deleting the final canvas", async () => {
+    const initial = await WorkspaceStore.initialize(createScene("Only canvas"));
+
+    const deleted = await WorkspaceStore.deleteCanvas(
+      initial.index,
+      initial.document.id,
+      createScene("Untitled"),
+    );
+
+    expect(deleted?.index.canvases).toHaveLength(1);
+    expect(deleted?.document?.title).toBe("Untitled");
+    expect(deleted?.document?.id).not.toBe(initial.document.id);
+    expect(deleted?.index.activeCanvasId).toBe(deleted?.document?.id);
+  });
 });
