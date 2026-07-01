@@ -97,8 +97,52 @@ export class WorkspaceStore {
 
     if (existingIndex?.schemaVersion === SCHEMA_VERSION) {
       const activeDocument = await getDocument(existingIndex.activeCanvasId);
-      if (activeDocument) {
+      const hasActiveMetadata = existingIndex.canvases.some(
+        (canvas) => canvas.id === existingIndex.activeCanvasId,
+      );
+      if (activeDocument && hasActiveMetadata) {
         return { index: existingIndex, document: activeDocument };
+      }
+
+      if (existingIndex.canvases.length > 0) {
+        const documents = await Promise.all(
+          existingIndex.canvases.map(async (canvas) => ({
+            metadata: canvas,
+            document: await getDocument(canvas.id),
+          })),
+        );
+        const validDocuments = documents.filter(
+          (
+            entry,
+          ): entry is {
+            metadata: CanvasDocumentMetadata;
+            document: CanvasDocument;
+          } => !!entry.document,
+        );
+
+        if (validDocuments.length > 0) {
+          const recovered = [...validDocuments].sort(
+            (a, b) => b.metadata.lastOpenedAt - a.metadata.lastOpenedAt,
+          )[0];
+          const validCanvasIds = new Set(
+            validDocuments.map(({ metadata }) => metadata.id),
+          );
+          const repairedIndex: WorkspaceIndex = {
+            ...existingIndex,
+            activeCanvasId: recovered.document.id,
+            canvases: existingIndex.canvases.filter((canvas) =>
+              validCanvasIds.has(canvas.id),
+            ),
+            projects: existingIndex.projects.map((project) => ({
+              ...project,
+              canvasIds: project.canvasIds.filter((canvasId) =>
+                validCanvasIds.has(canvasId),
+              ),
+            })),
+          };
+          await set(WORKSPACE_INDEX_KEY, repairedIndex, workspaceStore);
+          return { index: repairedIndex, document: recovered.document };
+        }
       }
     }
 

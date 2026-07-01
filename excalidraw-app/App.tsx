@@ -441,7 +441,7 @@ const initializeScene = async (opts: {
 
 const getWorkspaceSceneFingerprint = (
   elements: readonly ExcalidrawElement[],
-  appState: AppState,
+  appState: Partial<AppState>,
   files: BinaryFiles,
 ) =>
   JSON.stringify({
@@ -691,6 +691,27 @@ const ExcalidrawWrapper = () => {
           const workspace = await WorkspaceStore.initialize(data.scene);
           commitWorkspaceIndex(workspace.index);
           data.scene = workspace.document.scene;
+
+          const restoredElements = restoreElements(
+            workspace.document.scene.elements,
+            null,
+            { repairBindings: true },
+          );
+          const restoredAppState = {
+            ...restoreAppState(workspace.document.scene.appState, null),
+            isLoading: false,
+            openMenu: null,
+          };
+          const files = workspace.document.scene.files || {};
+
+          workspaceSceneFingerprintsRef.current.set(
+            workspace.document.id,
+            getWorkspaceSceneFingerprint(
+              restoredElements,
+              restoredAppState,
+              files,
+            ),
+          );
         } catch (error) {
           console.error("Failed to initialize workspace storage", error);
         }
@@ -946,19 +967,36 @@ const ExcalidrawWrapper = () => {
 
       LocalData.pauseSave("workspace-switch");
       try {
+        const restoredElements = restoreElements(
+          document.scene.elements,
+          null,
+          {
+            repairBindings: true,
+          },
+        );
+        const restoredAppState = {
+          ...restoreAppState(document.scene.appState, null),
+          isLoading: false,
+          openMenu: null,
+        };
+        const files = document.scene.files || {};
+
+        workspaceSceneFingerprintsRef.current.set(
+          document.id,
+          getWorkspaceSceneFingerprint(
+            restoredElements,
+            restoredAppState,
+            files,
+          ),
+        );
+
         excalidrawAPI.resetScene({ resetLoadingState: true });
         excalidrawAPI.updateScene({
-          elements: restoreElements(document.scene.elements, null, {
-            repairBindings: true,
-          }),
-          appState: {
-            ...restoreAppState(document.scene.appState, null),
-            isLoading: false,
-            openMenu: null,
-          },
+          elements: restoredElements,
+          appState: restoredAppState,
           captureUpdate: CaptureUpdateAction.NEVER,
         });
-        excalidrawAPI.replaceFiles(document.scene.files || {});
+        excalidrawAPI.replaceFiles(files);
         excalidrawAPI.history.clear();
       } finally {
         LocalData.resumeSave("workspace-switch");
@@ -993,19 +1031,30 @@ const ExcalidrawWrapper = () => {
           }
 
           LocalData.flushSave();
-          index = await WorkspaceStore.saveCanvas(index, index.activeCanvasId, {
-            elements: excalidrawAPI.getSceneElementsIncludingDeleted(),
-            appState: excalidrawAPI.getAppState(),
-            files: excalidrawAPI.getFiles(),
-          });
-          workspaceSceneFingerprintsRef.current.set(
-            index.activeCanvasId,
-            getWorkspaceSceneFingerprint(
-              excalidrawAPI.getSceneElementsIncludingDeleted(),
-              excalidrawAPI.getAppState(),
-              excalidrawAPI.getFiles(),
-            ),
+          const activeCanvasId = index.activeCanvasId;
+          const elements = excalidrawAPI.getSceneElementsIncludingDeleted();
+          const appState = excalidrawAPI.getAppState();
+          const files = excalidrawAPI.getFiles();
+          const fingerprint = getWorkspaceSceneFingerprint(
+            elements,
+            appState,
+            files,
           );
+
+          if (
+            workspaceSceneFingerprintsRef.current.get(activeCanvasId) !==
+            fingerprint
+          ) {
+            index = await WorkspaceStore.saveCanvas(index, activeCanvasId, {
+              elements,
+              appState,
+              files,
+            });
+            workspaceSceneFingerprintsRef.current.set(
+              activeCanvasId,
+              fingerprint,
+            );
+          }
 
           const result = await operation(index);
           if (!result) {
