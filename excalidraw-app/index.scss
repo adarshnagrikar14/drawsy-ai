@@ -259,7 +259,8 @@
   }
 
   .workspace-history-item,
-  .workspace-history-empty {
+  .workspace-history-empty,
+  .workspace-history-toggle {
     box-sizing: border-box;
     width: 100%;
     min-height: 3.75rem;
@@ -270,13 +271,30 @@
     color: var(--color-on-surface);
   }
 
+  .workspace-history-toggle {
+    flex: 0 0 2.5rem;
+    padding: 0 0.875rem;
+    border: 1px solid var(--color-border-outline-variant);
+    background: var(--island-bg-color);
+    color: var(--color-gray-60);
+    font-size: 0.75rem;
+    text-align: left;
+    transition: background-color 150ms ease, color 150ms ease;
+
+    &:hover,
+    &:focus-visible {
+      background: var(--color-surface-low);
+      color: var(--color-on-surface);
+    }
+  }
+
   .workspace-history-item {
     flex: 0 0 3.75rem;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
-    padding: 0 0.875rem;
+    padding: 0 2.75rem 0 0.875rem;
     text-align: left;
     transition: background-color 150ms ease, transform 180ms ease;
 
@@ -299,6 +317,73 @@
     }
   }
 
+  .workspace-history-row {
+    position: relative;
+    flex: 0 0 3.75rem;
+
+    .workspace-history-item {
+      height: 100%;
+    }
+
+    &:hover .workspace-history-delete,
+    &:focus-within .workspace-history-delete {
+      opacity: 1;
+      transform: translateY(-50%) scale(1);
+    }
+
+    &:hover .workspace-history-item > svg,
+    &:focus-within .workspace-history-item > svg {
+      opacity: 0;
+    }
+  }
+
+  .workspace-history-delete {
+    position: absolute;
+    top: 50%;
+    right: 0.75rem;
+    display: grid;
+    width: 1.75rem;
+    height: 1.75rem;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    opacity: 0;
+    background: color-mix(in srgb, var(--color-on-surface) 8%, transparent);
+    color: var(--color-gray-60);
+    transform: translateY(-50%) scale(0.82);
+    transition: opacity 140ms ease,
+      transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+      background-color 140ms ease, color 140ms ease;
+
+    svg {
+      width: 0.875rem;
+      height: 0.875rem;
+    }
+
+    &:hover,
+    &:focus-visible {
+      outline: 0;
+      background: var(--color-danger);
+      color: var(--color-surface-lowest);
+    }
+
+    &:disabled {
+      pointer-events: none;
+    }
+  }
+
+  @media (hover: none) {
+    .workspace-history-delete {
+      opacity: 1;
+      transform: translateY(-50%) scale(1);
+    }
+
+    .workspace-history-item > svg {
+      opacity: 0;
+    }
+  }
+
   .workspace-create-project-canvas {
     border: 1px dashed var(--color-border-outline-variant);
     box-shadow: none;
@@ -318,7 +403,8 @@
 
   &:not(.theme--dark) {
     .workspace-history-item,
-    .workspace-history-empty {
+    .workspace-history-empty,
+    .workspace-history-toggle {
       border: 1px solid var(--color-border-outline-variant);
       box-shadow: none;
     }

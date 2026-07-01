@@ -1,6 +1,7 @@
 import {
   ArrowRightIcon,
   PlusIcon,
+  TrashIcon,
 } from "@excalidraw/excalidraw/components/icons";
 import React, {
   useCallback,
@@ -23,22 +24,26 @@ type Props = {
   onCreateProject: () => void;
   onCreateProjectCanvas: (projectId: string) => void;
   onOpenCanvas: (canvasId: string) => void;
+  onDeleteCanvas: (canvasId: string, title: string) => void;
+  onDeleteProject: (projectId: string, title: string) => void;
 };
 
 const sortByRecent = <T extends { lastOpenedAt: number }>(items: T[]) =>
   [...items].sort((a, b) => b.lastOpenedAt - a.lastOpenedAt);
 
-const byRecent = <T extends { lastOpenedAt: number }>(items: T[]) =>
-  sortByRecent(items).slice(0, 5);
+const COLLAPSED_HISTORY_LIMIT = 5;
 
 const HistoryPanel = ({
   items,
   emptyLabel,
   onSelect,
+  onDelete,
   onHover,
   onScroll,
   onItemRef,
   disabled,
+  expanded,
+  onToggleExpanded,
   className = "",
   style,
   footer,
@@ -46,6 +51,7 @@ const HistoryPanel = ({
   items: Array<CanvasDocumentMetadata | WorkspaceProject>;
   emptyLabel: string;
   onSelect: (item: CanvasDocumentMetadata | WorkspaceProject) => void;
+  onDelete: (item: CanvasDocumentMetadata | WorkspaceProject) => void;
   onHover?: (
     item: CanvasDocumentMetadata | WorkspaceProject,
     anchor: HTMLButtonElement,
@@ -53,39 +59,70 @@ const HistoryPanel = ({
   onScroll?: React.UIEventHandler<HTMLDivElement>;
   onItemRef?: (itemId: string, element: HTMLButtonElement | null) => void;
   disabled?: boolean;
+  expanded: boolean;
+  onToggleExpanded: () => void;
   className?: string;
   style?: React.CSSProperties;
   footer?: React.ReactNode;
-}) => (
-  <div className={`workspace-history-panel ${className}`} style={style}>
-    <div className="workspace-history-list" onScroll={onScroll}>
-      {items.length ? (
-        items.map((item) => (
+}) => {
+  const visibleItems = expanded
+    ? items
+    : items.slice(0, COLLAPSED_HISTORY_LIMIT);
+  const hasOverflow = items.length > COLLAPSED_HISTORY_LIMIT;
+
+  return (
+    <div className={`workspace-history-panel ${className}`} style={style}>
+      <div className="workspace-history-list" onScroll={onScroll}>
+        {visibleItems.length ? (
+          visibleItems.map((item) => (
+            <div className="workspace-history-row" key={item.id}>
+              <button
+                type="button"
+                className="workspace-history-item"
+                ref={(element) => onItemRef?.(item.id, element)}
+                onClick={() => onSelect(item)}
+                onMouseEnter={(event) =>
+                  !disabled && onHover?.(item, event.currentTarget)
+                }
+                onFocus={(event) =>
+                  !disabled && onHover?.(item, event.currentTarget)
+                }
+                disabled={disabled}
+              >
+                <span>{item.title}</span>
+                {"canvasIds" in item && ArrowRightIcon}
+              </button>
+              <button
+                type="button"
+                className="workspace-history-delete"
+                aria-label={`Delete ${item.title}`}
+                title={`Delete ${item.title}`}
+                onClick={() => onDelete(item)}
+                disabled={disabled}
+              >
+                {TrashIcon}
+              </button>
+            </div>
+          ))
+        ) : (
+          <div className="workspace-history-empty">{emptyLabel}</div>
+        )}
+        {hasOverflow && (
           <button
             type="button"
-            className="workspace-history-item"
-            key={item.id}
-            ref={(element) => onItemRef?.(item.id, element)}
-            onClick={() => onSelect(item)}
-            onMouseEnter={(event) =>
-              !disabled && onHover?.(item, event.currentTarget)
-            }
-            onFocus={(event) =>
-              !disabled && onHover?.(item, event.currentTarget)
-            }
+            className="workspace-history-toggle"
+            onClick={onToggleExpanded}
             disabled={disabled}
+            aria-expanded={expanded}
           >
-            <span>{item.title}</span>
-            {"canvasIds" in item && ArrowRightIcon}
+            {expanded ? "Show less" : `Show all (${items.length})`}
           </button>
-        ))
-      ) : (
-        <div className="workspace-history-empty">{emptyLabel}</div>
-      )}
-      {footer}
+        )}
+        {footer}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 export const WorkspaceMenu = ({
   index,
@@ -94,18 +131,24 @@ export const WorkspaceMenu = ({
   onCreateProject,
   onCreateProjectCanvas,
   onOpenCanvas,
+  onDeleteCanvas,
+  onDeleteProject,
 }: Props) => {
   const [branch, setBranch] = useState<"canvases" | "projects" | null>(null);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [projectPanelTop, setProjectPanelTop] = useState<number | null>(null);
+  const [expandedCanvases, setExpandedCanvases] = useState(false);
+  const [expandedProjects, setExpandedProjects] = useState(false);
+  const [expandedProjectCanvases, setExpandedProjectCanvases] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const projectButtonRefs = useRef(new Map<string, HTMLButtonElement>());
 
   const standaloneCanvases = useMemo(
-    () => byRecent(index?.canvases.filter((canvas) => !canvas.projectId) || []),
+    () =>
+      sortByRecent(index?.canvases.filter((canvas) => !canvas.projectId) || []),
     [index],
   );
-  const projects = useMemo(() => byRecent(index?.projects || []), [index]);
+  const projects = useMemo(() => sortByRecent(index?.projects || []), [index]);
   const projectCanvases = useMemo(
     () =>
       sortByRecent(
@@ -155,8 +198,15 @@ export const WorkspaceMenu = ({
       setBranch(null);
       setActiveProjectId(null);
       setProjectPanelTop(null);
+      setExpandedCanvases(false);
+      setExpandedProjects(false);
+      setExpandedProjectCanvases(false);
     }
   }, [disabled]);
+
+  useEffect(() => {
+    setExpandedProjectCanvases(false);
+  }, [activeProjectId]);
 
   const showBranch = (nextBranch: "canvases" | "projects") => {
     if (disabled) {
@@ -233,7 +283,10 @@ export const WorkspaceMenu = ({
           items={standaloneCanvases}
           emptyLabel="No recent canvases"
           onSelect={(item) => onOpenCanvas(item.id)}
+          onDelete={(item) => onDeleteCanvas(item.id, item.title)}
           disabled={disabled}
+          expanded={expandedCanvases}
+          onToggleExpanded={() => setExpandedCanvases((current) => !current)}
           className="workspace-history-panel--canvases"
         />
       )}
@@ -252,6 +305,7 @@ export const WorkspaceMenu = ({
               activateProject(item, anchor);
             }
           }}
+          onDelete={(item) => onDeleteProject(item.id, item.title)}
           onScroll={() => {
             if (activeProjectId) {
               updateProjectPanelPosition(activeProjectId);
@@ -265,6 +319,12 @@ export const WorkspaceMenu = ({
             }
           }}
           disabled={disabled}
+          expanded={expandedProjects}
+          onToggleExpanded={() => {
+            setExpandedProjects((current) => !current);
+            setActiveProjectId(null);
+            setProjectPanelTop(null);
+          }}
           className="workspace-history-panel--projects"
         />
       )}
@@ -274,7 +334,12 @@ export const WorkspaceMenu = ({
           items={projectCanvases}
           emptyLabel="No canvases"
           onSelect={(item) => onOpenCanvas(item.id)}
+          onDelete={(item) => onDeleteCanvas(item.id, item.title)}
           disabled={disabled}
+          expanded={expandedProjectCanvases}
+          onToggleExpanded={() =>
+            setExpandedProjectCanvases((current) => !current)
+          }
           className="workspace-history-panel--project-canvases"
           style={
             {

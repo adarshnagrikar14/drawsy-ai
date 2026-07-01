@@ -17,6 +17,15 @@ const index: WorkspaceIndex = {
       updatedAt: 1,
       lastOpenedAt: 3,
     },
+    ...Array.from({ length: 5 }, (_, index) => ({
+      id: `standalone-${index + 2}`,
+      title: `Product Ideas ${index + 2}`,
+      projectId: null,
+      version: 1,
+      createdAt: 1,
+      updatedAt: 1,
+      lastOpenedAt: 2 - index,
+    })),
     {
       id: "project-canvas",
       title: "Research",
@@ -52,6 +61,14 @@ const index: WorkspaceIndex = {
       updatedAt: 1,
       lastOpenedAt: 2,
     },
+    ...Array.from({ length: 5 }, (_, index) => ({
+      id: `project-${index + 2}`,
+      title: `Project ${index + 2}`,
+      canvasIds: [],
+      createdAt: 1,
+      updatedAt: 1,
+      lastOpenedAt: 1 - index,
+    })),
   ],
 };
 
@@ -67,6 +84,8 @@ describe("WorkspaceMenu", () => {
         onCreateProject={vi.fn()}
         onCreateProjectCanvas={vi.fn()}
         onOpenCanvas={onOpenCanvas}
+        onDeleteCanvas={vi.fn()}
+        onDeleteProject={vi.fn()}
       />,
     );
 
@@ -90,6 +109,8 @@ describe("WorkspaceMenu", () => {
         onCreateProject={vi.fn()}
         onCreateProjectCanvas={onCreateProjectCanvas}
         onOpenCanvas={onOpenCanvas}
+        onDeleteCanvas={vi.fn()}
+        onDeleteProject={vi.fn()}
       />,
     );
 
@@ -121,6 +142,15 @@ describe("WorkspaceMenu", () => {
         ".workspace-history-panel--project-canvases",
       )?.style.top,
     ).toBe("100px");
+    expect(screen.queryByText("Research 6")).toBeNull();
+    const projectCanvasPanel = container.querySelector<HTMLElement>(
+      ".workspace-history-panel--project-canvases",
+    )!;
+    fireEvent.click(
+      projectCanvasPanel.querySelector<HTMLButtonElement>(
+        ".workspace-history-toggle",
+      )!,
+    );
     expect(screen.getByText("Research 6")).not.toBeNull();
 
     projectTop = 120;
@@ -138,6 +168,58 @@ describe("WorkspaceMenu", () => {
     expect(onCreateProjectCanvas).toHaveBeenCalledWith("project");
   });
 
+  it("expands and collapses every capped history branch", () => {
+    render(
+      <WorkspaceMenu
+        index={index}
+        disabled={false}
+        onCreateCanvas={vi.fn()}
+        onCreateProject={vi.fn()}
+        onCreateProjectCanvas={vi.fn()}
+        onOpenCanvas={vi.fn()}
+        onDeleteCanvas={vi.fn()}
+        onDeleteProject={vi.fn()}
+      />,
+    );
+
+    fireEvent.mouseEnter(screen.getByLabelText("Recent standalone canvases"));
+    expect(screen.queryByText("Product Ideas 6")).toBeNull();
+    fireEvent.click(screen.getByText("Show all (6)"));
+    expect(screen.getByText("Product Ideas 6")).not.toBeNull();
+    fireEvent.click(screen.getByText("Show less"));
+    expect(screen.queryByText("Product Ideas 6")).toBeNull();
+
+    fireEvent.mouseEnter(screen.getByLabelText("Recent projects"));
+    expect(screen.queryByText("Project 6")).toBeNull();
+    fireEvent.click(screen.getByText("Show all (6)"));
+    expect(screen.getByText("Project 6")).not.toBeNull();
+  });
+
+  it("routes canvas and project deletion from their cards", () => {
+    const onDeleteCanvas = vi.fn();
+    const onDeleteProject = vi.fn();
+    render(
+      <WorkspaceMenu
+        index={index}
+        disabled={false}
+        onCreateCanvas={vi.fn()}
+        onCreateProject={vi.fn()}
+        onCreateProjectCanvas={vi.fn()}
+        onOpenCanvas={vi.fn()}
+        onDeleteCanvas={onDeleteCanvas}
+        onDeleteProject={onDeleteProject}
+      />,
+    );
+
+    fireEvent.mouseEnter(screen.getByLabelText("Recent standalone canvases"));
+    fireEvent.click(screen.getByLabelText("Delete Product Ideas"));
+    expect(onDeleteCanvas).toHaveBeenCalledWith("standalone", "Product Ideas");
+
+    fireEvent.mouseEnter(screen.getByLabelText("Recent projects"));
+    fireEvent.click(screen.getByLabelText("Delete excal-ai"));
+    expect(onDeleteProject).toHaveBeenCalledWith("project", "excal-ai");
+  });
+
   it("closes branches and blocks interactions when disabled", async () => {
     const onOpenCanvas = vi.fn();
     const { rerender } = render(
@@ -148,6 +230,8 @@ describe("WorkspaceMenu", () => {
         onCreateProject={vi.fn()}
         onCreateProjectCanvas={vi.fn()}
         onOpenCanvas={onOpenCanvas}
+        onDeleteCanvas={vi.fn()}
+        onDeleteProject={vi.fn()}
       />,
     );
 
@@ -162,6 +246,8 @@ describe("WorkspaceMenu", () => {
         onCreateProject={vi.fn()}
         onCreateProjectCanvas={vi.fn()}
         onOpenCanvas={onOpenCanvas}
+        onDeleteCanvas={vi.fn()}
+        onDeleteProject={vi.fn()}
       />,
     );
 
