@@ -1163,58 +1163,18 @@ const ExcalidrawWrapper = () => {
   );
 
   const deleteWorkspaceCanvas = useCallback(
-    async (canvasId: string, title: string) => {
-      if (
-        !(await openConfirmModal({
-          title: "Delete canvas?",
-          description: (
-            <>
-              <strong>{title}</strong> will be permanently deleted.
-              <br />
-              This cannot be undone.
-            </>
-          ),
-          actionLabel: "Delete canvas",
-          color: "danger",
-        }))
-      ) {
-        return;
-      }
-      void runWorkspaceSwitch((index) =>
+    async (canvasId: string) =>
+      !!(await runWorkspaceSwitch((index) =>
         WorkspaceStore.deleteCanvas(index, canvasId, createBlankScene()),
-      );
-    },
+      )),
     [createBlankScene, runWorkspaceSwitch],
   );
 
   const deleteWorkspaceProject = useCallback(
-    async (projectId: string, title: string) => {
-      const canvasCount =
-        workspaceIndexRef.current?.projects.find(
-          (project) => project.id === projectId,
-        )?.canvasIds.length || 0;
-      if (
-        !(await openConfirmModal({
-          title: "Delete project?",
-          description: (
-            <>
-              <strong>{title}</strong> and {canvasCount}{" "}
-              {canvasCount === 1 ? "canvas" : "canvases"} will be permanently
-              deleted.
-              <br />
-              This cannot be undone.
-            </>
-          ),
-          actionLabel: "Delete project",
-          color: "danger",
-        }))
-      ) {
-        return;
-      }
-      void runWorkspaceSwitch((index) =>
+    async (projectId: string) =>
+      !!(await runWorkspaceSwitch((index) =>
         WorkspaceStore.deleteProject(index, projectId, createBlankScene()),
-      );
-    },
+      )),
     [createBlankScene, runWorkspaceSwitch],
   );
 

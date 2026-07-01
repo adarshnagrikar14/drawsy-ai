@@ -4,6 +4,13 @@ import { WorkspaceMenu } from "../components/WorkspaceMenu";
 
 import type { WorkspaceIndex } from "../data/WorkspaceStore";
 
+vi.mock(
+  "@excalidraw/excalidraw/components/OverwriteConfirm/OverwriteConfirmState",
+  () => ({
+    openConfirmModal: vi.fn(() => Promise.resolve(true)),
+  }),
+);
+
 const index: WorkspaceIndex = {
   schemaVersion: 1,
   activeCanvasId: "standalone",
@@ -195,7 +202,7 @@ describe("WorkspaceMenu", () => {
     expect(screen.getByText("Project 6")).not.toBeNull();
   });
 
-  it("routes canvas and project deletion from their cards", () => {
+  it("routes canvas and project deletion from their cards", async () => {
     const onDeleteCanvas = vi.fn();
     const onDeleteProject = vi.fn();
     render(
@@ -213,11 +220,59 @@ describe("WorkspaceMenu", () => {
 
     fireEvent.mouseEnter(screen.getByLabelText("Recent standalone canvases"));
     fireEvent.click(screen.getByLabelText("Delete Product Ideas"));
-    expect(onDeleteCanvas).toHaveBeenCalledWith("standalone", "Product Ideas");
+    await waitFor(() =>
+      expect(onDeleteCanvas).toHaveBeenCalledWith("standalone"),
+    );
 
     fireEvent.mouseEnter(screen.getByLabelText("Recent projects"));
     fireEvent.click(screen.getByLabelText("Delete excal-ai"));
-    expect(onDeleteProject).toHaveBeenCalledWith("project", "excal-ai");
+    await waitFor(() =>
+      expect(onDeleteProject).toHaveBeenCalledWith("project"),
+    );
+  });
+
+  it("marks the current canvas and its project", () => {
+    const projectIndex: WorkspaceIndex = {
+      ...index,
+      activeCanvasId: "project-canvas",
+    };
+    const { container } = render(
+      <WorkspaceMenu
+        index={projectIndex}
+        disabled={false}
+        onCreateCanvas={vi.fn()}
+        onCreateProject={vi.fn()}
+        onCreateProjectCanvas={vi.fn()}
+        onOpenCanvas={vi.fn()}
+        onDeleteCanvas={vi.fn()}
+        onDeleteProject={vi.fn()}
+      />,
+    );
+
+    fireEvent.mouseEnter(screen.getByLabelText("Recent projects"));
+    const projectButton = screen.getByText("excal-ai").closest("button")!;
+    expect(projectButton).toHaveAttribute("aria-current", "page");
+
+    const menu = screen.getByTestId("workspace-add-menu");
+    const projectList = container.querySelector<HTMLElement>(
+      ".workspace-history-panel--projects .workspace-history-list",
+    )!;
+    vi.spyOn(menu, "getBoundingClientRect").mockReturnValue({
+      top: 50,
+    } as DOMRect);
+    vi.spyOn(projectList, "getBoundingClientRect").mockReturnValue({
+      top: 100,
+      bottom: 300,
+    } as DOMRect);
+    vi.spyOn(projectButton, "getBoundingClientRect").mockReturnValue({
+      top: 150,
+      bottom: 210,
+    } as DOMRect);
+    fireEvent.mouseEnter(projectButton);
+    expect(screen.getByText("Research").closest("button")).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
   });
 
   it("closes branches and blocks interactions when disabled", async () => {
