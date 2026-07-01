@@ -227,9 +227,11 @@
   }
 
   .workspace-history-list {
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
+    padding-inline-end: 0.25rem;
     max-height: max(
       3.75rem,
       calc(100svh - var(--workspace-panel-top) - 5.5rem)
@@ -298,7 +300,7 @@
   }
 
   .workspace-create-project-canvas {
-    border: 1px dashed var(--color-surface-highest);
+    border: 1px dashed var(--color-border-outline-variant);
     box-shadow: none;
 
     svg {
@@ -312,6 +314,18 @@
     padding: 0.75rem;
     color: var(--color-gray-60);
     font-size: 0.8125rem;
+  }
+
+  &:not(.theme--dark) {
+    .workspace-history-item,
+    .workspace-history-empty {
+      border: 1px solid var(--color-border-outline-variant);
+      box-shadow: none;
+    }
+
+    .workspace-create-project-canvas {
+      border-style: dashed;
+    }
   }
 
   .workspace-title {

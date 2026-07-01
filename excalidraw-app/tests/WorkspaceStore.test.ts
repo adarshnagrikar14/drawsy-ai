@@ -42,4 +42,30 @@ describe("WorkspaceStore", () => {
         ?.canvasIds,
     ).toEqual([]);
   });
+
+  it("imports a shared scene as a new active standalone canvas", async () => {
+    await WorkspaceStore.initialize(createScene("Original"));
+
+    const imported = await WorkspaceStore.importCanvas(
+      createScene("Shared drawing"),
+    );
+
+    expect(imported.document.title).toBe("Shared drawing");
+    expect(imported.document.projectId).toBeNull();
+    expect(imported.index.activeCanvasId).toBe(imported.document.id);
+    expect(imported.index.canvases.map((canvas) => canvas.title)).toEqual([
+      "Original",
+      "Shared drawing",
+    ]);
+  });
+
+  it("uses an imported scene as the first canvas in a new workspace", async () => {
+    const imported = await WorkspaceStore.importCanvas(
+      createScene("Shared drawing"),
+    );
+
+    expect(imported.index.canvases).toHaveLength(1);
+    expect(imported.index.activeCanvasId).toBe(imported.document.id);
+    expect(imported.document.title).toBe("Shared drawing");
+  });
 });

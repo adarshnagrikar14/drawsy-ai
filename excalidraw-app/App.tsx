@@ -20,7 +20,6 @@ import { ErrorDialog } from "@excalidraw/excalidraw/components/ErrorDialog";
 import { OverwriteConfirmDialog } from "@excalidraw/excalidraw/components/OverwriteConfirm/OverwriteConfirm";
 import { openConfirmModal } from "@excalidraw/excalidraw/components/OverwriteConfirm/OverwriteConfirmState";
 import { ShareableLinkDialog } from "@excalidraw/excalidraw/components/ShareableLinkDialog";
-import Trans from "@excalidraw/excalidraw/components/Trans";
 import {
   APP_NAME,
   EVENT,
@@ -216,16 +215,16 @@ if (window.self !== window.top) {
 }
 
 const shareableLinkConfirmDialog = {
-  title: t("overwriteConfirm.modal.shareableLink.title"),
+  title: "Open shared canvas",
   description: (
-    <Trans
-      i18nKey="overwriteConfirm.modal.shareableLink.description"
-      bold={(text) => <strong>{text}</strong>}
-      br={() => <br />}
-    />
+    <>
+      The shared drawing will open as a <strong>new canvas</strong>.
+      <br />
+      Your current canvas will remain available in history.
+    </>
   ),
-  actionLabel: t("overwriteConfirm.modal.shareableLink.button"),
-  color: "danger",
+  actionLabel: "Open in new canvas",
+  color: "warning",
 } as const;
 
 const TopRightToolbar = ({ onShareSelect }: { onShareSelect: () => void }) => {
@@ -285,7 +284,10 @@ const initializeScene = async (opts: {
   collabAPI: CollabAPI | null;
   excalidrawAPI: ExcalidrawImperativeAPI;
 }): Promise<
-  { scene: ExcalidrawInitialDataState | null } & (
+  {
+    scene: ExcalidrawInitialDataState | null;
+    shouldImportToWorkspace: boolean;
+  } & (
     | { isExternalScene: true; id: string; key: string }
     | { isExternalScene: false; id?: null; key?: null }
   )
@@ -298,6 +300,7 @@ const initializeScene = async (opts: {
   const externalUrlMatch = window.location.hash.match(/^#url=(.*)$/);
 
   const localDataState = importFromLocalStorage();
+  let shouldImportToWorkspace = false;
 
   let scene: Omit<
     RestoredDataState,
@@ -346,6 +349,7 @@ const initializeScene = async (opts: {
             localDataState?.appState,
           ),
         };
+        shouldImportToWorkspace = true;
       }
       scene.scrollToContent = true;
       if (!roomLinkData) {
@@ -379,7 +383,11 @@ const initializeScene = async (opts: {
         !scene.elements.length ||
         (await openConfirmModal(shareableLinkConfirmDialog))
       ) {
-        return { scene: data, isExternalScene };
+        return {
+          scene: data,
+          isExternalScene: false,
+          shouldImportToWorkspace: true,
+        };
       }
     } catch (error: any) {
       return {
@@ -388,7 +396,8 @@ const initializeScene = async (opts: {
             errorMessage: t("alerts.invalidSceneUrl"),
           },
         },
-        isExternalScene,
+        isExternalScene: false,
+        shouldImportToWorkspace: false,
       };
     }
   }
@@ -425,18 +434,28 @@ const initializeScene = async (opts: {
       isExternalScene: true,
       id: roomLinkData.roomId,
       key: roomLinkData.roomKey,
+      shouldImportToWorkspace: false,
     };
   } else if (scene) {
-    return isExternalScene && jsonBackendMatch
+    return shouldImportToWorkspace && jsonBackendMatch
       ? {
           scene,
-          isExternalScene,
+          isExternalScene: true,
           id: jsonBackendMatch[1],
           key: jsonBackendMatch[2],
+          shouldImportToWorkspace,
         }
-      : { scene, isExternalScene: false };
+      : {
+          scene,
+          isExternalScene: false,
+          shouldImportToWorkspace: false,
+        };
   }
-  return { scene: null, isExternalScene: false };
+  return {
+    scene: null,
+    isExternalScene: false,
+    shouldImportToWorkspace: false,
+  };
 };
 
 const getWorkspaceSceneFingerprint = (
@@ -676,46 +695,56 @@ const ExcalidrawWrapper = () => {
     [collabAPI, excalidrawAPI],
   );
 
+  const prepareWorkspaceScene = useCallback(
+    async (data: ResolutionType<typeof initializeScene>) => {
+      if (
+        !data.scene ||
+        (data.isExternalScene && !data.shouldImportToWorkspace)
+      ) {
+        return;
+      }
+
+      try {
+        const workspace = data.shouldImportToWorkspace
+          ? await WorkspaceStore.importCanvas(data.scene)
+          : await WorkspaceStore.initialize(data.scene);
+        commitWorkspaceIndex(workspace.index);
+        data.scene = workspace.document.scene;
+
+        const restoredElements = restoreElements(
+          workspace.document.scene.elements,
+          null,
+          { repairBindings: true },
+        );
+        const restoredAppState = {
+          ...restoreAppState(workspace.document.scene.appState, null),
+          isLoading: false,
+          openMenu: null,
+        };
+        const files = workspace.document.scene.files || {};
+
+        workspaceSceneFingerprintsRef.current.set(
+          workspace.document.id,
+          getWorkspaceSceneFingerprint(
+            restoredElements,
+            restoredAppState,
+            files,
+          ),
+        );
+      } catch (error) {
+        console.error("Failed to initialize workspace storage", error);
+      }
+    },
+    [commitWorkspaceIndex],
+  );
+
   useEffect(() => {
     if (!excalidrawAPI || (!isCollabDisabled && !collabAPI)) {
       return;
     }
 
     initializeScene({ collabAPI, excalidrawAPI }).then(async (data) => {
-      if (
-        data.scene &&
-        !data.isExternalScene &&
-        !isCollaborationLink(window.location.href)
-      ) {
-        try {
-          const workspace = await WorkspaceStore.initialize(data.scene);
-          commitWorkspaceIndex(workspace.index);
-          data.scene = workspace.document.scene;
-
-          const restoredElements = restoreElements(
-            workspace.document.scene.elements,
-            null,
-            { repairBindings: true },
-          );
-          const restoredAppState = {
-            ...restoreAppState(workspace.document.scene.appState, null),
-            isLoading: false,
-            openMenu: null,
-          };
-          const files = workspace.document.scene.files || {};
-
-          workspaceSceneFingerprintsRef.current.set(
-            workspace.document.id,
-            getWorkspaceSceneFingerprint(
-              restoredElements,
-              restoredAppState,
-              files,
-            ),
-          );
-        } catch (error) {
-          console.error("Failed to initialize workspace storage", error);
-        }
-      }
+      await prepareWorkspaceScene(data);
       loadImages(data, /* isInitialLoad */ true);
       initialStatePromiseRef.current.promise.resolve(data.scene);
     });
@@ -732,16 +761,25 @@ const ExcalidrawWrapper = () => {
         }
         excalidrawAPI.updateScene({ appState: { isLoading: true } });
 
-        initializeScene({ collabAPI, excalidrawAPI }).then((data) => {
+        initializeScene({ collabAPI, excalidrawAPI }).then(async (data) => {
+          await prepareWorkspaceScene(data);
           loadImages(data);
           if (data.scene) {
-            excalidrawAPI.updateScene({
-              elements: restoreElements(data.scene.elements, null, {
-                repairBindings: true,
-              }),
-              appState: restoreAppState(data.scene.appState, null),
-              captureUpdate: CaptureUpdateAction.IMMEDIATELY,
-            });
+            LocalData.pauseSave("workspace-switch");
+            try {
+              excalidrawAPI.resetScene({ resetLoadingState: true });
+              excalidrawAPI.updateScene({
+                elements: restoreElements(data.scene.elements, null, {
+                  repairBindings: true,
+                }),
+                appState: restoreAppState(data.scene.appState, null),
+                captureUpdate: CaptureUpdateAction.NEVER,
+              });
+              excalidrawAPI.replaceFiles(data.scene.files || {});
+              excalidrawAPI.history.clear();
+            } finally {
+              LocalData.resumeSave("workspace-switch");
+            }
           }
         });
       }
@@ -845,6 +883,7 @@ const ExcalidrawWrapper = () => {
     setLangCode,
     loadImages,
     commitWorkspaceIndex,
+    prepareWorkspaceScene,
   ]);
 
   useEffect(() => {

@@ -101,7 +101,11 @@ export class WorkspaceStore {
         (canvas) => canvas.id === existingIndex.activeCanvasId,
       );
       if (activeDocument && hasActiveMetadata) {
-        return { index: existingIndex, document: activeDocument };
+        return {
+          index: existingIndex,
+          document: activeDocument,
+          isNewWorkspace: false,
+        };
       }
 
       if (existingIndex.canvases.length > 0) {
@@ -141,7 +145,11 @@ export class WorkspaceStore {
             })),
           };
           await set(WORKSPACE_INDEX_KEY, repairedIndex, workspaceStore);
-          return { index: repairedIndex, document: recovered.document };
+          return {
+            index: repairedIndex,
+            document: recovered.document,
+            isNewWorkspace: false,
+          };
         }
       }
     }
@@ -160,7 +168,15 @@ export class WorkspaceStore {
     return {
       index,
       document: { ...metadata, scene: normalizeScene(initialScene) },
+      isNewWorkspace: true,
     };
+  }
+
+  static async importCanvas(scene: CanvasScene) {
+    const workspace = await this.initialize(scene);
+    return workspace.isNewWorkspace
+      ? workspace
+      : this.createCanvas(workspace.index, scene);
   }
 
   static async saveCanvas(
