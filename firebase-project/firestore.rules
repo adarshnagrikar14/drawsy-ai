@@ -1,10 +1,17 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
+    // Existing encrypted collaboration persistence. Its authorization is a
+    // separate phase and remains unchanged for compatibility.
+    match /scenes/{sceneId} {
       allow get, write: if true;
-      // never set this to true, otherwise anyone can delete anyone else's drawing.
       allow list: if false;
+    }
+
+    // Workspace data is server-only. Firebase Admin bypasses these rules after
+    // the Drawsy backend has authenticated and authorized the request.
+    match /users/{userId}/{document=**} {
+      allow read, write: if false;
     }
   }
 }

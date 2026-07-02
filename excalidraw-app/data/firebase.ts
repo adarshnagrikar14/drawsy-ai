@@ -7,7 +7,6 @@ import {
 } from "@excalidraw/excalidraw/data/encryption";
 import { restoreElements } from "@excalidraw/excalidraw/data/restore";
 import { getSceneVersion } from "@excalidraw/element";
-import { initializeApp } from "firebase/app";
 import {
   getFirestore,
   doc,
@@ -35,6 +34,7 @@ import {
   downloadObjectFromStorage,
   uploadObjectToStorage,
 } from "./remoteStorage";
+import { getFirebaseApp } from "./firebaseApp";
 
 import { getSyncableElements } from ".";
 
@@ -45,31 +45,11 @@ import type { Socket } from "socket.io-client";
 // private
 // -----------------------------------------------------------------------------
 
-let FIREBASE_CONFIG: Record<string, any>;
-try {
-  FIREBASE_CONFIG = JSON.parse(import.meta.env.VITE_APP_FIREBASE_CONFIG);
-} catch (error: any) {
-  console.warn(
-    `Error JSON parsing firebase config. Supplied value: ${
-      import.meta.env.VITE_APP_FIREBASE_CONFIG
-    }`,
-  );
-  FIREBASE_CONFIG = {};
-}
-
-let firebaseApp: ReturnType<typeof initializeApp> | null = null;
 let firestore: ReturnType<typeof getFirestore> | null = null;
-
-const _initializeFirebase = () => {
-  if (!firebaseApp) {
-    firebaseApp = initializeApp(FIREBASE_CONFIG);
-  }
-  return firebaseApp;
-};
 
 const _getFirestore = () => {
   if (!firestore) {
-    firestore = getFirestore(_initializeFirebase());
+    firestore = getFirestore(getFirebaseApp());
   }
   return firestore;
 };
