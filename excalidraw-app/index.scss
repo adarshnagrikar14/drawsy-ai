@@ -80,6 +80,50 @@
   }
 }
 
+.drawsy-sync-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2rem;
+  padding: 0 0.75rem;
+  color: var(--color-on-surface);
+  font-size: 0.8125rem;
+  opacity: 0.72;
+
+  span {
+    width: 0.5rem;
+    height: 0.5rem;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    background: var(--color-gray-50);
+
+    &[data-status="synced"] {
+      background: var(--color-success);
+    }
+
+    &[data-status="syncing"] {
+      background: var(--color-primary);
+      animation: drawsy-sync-pulse 1.2s ease-in-out infinite;
+    }
+
+    &[data-status="error"] {
+      background: var(--color-danger);
+    }
+  }
+}
+
+@keyframes drawsy-sync-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drawsy-sync-status span[data-status="syncing"] {
+    animation: none;
+  }
+}
+
 .excalidraw-app.is-collaborating {
   [data-testid="clear-canvas-button"] {
     display: none;

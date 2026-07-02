@@ -11,7 +11,6 @@ import { isDevEnv } from "@excalidraw/common";
 import type { Theme } from "@excalidraw/element/types";
 
 import { LanguageList } from "../app-language/LanguageList";
-import { isExcalidrawPlusSignedUser } from "../app_constants";
 
 import { saveDebugState } from "./DebugCanvas";
 
@@ -23,6 +22,14 @@ export const AppMainMenu: React.FC<{
   refresh: () => void;
   addMenu: React.ReactNode;
   header: React.ReactNode;
+  auth: {
+    status: "loading" | "anonymous" | "authenticated";
+    displayName: string | null;
+    isBusy: boolean;
+    syncStatus: "local" | "syncing" | "synced" | "error";
+    onSignIn: () => void;
+    onSignOut: () => void;
+  };
 }> = React.memo((props) => {
   return (
     <MainMenu addMenu={props.addMenu} header={props.header}>
@@ -51,15 +58,36 @@ export const AppMainMenu: React.FC<{
         Drawsy+
       </MainMenu.ItemLink>
       <MainMenu.DefaultItems.Socials />
-      <MainMenu.ItemLink
+      <MainMenu.Item
         icon={loginIcon}
-        href={`${import.meta.env.VITE_APP_PLUS_APP}${
-          isExcalidrawPlusSignedUser ? "" : "/sign-up"
-        }?utm_source=signin&utm_medium=app&utm_content=hamburger`}
         className="highlighted"
+        disabled={props.auth.status === "loading" || props.auth.isBusy}
+        onSelect={
+          props.auth.status === "authenticated"
+            ? props.auth.onSignOut
+            : props.auth.onSignIn
+        }
       >
-        {isExcalidrawPlusSignedUser ? "Sign in" : "Sign up"}
-      </MainMenu.ItemLink>
+        {props.auth.isBusy
+          ? "Please wait..."
+          : props.auth.status === "authenticated"
+          ? `Sign out${
+              props.auth.displayName ? ` · ${props.auth.displayName}` : ""
+            }`
+          : "Continue with Google"}
+      </MainMenu.Item>
+      {props.auth.status === "authenticated" && (
+        <MainMenu.ItemCustom>
+          <div className="drawsy-sync-status" role="status">
+            <span data-status={props.auth.syncStatus} />
+            {props.auth.syncStatus === "syncing"
+              ? "Syncing workspace"
+              : props.auth.syncStatus === "error"
+              ? "Sync needs attention"
+              : "Workspace synced"}
+          </div>
+        </MainMenu.ItemCustom>
+      )}
       {isDevEnv() && (
         <MainMenu.Item
           icon={eyeIcon}
