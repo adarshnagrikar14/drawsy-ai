@@ -12,8 +12,9 @@ vi.mock(
 );
 
 const index: WorkspaceIndex = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   activeCanvasId: "standalone",
+  pendingDeletes: [],
   canvases: [
     {
       id: "standalone",
@@ -23,6 +24,7 @@ const index: WorkspaceIndex = {
       createdAt: 1,
       updatedAt: 1,
       lastOpenedAt: 3,
+      sync: { remoteVersion: 0, dirty: true },
     },
     ...Array.from({ length: 5 }, (_, index) => ({
       id: `standalone-${index + 2}`,
@@ -32,6 +34,7 @@ const index: WorkspaceIndex = {
       createdAt: 1,
       updatedAt: 1,
       lastOpenedAt: 2 - index,
+      sync: { remoteVersion: 0, dirty: true },
     })),
     {
       id: "project-canvas",
@@ -41,6 +44,7 @@ const index: WorkspaceIndex = {
       createdAt: 1,
       updatedAt: 1,
       lastOpenedAt: 2,
+      sync: { remoteVersion: 0, dirty: true },
     },
     ...Array.from({ length: 5 }, (_, index) => ({
       id: `project-canvas-${index + 2}`,
@@ -50,6 +54,7 @@ const index: WorkspaceIndex = {
       createdAt: 1,
       updatedAt: 1,
       lastOpenedAt: 1,
+      sync: { remoteVersion: 0, dirty: true },
     })),
   ],
   projects: [
@@ -67,6 +72,8 @@ const index: WorkspaceIndex = {
       createdAt: 1,
       updatedAt: 1,
       lastOpenedAt: 2,
+      version: 1,
+      sync: { remoteVersion: 0, dirty: true },
     },
     ...Array.from({ length: 5 }, (_, index) => ({
       id: `project-${index + 2}`,
@@ -75,6 +82,8 @@ const index: WorkspaceIndex = {
       createdAt: 1,
       updatedAt: 1,
       lastOpenedAt: 1 - index,
+      version: 1,
+      sync: { remoteVersion: 0, dirty: true },
     })),
   ],
 };
