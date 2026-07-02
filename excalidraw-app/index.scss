@@ -80,46 +80,150 @@
   }
 }
 
-.drawsy-sync-status {
+.excalidraw .main-menu:not(.dropdown-menu--mobile) {
+  min-width: 15rem;
+}
+
+.excalidraw .drawsy-settings-submenu {
+  min-width: 10rem;
+}
+
+.excalidraw .drawsy-language-submenu .dropdown-menu-container {
+  max-height: min(24rem, calc(100svh - 2rem));
+  min-width: 13rem;
+}
+
+.excalidraw .drawsy-canvas-style-submenu {
+  min-width: 15rem;
+
+  .dropdown-menu-container > div {
+    margin-top: 0 !important;
+  }
+}
+
+.excalidraw .dropdown-menu .drawsy-plus-menu-item {
+  position: relative;
+  min-height: 3rem;
+  height: auto;
+
+  .dropdown-menu-item__text {
+    padding-inline-end: 1.5rem;
+  }
+}
+
+.excalidraw .main-menu .dropdown-menu__submenu-trigger-icon {
+  transform: translateX(0.25rem);
+}
+
+.drawsy-plus-menu-copy {
   display: flex;
+  width: 100%;
+  min-width: 0;
   align-items: center;
   gap: 0.5rem;
+}
+
+.drawsy-plus-menu-label {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 0.125rem;
+
+  strong {
+    font-weight: 600;
+  }
+
+  small {
+    overflow: hidden;
+    color: var(--color-on-surface);
+    font-size: 0.6875rem;
+    font-weight: 400;
+    opacity: 0.64;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.drawsy-plus-menu-arrow {
+  display: grid;
+  position: absolute;
+  right: 0.25rem;
+  top: 50%;
+  flex: 0 0 auto;
+  place-items: center;
+  opacity: 0.5;
+  transform: translateY(-50%);
+
+  svg {
+    width: 1rem;
+    height: 1rem;
+  }
+}
+
+.excalidraw .dropdown-menu .drawsy-account-item {
   min-height: 2rem;
-  padding: 0 0.75rem;
+  margin-top: 0;
+}
+
+.drawsy-account-row {
+  display: flex;
+  width: 100%;
+  min-height: 2.75rem;
+  box-sizing: border-box;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0;
   color: var(--color-on-surface);
-  font-size: 0.8125rem;
-  opacity: 0.72;
+}
 
-  span {
-    width: 0.5rem;
-    height: 0.5rem;
-    flex: 0 0 auto;
-    border-radius: 50%;
-    background: var(--color-gray-50);
+.drawsy-google-logo {
+  width: 1rem;
+  height: 1rem;
+  flex: 0 0 auto;
+}
 
-    &[data-status="synced"] {
-      background: var(--color-success);
-    }
+.drawsy-account-name {
+  min-width: 0;
+  overflow: hidden;
+  flex: 1 1 auto;
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
-    &[data-status="syncing"] {
-      background: var(--color-primary);
-      animation: drawsy-sync-pulse 1.2s ease-in-out infinite;
-    }
+.drawsy-account-sync {
+  display: grid;
+  width: 1.75rem;
+  height: 1.75rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--color-on-surface);
+  margin-inline-end: -0.25rem;
+  opacity: 0.64;
 
-    &[data-status="error"] {
-      background: var(--color-danger);
+  svg {
+    width: 1rem;
+    height: 1rem;
+  }
+
+  &[data-status="syncing"] {
+    svg {
+      animation: drawsy-sync-rotate 0.9s linear infinite;
     }
   }
 }
 
-@keyframes drawsy-sync-pulse {
-  50% {
-    opacity: 0.35;
+@keyframes drawsy-sync-rotate {
+  to {
+    transform: rotate(360deg);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .drawsy-sync-status span[data-status="syncing"] {
+  .drawsy-account-sync[data-status="syncing"] svg {
     animation: none;
   }
 }

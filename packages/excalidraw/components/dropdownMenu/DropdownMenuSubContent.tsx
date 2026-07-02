@@ -9,7 +9,7 @@ import { Island } from "../Island";
 import Stack from "../Stack";
 
 const BASE_ALIGN_OFFSET = -4;
-const BASE_SIDE_OFFSET = 4;
+const BASE_SIDE_OFFSET = 10;
 
 const DropdownMenuSubContent = ({
   children,

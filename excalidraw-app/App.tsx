@@ -1685,7 +1685,9 @@ const ExcalidrawWrapper = () => {
           isCollaborating={isCollaborating}
           isCollabEnabled={!isCollabDisabled}
           theme={appTheme}
-          refresh={() => forceRefresh((prev) => !prev)}
+          onThemeChange={setAppTheme}
+          language={langCode}
+          onLanguageChange={setLangCode}
           auth={{
             status: drawsyAuth.status,
             displayName:
@@ -1694,9 +1696,6 @@ const ExcalidrawWrapper = () => {
             syncStatus: workspaceSyncStatus,
             onSignIn: () => {
               void drawsyAuth.signIn().catch(() => undefined);
-            },
-            onSignOut: () => {
-              void drawsyAuth.signOut().catch(() => undefined);
             },
           }}
           addMenu={
