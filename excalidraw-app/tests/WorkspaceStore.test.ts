@@ -13,6 +13,7 @@ const createScene = (name: string): CanvasScene => ({
 describe("WorkspaceStore", () => {
   beforeEach(async () => {
     await clear(store);
+    WorkspaceStore.setScope(null);
   });
 
   afterEach(async () => {
@@ -28,7 +29,7 @@ describe("WorkspaceStore", () => {
     const missingCanvasId = withProject.document.id;
     const projectId = withProject.document.projectId!;
 
-    await del(`canvas:${missingCanvasId}`, store);
+    await del(`canvas:guest:${missingCanvasId}`, store);
 
     const recovered = await WorkspaceStore.initialize(createScene("Fallback"));
 
@@ -133,5 +134,45 @@ describe("WorkspaceStore", () => {
     expect(deleted?.document?.title).toBe("Untitled");
     expect(deleted?.document?.id).not.toBe(initial.document.id);
     expect(deleted?.index.activeCanvasId).toBe(deleted?.document?.id);
+  });
+
+  it("isolates authenticated caches and seeds the first account from guest data", async () => {
+    const guest = await WorkspaceStore.initialize(createScene("Guest canvas"));
+
+    WorkspaceStore.setScope("user-1");
+    const seeded = await WorkspaceStore.seedFromGuest();
+    const account = await WorkspaceStore.initialize(createScene("Ignored"));
+    const withSecondCanvas = await WorkspaceStore.createCanvas(
+      account.index,
+      createScene("Account canvas"),
+    );
+
+    expect(seeded?.activeCanvasId).toBe(guest.document.id);
+    expect(account.document.title).toBe("Guest canvas");
+    expect(withSecondCanvas.index.canvases).toHaveLength(2);
+
+    WorkspaceStore.setScope(null);
+    const restoredGuest = await WorkspaceStore.initialize(
+      createScene("Fallback"),
+    );
+    expect(restoredGuest.index.canvases).toHaveLength(1);
+    expect(restoredGuest.document.title).toBe("Guest canvas");
+  });
+
+  it("persists remote versions after a canvas is synchronized", async () => {
+    const workspace = await WorkspaceStore.initialize(createScene("Canvas"));
+
+    const synced = await WorkspaceStore.markCanvasSynced(
+      workspace.index,
+      workspace.document.id,
+      4,
+    );
+    const document = await WorkspaceStore.getDocument(workspace.document.id);
+
+    expect(synced.canvases[0].sync).toEqual({
+      remoteVersion: 4,
+      dirty: false,
+    });
+    expect(document?.sync).toEqual({ remoteVersion: 4, dirty: false });
   });
 });
