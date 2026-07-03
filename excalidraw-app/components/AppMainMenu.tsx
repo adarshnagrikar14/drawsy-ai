@@ -75,16 +75,20 @@ const CanvasStyleIcon = (
 const themeLabel = (theme: Theme | "system") =>
   theme === THEME.LIGHT ? "Light" : theme === THEME.DARK ? "Dark" : "System";
 
-const syncLabel = (status: "local" | "syncing" | "synced" | "error") => {
+const syncLabel = (
+  status: "local" | "pending" | "syncing" | "synced" | "error",
+) => {
   switch (status) {
     case "syncing":
       return "Syncing workspace";
     case "synced":
-      return "Workspace synced";
+      return "Sync now. Workspace is up to date";
+    case "pending":
+      return "Changes saved locally. Sync now";
     case "error":
-      return "Workspace sync needs attention";
+      return "Retry workspace sync";
     default:
-      return "Workspace saved locally";
+      return "Sync now. Workspace is saved locally";
   }
 };
 
@@ -102,8 +106,9 @@ export const AppMainMenu: React.FC<{
     status: "loading" | "anonymous" | "authenticated";
     displayName: string | null;
     isBusy: boolean;
-    syncStatus: "local" | "syncing" | "synced" | "error";
+    syncStatus: "local" | "pending" | "syncing" | "synced" | "error";
     onSignIn: () => void;
+    onSync: () => void;
   };
 }> = React.memo((props) => {
   const selectedLanguage =
@@ -219,15 +224,17 @@ export const AppMainMenu: React.FC<{
             <span className="drawsy-account-name">
               {props.auth.displayName || "Google account"}
             </span>
-            <span
+            <button
+              type="button"
               className="drawsy-account-sync"
               data-status={props.auth.syncStatus}
-              role="status"
               aria-label={syncLabel(props.auth.syncStatus)}
               title={syncLabel(props.auth.syncStatus)}
+              disabled={props.auth.syncStatus === "syncing"}
+              onClick={props.auth.onSync}
             >
               {RetryIcon}
-            </span>
+            </button>
           </div>
         </MainMenu.ItemCustom>
       ) : (

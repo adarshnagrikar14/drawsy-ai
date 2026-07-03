@@ -4,6 +4,7 @@ import {
   TrashIcon,
 } from "@excalidraw/excalidraw/components/icons";
 import { openConfirmModal } from "@excalidraw/excalidraw/components/OverwriteConfirm/OverwriteConfirmState";
+import Spinner from "@excalidraw/excalidraw/components/Spinner";
 import React, {
   useCallback,
   useEffect,
@@ -27,6 +28,7 @@ type Props = {
   onOpenCanvas: (canvasId: string) => void;
   onDeleteCanvas: (canvasId: string) => Promise<boolean>;
   onDeleteProject: (projectId: string) => Promise<boolean>;
+  loadingCanvasId?: string | null;
 };
 
 const sortByRecent = <T extends { lastOpenedAt: number }>(items: T[]) =>
@@ -45,6 +47,7 @@ const HistoryPanel = ({
   onItemRef,
   disabled,
   currentItemId,
+  loadingItemId,
   expanded,
   onToggleExpanded,
   className = "",
@@ -65,6 +68,7 @@ const HistoryPanel = ({
   onItemRef?: (itemId: string, element: HTMLButtonElement | null) => void;
   disabled?: boolean;
   currentItemId?: string | null;
+  loadingItemId?: string | null;
   expanded: boolean;
   onToggleExpanded: () => void;
   className?: string;
@@ -127,7 +131,9 @@ const HistoryPanel = ({
             <div
               className={`workspace-history-row ${
                 removingItemId === item.id ? "is-removing" : ""
-              } ${currentItemId === item.id ? "is-current" : ""}`}
+              } ${currentItemId === item.id ? "is-current" : ""} ${
+                loadingItemId === item.id ? "is-loading" : ""
+              }`}
               key={item.id}
               style={
                 {
@@ -139,6 +145,7 @@ const HistoryPanel = ({
                 type="button"
                 className="workspace-history-item"
                 aria-current={currentItemId === item.id ? "page" : undefined}
+                aria-busy={loadingItemId === item.id || undefined}
                 ref={(element) => onItemRef?.(item.id, element)}
                 onClick={() => onSelect(item)}
                 onMouseEnter={(event) =>
@@ -147,10 +154,19 @@ const HistoryPanel = ({
                 onFocus={(event) =>
                   !disabled && onHover?.(item, event.currentTarget)
                 }
-                disabled={disabled}
+                disabled={disabled || !!loadingItemId}
               >
                 <span>{item.title}</span>
-                {"canvasIds" in item && ArrowRightIcon}
+                {loadingItemId === item.id ? (
+                  <Spinner
+                    className="workspace-history-loading"
+                    size="1rem"
+                    circleWidth={9}
+                    synchronized
+                  />
+                ) : (
+                  "canvasIds" in item && ArrowRightIcon
+                )}
               </button>
               <button
                 type="button"
@@ -158,7 +174,9 @@ const HistoryPanel = ({
                 aria-label={`Delete ${item.title}`}
                 title={`Delete ${item.title}`}
                 onClick={() => void deleteItem(item)}
-                disabled={disabled || removingItemId === item.id}
+                disabled={
+                  disabled || !!loadingItemId || removingItemId === item.id
+                }
               >
                 {TrashIcon}
               </button>
@@ -193,6 +211,7 @@ export const WorkspaceMenu = ({
   onOpenCanvas,
   onDeleteCanvas,
   onDeleteProject,
+  loadingCanvasId = null,
 }: Props) => {
   const [branch, setBranch] = useState<"canvases" | "projects" | null>(null);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
@@ -221,6 +240,7 @@ export const WorkspaceMenu = ({
   const currentCanvas = index?.canvases.find(
     (canvas) => canvas.id === index.activeCanvasId,
   );
+  const interactionDisabled = disabled || !!loadingCanvasId;
   const updateProjectPanelPosition = useCallback(
     (projectId: string, anchor?: HTMLButtonElement) => {
       const menu = menuRef.current;
@@ -293,7 +313,7 @@ export const WorkspaceMenu = ({
           type="button"
           className="workspace-create-action"
           onClick={onCreateCanvas}
-          disabled={disabled}
+          disabled={interactionDisabled}
         >
           New Canvas
         </button>
@@ -305,7 +325,7 @@ export const WorkspaceMenu = ({
           onMouseEnter={() => showBranch("canvases")}
           onFocus={() => showBranch("canvases")}
           onClick={() => showBranch("canvases")}
-          disabled={disabled}
+          disabled={interactionDisabled}
         >
           {ArrowRightIcon}
         </button>
@@ -316,7 +336,7 @@ export const WorkspaceMenu = ({
           type="button"
           className="workspace-create-action"
           onClick={onCreateProject}
-          disabled={disabled}
+          disabled={interactionDisabled}
         >
           New Project
         </button>
@@ -328,7 +348,7 @@ export const WorkspaceMenu = ({
           onMouseEnter={() => showBranch("projects")}
           onFocus={() => showBranch("projects")}
           onClick={() => showBranch("projects")}
-          disabled={disabled}
+          disabled={interactionDisabled}
         >
           {ArrowRightIcon}
         </button>
@@ -347,10 +367,11 @@ export const WorkspaceMenu = ({
           emptyLabel="No recent canvases"
           onSelect={(item) => onOpenCanvas(item.id)}
           onDelete={(item) => onDeleteCanvas(item.id)}
-          disabled={disabled}
+          disabled={interactionDisabled}
           currentItemId={
             currentCanvas?.projectId ? null : index?.activeCanvasId
           }
+          loadingItemId={loadingCanvasId}
           expanded={expandedCanvases}
           onToggleExpanded={() => setExpandedCanvases((current) => !current)}
           className="workspace-history-panel--canvases"
@@ -384,7 +405,7 @@ export const WorkspaceMenu = ({
               projectButtonRefs.current.delete(itemId);
             }
           }}
-          disabled={disabled}
+          disabled={interactionDisabled}
           currentItemId={currentCanvas?.projectId}
           expanded={expandedProjects}
           onToggleExpanded={() => {
@@ -402,8 +423,9 @@ export const WorkspaceMenu = ({
           emptyLabel="No canvases"
           onSelect={(item) => onOpenCanvas(item.id)}
           onDelete={(item) => onDeleteCanvas(item.id)}
-          disabled={disabled}
+          disabled={interactionDisabled}
           currentItemId={index?.activeCanvasId}
+          loadingItemId={loadingCanvasId}
           expanded={expandedProjectCanvases}
           onToggleExpanded={() =>
             setExpandedProjectCanvases((current) => !current)
@@ -420,7 +442,7 @@ export const WorkspaceMenu = ({
               type="button"
               className="workspace-history-item workspace-create-project-canvas"
               onClick={() => onCreateProjectCanvas(activeProjectId)}
-              disabled={disabled}
+              disabled={interactionDisabled}
             >
               <span>Create canvas</span>
               {PlusIcon}

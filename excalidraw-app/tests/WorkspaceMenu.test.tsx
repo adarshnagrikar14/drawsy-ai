@@ -12,7 +12,7 @@ vi.mock(
 );
 
 const index: WorkspaceIndex = {
-  schemaVersion: 2,
+  schemaVersion: 3,
   activeCanvasId: "standalone",
   pendingDeletes: [],
   canvases: [
@@ -24,7 +24,12 @@ const index: WorkspaceIndex = {
       createdAt: 1,
       updatedAt: 1,
       lastOpenedAt: 3,
-      sync: { remoteVersion: 0, dirty: true },
+      sync: {
+        remoteVersion: 0,
+        remoteContentHash: null,
+        dirty: true,
+        contentDirty: true,
+      },
     },
     ...Array.from({ length: 5 }, (_, index) => ({
       id: `standalone-${index + 2}`,
@@ -34,7 +39,12 @@ const index: WorkspaceIndex = {
       createdAt: 1,
       updatedAt: 1,
       lastOpenedAt: 2 - index,
-      sync: { remoteVersion: 0, dirty: true },
+      sync: {
+        remoteVersion: 0,
+        remoteContentHash: null,
+        dirty: true,
+        contentDirty: true,
+      },
     })),
     {
       id: "project-canvas",
@@ -44,7 +54,12 @@ const index: WorkspaceIndex = {
       createdAt: 1,
       updatedAt: 1,
       lastOpenedAt: 2,
-      sync: { remoteVersion: 0, dirty: true },
+      sync: {
+        remoteVersion: 0,
+        remoteContentHash: null,
+        dirty: true,
+        contentDirty: true,
+      },
     },
     ...Array.from({ length: 5 }, (_, index) => ({
       id: `project-canvas-${index + 2}`,
@@ -54,7 +69,12 @@ const index: WorkspaceIndex = {
       createdAt: 1,
       updatedAt: 1,
       lastOpenedAt: 1,
-      sync: { remoteVersion: 0, dirty: true },
+      sync: {
+        remoteVersion: 0,
+        remoteContentHash: null,
+        dirty: true,
+        contentDirty: true,
+      },
     })),
   ],
   projects: [
@@ -282,6 +302,45 @@ describe("WorkspaceMenu", () => {
       "aria-current",
       "page",
     );
+  });
+
+  it("acknowledges a canvas switch immediately and blocks repeated input", () => {
+    const onOpenCanvas = vi.fn();
+    const { container, rerender } = render(
+      <WorkspaceMenu
+        index={index}
+        disabled={false}
+        onCreateCanvas={vi.fn()}
+        onCreateProject={vi.fn()}
+        onCreateProjectCanvas={vi.fn()}
+        onOpenCanvas={onOpenCanvas}
+        onDeleteCanvas={vi.fn()}
+        onDeleteProject={vi.fn()}
+      />,
+    );
+
+    fireEvent.mouseEnter(screen.getByLabelText("Recent standalone canvases"));
+    rerender(
+      <WorkspaceMenu
+        index={index}
+        disabled={false}
+        loadingCanvasId="standalone-2"
+        onCreateCanvas={vi.fn()}
+        onCreateProject={vi.fn()}
+        onCreateProjectCanvas={vi.fn()}
+        onOpenCanvas={onOpenCanvas}
+        onDeleteCanvas={vi.fn()}
+        onDeleteProject={vi.fn()}
+      />,
+    );
+    const loadingButton = screen.getByText("Product Ideas 2").closest("button");
+    expect(loadingButton).toHaveAttribute("aria-busy", "true");
+    expect(loadingButton).toBeDisabled();
+    expect(
+      container.querySelector(".workspace-history-loading"),
+    ).not.toBeNull();
+    fireEvent.click(loadingButton!);
+    expect(onOpenCanvas).not.toHaveBeenCalled();
   });
 
   it("closes branches and blocks interactions when disabled", async () => {
