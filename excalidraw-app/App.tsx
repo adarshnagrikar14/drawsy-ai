@@ -93,6 +93,8 @@ import { useDrawsyAuth } from "./auth/useDrawsyAuth";
 import { WorkspaceApi } from "./data/WorkspaceApi";
 import { WorkspaceSync } from "./data/WorkspaceSync";
 import {
+  WORKSPACE_CLIENT_ID,
+  WORKSPACE_SYNC_CHANNEL,
   WorkspaceStore,
   type CanvasDocument,
   type CanvasScene,
@@ -481,6 +483,9 @@ const getWorkspaceSceneFingerprint = (
       ),
   });
 
+const WORKSPACE_SYNC_IDLE_TIMEOUT = 3000;
+const WORKSPACE_SYNC_RETRY_TIMEOUT = 5000;
+
 const ExcalidrawWrapper = () => {
   const excalidrawAPI = useExcalidrawAPI();
   const drawsyAuth = useDrawsyAuth();
@@ -494,7 +499,7 @@ const ExcalidrawWrapper = () => {
 
   const [errorMessage, setErrorMessage] = useState("");
   const [workspaceSyncStatus, setWorkspaceSyncStatus] = useState<
-    "local" | "syncing" | "synced" | "error"
+    "local" | "pending" | "syncing" | "synced" | "error"
   >("local");
   const [workspaceSyncRetry, setWorkspaceSyncRetry] = useState(0);
   const isCollabDisabled = isRunningInIframe();
@@ -547,7 +552,9 @@ const ExcalidrawWrapper = () => {
   const workspaceSaveTimerRef = useRef<number | null>(null);
   const workspaceSyncTimerRef = useRef<number | null>(null);
   const workspaceSyncRetryTimerRef = useRef<number | null>(null);
+  const workspaceSyncInFlightRef = useRef<Promise<void> | null>(null);
   const workspaceSceneFingerprintsRef = useRef(new Map<string, string>());
+  const workspaceSwitchingRef = useRef(false);
   const workspaceScopeRef = useRef<string | null | undefined>(undefined);
   const initialWorkspaceLoadStartedRef = useRef(false);
   const [initialWorkspaceLoadComplete, setInitialWorkspaceLoadComplete] =
@@ -555,6 +562,7 @@ const ExcalidrawWrapper = () => {
   const [projectTitleToFocus, setProjectTitleToFocus] = useState<string | null>(
     null,
   );
+  const [loadingCanvasId, setLoadingCanvasId] = useState<string | null>(null);
 
   const commitWorkspaceIndex = useCallback((index: WorkspaceIndex) => {
     workspaceIndexRef.current = index;
@@ -596,13 +604,26 @@ const ExcalidrawWrapper = () => {
           if (!index) {
             return;
           }
-          commitWorkspaceIndex(
-            await WorkspaceStore.saveCanvas(index, canvasId, {
-              elements,
-              appState,
-              files,
-            }),
-          );
+          const nextIndex = await WorkspaceStore.saveCanvas(index, canvasId, {
+            elements,
+            appState,
+            files,
+          });
+          commitWorkspaceIndex(nextIndex);
+          if (nextIndex.activeCanvasId !== index.activeCanvasId) {
+            const preserved = nextIndex.canvases.find(
+              (canvas) => canvas.id === nextIndex.activeCanvasId,
+            );
+            if (preserved) {
+              excalidrawAPI?.updateScene({
+                appState: { name: preserved.title },
+                captureUpdate: CaptureUpdateAction.NEVER,
+              });
+              excalidrawAPI?.setToast({
+                message: "Concurrent tab edits were preserved separately.",
+              });
+            }
+          }
         });
       } catch (error) {
         if (
@@ -613,7 +634,7 @@ const ExcalidrawWrapper = () => {
         throw error;
       }
     },
-    [commitWorkspaceIndex, queueWorkspaceOperation],
+    [commitWorkspaceIndex, excalidrawAPI, queueWorkspaceOperation],
   );
 
   useEffect(() => {
@@ -1160,7 +1181,8 @@ const ExcalidrawWrapper = () => {
       } catch (error) {
         console.error("Workspace operation failed", error);
         excalidrawAPI.setToast({
-          message: "Couldn't update local workspace storage.",
+          message:
+            "Couldn't complete that action. Your current canvas is safe.",
         });
         return null;
       }
@@ -1188,6 +1210,7 @@ const ExcalidrawWrapper = () => {
     }
 
     void queueWorkspaceOperation(async () => {
+      await workspaceSyncInFlightRef.current;
       const currentIndex = workspaceIndexRef.current;
       if (currentIndex) {
         await WorkspaceStore.saveCanvas(
@@ -1235,6 +1258,105 @@ const ExcalidrawWrapper = () => {
     workspaceSync,
   ]);
 
+  const syncWorkspaceNow = useCallback(
+    async (flushEditor = false, pullRemote = false) => {
+      if (
+        !workspaceSync ||
+        !drawsyAuth.user ||
+        workspaceScopeRef.current !== drawsyAuth.user.uid ||
+        collabAPI?.isCollaborating()
+      ) {
+        return;
+      }
+      if (flushEditor && excalidrawAPI) {
+        LocalData.flushSave();
+        const canvasId = workspaceIndexRef.current?.activeCanvasId;
+        if (canvasId) {
+          await saveWorkspaceCanvas(
+            canvasId,
+            excalidrawAPI.getSceneElementsIncludingDeleted(),
+            excalidrawAPI.getAppState(),
+            excalidrawAPI.getFiles(),
+          );
+        }
+      }
+      if (workspaceSyncInFlightRef.current) {
+        return workspaceSyncInFlightRef.current;
+      }
+
+      const sync = async () => {
+        const currentIndex = workspaceIndexRef.current;
+        if (!currentIndex) {
+          return;
+        }
+        setWorkspaceSyncStatus("syncing");
+        const previousActive = currentIndex.canvases.find(
+          (canvas) => canvas.id === currentIndex.activeCanvasId,
+        );
+        const synchronized = pullRemote
+          ? await workspaceSync.synchronize(currentIndex)
+          : {
+              index: await workspaceSync.push(currentIndex),
+              document: undefined,
+            };
+        const syncedIndex = synchronized.index;
+        commitWorkspaceIndex(syncedIndex);
+        if (synchronized.document) {
+          const contentChanged =
+            synchronized.document.id !== previousActive?.id ||
+            synchronized.document.sync.remoteContentHash !==
+              previousActive.sync.remoteContentHash;
+          if (contentChanged) {
+            applyWorkspaceDocument(synchronized.document);
+          } else if (synchronized.document.title !== previousActive.title) {
+            excalidrawAPI?.updateScene({
+              appState: { name: synchronized.document.title },
+              captureUpdate: CaptureUpdateAction.NEVER,
+            });
+          }
+        }
+        const stillDirty =
+          syncedIndex.pendingDeletes.length > 0 ||
+          syncedIndex.projects.some((project) => project.sync.dirty) ||
+          syncedIndex.canvases.some((canvas) => canvas.sync.dirty);
+        setWorkspaceSyncStatus(stillDirty ? "pending" : "synced");
+        if (workspaceSyncRetryTimerRef.current !== null) {
+          window.clearTimeout(workspaceSyncRetryTimerRef.current);
+          workspaceSyncRetryTimerRef.current = null;
+        }
+      };
+
+      const operation = sync()
+        .catch((error) => {
+          console.error("Workspace sync failed", error);
+          setWorkspaceSyncStatus("error");
+          excalidrawAPI?.setToast({
+            message: "Workspace saved locally. Cloud sync will retry.",
+          });
+          if (workspaceSyncRetryTimerRef.current === null) {
+            workspaceSyncRetryTimerRef.current = window.setTimeout(() => {
+              workspaceSyncRetryTimerRef.current = null;
+              setWorkspaceSyncRetry((value) => value + 1);
+            }, WORKSPACE_SYNC_RETRY_TIMEOUT);
+          }
+        })
+        .finally(() => {
+          workspaceSyncInFlightRef.current = null;
+        });
+      workspaceSyncInFlightRef.current = operation;
+      return operation;
+    },
+    [
+      collabAPI,
+      applyWorkspaceDocument,
+      commitWorkspaceIndex,
+      drawsyAuth.user,
+      excalidrawAPI,
+      saveWorkspaceCanvas,
+      workspaceSync,
+    ],
+  );
+
   useEffect(() => {
     if (
       !workspaceSync ||
@@ -1257,38 +1379,11 @@ const ExcalidrawWrapper = () => {
     if (workspaceSyncTimerRef.current !== null) {
       window.clearTimeout(workspaceSyncTimerRef.current);
     }
-    setWorkspaceSyncStatus("syncing");
+    setWorkspaceSyncStatus("pending");
     workspaceSyncTimerRef.current = window.setTimeout(() => {
       workspaceSyncTimerRef.current = null;
-      void queueWorkspaceOperation(async () => {
-        const currentIndex = workspaceIndexRef.current;
-        if (
-          !currentIndex ||
-          workspaceScopeRef.current !== drawsyAuth.user?.uid
-        ) {
-          return;
-        }
-        const syncedIndex = await workspaceSync.push(currentIndex);
-        commitWorkspaceIndex(syncedIndex);
-        setWorkspaceSyncStatus("synced");
-        if (workspaceSyncRetryTimerRef.current !== null) {
-          window.clearTimeout(workspaceSyncRetryTimerRef.current);
-          workspaceSyncRetryTimerRef.current = null;
-        }
-      }).catch((error) => {
-        console.error("Workspace sync failed", error);
-        setWorkspaceSyncStatus("error");
-        excalidrawAPI?.setToast({
-          message: "Workspace saved locally. Cloud sync will retry.",
-        });
-        if (workspaceSyncRetryTimerRef.current === null) {
-          workspaceSyncRetryTimerRef.current = window.setTimeout(() => {
-            workspaceSyncRetryTimerRef.current = null;
-            setWorkspaceSyncRetry((value) => value + 1);
-          }, 5000);
-        }
-      });
-    }, 800);
+      void syncWorkspaceNow();
+    }, WORKSPACE_SYNC_IDLE_TIMEOUT);
 
     return () => {
       if (workspaceSyncTimerRef.current !== null) {
@@ -1298,20 +1393,49 @@ const ExcalidrawWrapper = () => {
     };
   }, [
     collabAPI,
-    commitWorkspaceIndex,
     drawsyAuth.user,
-    excalidrawAPI,
-    queueWorkspaceOperation,
+    syncWorkspaceNow,
     workspaceIndex,
     workspaceSyncRetry,
     workspaceSync,
   ]);
 
   useEffect(() => {
-    const retryWorkspaceSync = () =>
-      setWorkspaceSyncRetry((value) => value + 1);
+    const retryWorkspaceSync = () => void syncWorkspaceNow();
     window.addEventListener("online", retryWorkspaceSync);
     return () => window.removeEventListener("online", retryWorkspaceSync);
+  }, [syncWorkspaceNow]);
+
+  useEffect(() => {
+    const flushWorkspace = () => {
+      if (document.visibilityState === "hidden") {
+        void syncWorkspaceNow(true);
+      }
+    };
+    const flushWorkspaceOnPageHide = () => void syncWorkspaceNow(true);
+    document.addEventListener(EVENT.VISIBILITY_CHANGE, flushWorkspace);
+    window.addEventListener("pagehide", flushWorkspaceOnPageHide);
+    return () => {
+      document.removeEventListener(EVENT.VISIBILITY_CHANGE, flushWorkspace);
+      window.removeEventListener("pagehide", flushWorkspaceOnPageHide);
+    };
+  }, [syncWorkspaceNow]);
+
+  useEffect(() => {
+    if (typeof BroadcastChannel === "undefined") {
+      return;
+    }
+    const channel = new BroadcastChannel(WORKSPACE_SYNC_CHANNEL);
+    channel.onmessage = (event: MessageEvent) => {
+      const message = event.data as { source?: string; scope?: string };
+      if (
+        message.source !== WORKSPACE_CLIENT_ID &&
+        message.scope === WorkspaceStore.getScope()
+      ) {
+        setWorkspaceSyncRetry((value) => value + 1);
+      }
+    };
+    return () => channel.close();
   }, []);
 
   useEffect(() => {
@@ -1347,15 +1471,27 @@ const ExcalidrawWrapper = () => {
 
   const openWorkspaceCanvas = useCallback(
     (canvasId: string) => {
-      if (canvasId === workspaceIndexRef.current?.activeCanvasId) {
+      if (
+        canvasId === workspaceIndexRef.current?.activeCanvasId ||
+        workspaceSwitchingRef.current
+      ) {
         excalidrawAPI?.updateScene({ appState: { openMenu: null } });
         return;
       }
+      workspaceSwitchingRef.current = true;
+      setLoadingCanvasId(canvasId);
+      excalidrawAPI?.updateScene({ appState: { isLoading: true } });
       void runWorkspaceSwitch((index) =>
-        WorkspaceStore.openCanvas(index, canvasId),
-      );
+        workspaceSync
+          ? workspaceSync.openCanvas(index, canvasId)
+          : WorkspaceStore.openCanvas(index, canvasId),
+      ).finally(() => {
+        workspaceSwitchingRef.current = false;
+        setLoadingCanvasId(null);
+        excalidrawAPI?.updateScene({ appState: { isLoading: false } });
+      });
     },
-    [excalidrawAPI, runWorkspaceSwitch],
+    [excalidrawAPI, runWorkspaceSwitch, workspaceSync],
   );
 
   const deleteWorkspaceCanvas = useCallback(
@@ -1694,6 +1830,7 @@ const ExcalidrawWrapper = () => {
               drawsyAuth.user?.displayName || drawsyAuth.user?.email || null,
             isBusy: drawsyAuth.isBusy,
             syncStatus: workspaceSyncStatus,
+            onSync: () => void syncWorkspaceNow(true, true),
             onSignIn: () => {
               void drawsyAuth.signIn().catch(() => undefined);
             },
@@ -1708,6 +1845,7 @@ const ExcalidrawWrapper = () => {
               onOpenCanvas={openWorkspaceCanvas}
               onDeleteCanvas={deleteWorkspaceCanvas}
               onDeleteProject={deleteWorkspaceProject}
+              loadingCanvasId={loadingCanvasId}
             />
           }
           header={
