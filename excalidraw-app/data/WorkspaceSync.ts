@@ -16,14 +16,28 @@ type WorkspaceSyncApi = Pick<
   | "getCanvasScene"
   | "putProject"
   | "putCanvas"
+  | "patchCanvas"
   | "deleteProject"
   | "deleteCanvas"
 >;
 
 export class WorkspaceSync {
+  private userId: string | null = null;
+  private replacementScene: CanvasScene = {
+    elements: [],
+    appState: { name: "Untitled" },
+    files: {},
+  };
+
   constructor(private readonly api: WorkspaceSyncApi) {}
 
   async initialize(userId: string, initialScene: CanvasScene) {
+    this.userId = userId;
+    this.replacementScene = {
+      elements: [],
+      appState: { ...initialScene.appState, name: "Untitled" },
+      files: {},
+    };
     WorkspaceStore.setScope(userId);
     const remote = await this.api.getWorkspace();
     const hasLocalWorkspace = await WorkspaceStore.hasWorkspace();
@@ -44,28 +58,75 @@ export class WorkspaceSync {
     }
 
     let workspace = await WorkspaceStore.initialize(initialScene);
-    if (remote.canvases.length > 0) {
-      const remoteData = await this.loadRemoteDocuments(
-        remote,
-        workspace.index,
-      );
-      const reconciled = await WorkspaceStore.reconcileRemote(
-        workspace.index,
-        remoteData.projects,
-        remoteData.documents,
-      );
-      if (reconciled?.document) {
-        workspace = { ...reconciled, isNewWorkspace: false };
-      }
+    const remoteData = await this.loadRemoteDocuments(remote, workspace.index);
+    const reconciled = await WorkspaceStore.reconcileRemote(
+      workspace.index,
+      remoteData.projects,
+      remoteData.documents,
+      this.replacementScene,
+    );
+    if (reconciled?.document) {
+      workspace = { ...reconciled, isNewWorkspace: false };
     }
 
-    const index = await this.push(workspace.index);
-    return { ...workspace, index };
+    return workspace;
   }
 
   async push(
     startingIndex: WorkspaceIndex,
     allowConflictRetry = true,
+  ): Promise<WorkspaceIndex> {
+    const run = async () => {
+      const persisted = await WorkspaceStore.getIndex();
+      const latest = persisted || startingIndex;
+      return this.pushUnlocked(latest, allowConflictRetry);
+    };
+    const lockManager =
+      typeof navigator === "undefined" ? undefined : navigator.locks;
+    return lockManager && this.userId
+      ? lockManager.request(`drawsy-cloud-sync:${this.userId}`, run)
+      : run();
+  }
+
+  async synchronize(startingIndex: WorkspaceIndex) {
+    const reconciled = await this.reconcile(startingIndex);
+    const index = await this.push(reconciled);
+    return {
+      index,
+      document: await WorkspaceStore.getDocument(index.activeCanvasId),
+    };
+  }
+
+  async openCanvas(index: WorkspaceIndex, canvasId: string) {
+    const metadata = index.canvases.find((canvas) => canvas.id === canvasId);
+    if (!metadata) {
+      return null;
+    }
+    const cached = await WorkspaceStore.getDocument(canvasId);
+    if (
+      !cached ||
+      cached.sync.remoteContentHash !== metadata.sync.remoteContentHash
+    ) {
+      try {
+        const scene = await this.api.getCanvasScene(canvasId);
+        index = await WorkspaceStore.cacheRemoteCanvas(index, canvasId, scene);
+      } catch (error) {
+        if (error instanceof WorkspaceApiError && error.status === 404) {
+          const reconciled = await this.reconcile(index);
+          const document = await WorkspaceStore.getDocument(
+            reconciled.activeCanvasId,
+          );
+          return document ? { index: reconciled, document } : null;
+        }
+        throw error;
+      }
+    }
+    return WorkspaceStore.openCanvas(index, canvasId);
+  }
+
+  private async pushUnlocked(
+    startingIndex: WorkspaceIndex,
+    allowConflictRetry: boolean,
   ): Promise<WorkspaceIndex> {
     let index = startingIndex;
 
@@ -113,6 +174,7 @@ export class WorkspaceSync {
           index,
           project.id,
           remote.version,
+          project.version,
         );
       }
 
@@ -123,11 +185,15 @@ export class WorkspaceSync {
         if (!document) {
           continue;
         }
-        const remote = await this.api.putCanvas(document);
+        const remote = metadata.sync.contentDirty
+          ? await this.api.putCanvas(document)
+          : await this.api.patchCanvas(document);
         index = await WorkspaceStore.markCanvasSynced(
           index,
           metadata.id,
           remote.version,
+          remote.contentHash,
+          metadata.version,
         );
       }
     } catch (error) {
@@ -137,7 +203,7 @@ export class WorkspaceSync {
         error.status === 409
       ) {
         const reconciled = await this.reconcile(index);
-        return this.push(reconciled, false);
+        return this.pushUnlocked(reconciled, false);
       }
       throw error;
     }
@@ -152,6 +218,7 @@ export class WorkspaceSync {
       index,
       remoteData.projects,
       remoteData.documents,
+      this.replacementScene,
     );
     return reconciled?.index || index;
   }
@@ -163,21 +230,35 @@ export class WorkspaceSync {
     const projects: RemoteWorkspaceProject[] = remote.projects.map(
       ({ version, ...project }) => ({ ...project, remoteVersion: version }),
     );
+    const activeCanvasId = remote.canvases.some(
+      (canvas) => canvas.id === localIndex?.activeCanvasId,
+    )
+      ? localIndex?.activeCanvasId
+      : [...remote.canvases].sort(
+          (first, second) => second.lastOpenedAt - first.lastOpenedAt,
+        )[0]?.id;
     const documents = await Promise.all(
-      remote.canvases.map(async ({ version, ...canvas }) => {
+      remote.canvases.map(async ({ version, contentHash, ...canvas }) => {
         const local = localIndex?.canvases.find(
           (candidate) => candidate.id === canvas.id,
         );
         const localDocument = local
           ? await WorkspaceStore.getDocument(local.id)
           : null;
+        const contentMatches =
+          local?.sync.remoteVersion === version ||
+          (contentHash !== null &&
+            local?.sync.remoteContentHash === contentHash);
         const scene =
-          localDocument && local?.sync.remoteVersion === version
+          localDocument && contentMatches
             ? localDocument.scene
-            : await this.api.getCanvasScene(canvas.id);
+            : canvas.id === activeCanvasId || local?.sync.dirty
+            ? await this.api.getCanvasScene(canvas.id)
+            : null;
         const metadata: RemoteCanvasMetadata = {
           ...canvas,
           remoteVersion: version,
+          remoteContentHash: contentHash,
         };
         return {
           metadata,

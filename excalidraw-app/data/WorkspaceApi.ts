@@ -6,7 +6,9 @@ import type {
 
 type RemoteProject = Omit<WorkspaceProject, "canvasIds" | "sync">;
 
-type RemoteCanvas = Omit<CanvasDocumentMetadata, "sync">;
+type RemoteCanvas = Omit<CanvasDocumentMetadata, "sync"> & {
+  contentHash: string | null;
+};
 
 export type RemoteWorkspace = {
   projects: RemoteProject[];
@@ -76,6 +78,23 @@ export class WorkspaceApi {
           updatedAt: document.updatedAt,
           lastOpenedAt: document.lastOpenedAt,
           scene: document.scene,
+        }),
+      },
+    );
+    return result.canvas;
+  }
+
+  async patchCanvas(document: CanvasDocument) {
+    const result = await this.request<{ canvas: RemoteCanvas }>(
+      `/v1/canvases/${encodeURIComponent(document.id)}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          id: document.id,
+          title: document.title,
+          projectId: document.projectId,
+          baseVersion: document.sync.remoteVersion,
+          lastOpenedAt: document.lastOpenedAt,
         }),
       },
     );
