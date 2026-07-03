@@ -5,50 +5,66 @@ import {
 } from "@excalidraw/excalidraw/components/icons";
 import { LinkButton } from "@excalidraw/excalidraw/components/LinkButton";
 import { useUIAppState } from "@excalidraw/excalidraw/context/ui-appState";
+import { useEffect } from "react";
+
+import { CommentsSidebar } from "../comments/CommentsSidebar";
 
 import "./AppSidebar.scss";
 
-export const AppSidebar = () => {
+import type { CanvasComment } from "../comments/types";
+import type { CanvasCommentsController } from "../comments/useCanvasComments";
+
+export const AppSidebar = ({
+  authStatus,
+  displayName,
+  canvasTitle,
+  isCollaborating,
+  comments,
+  onSignIn,
+  onStartPlacement,
+  onGoToComment,
+  onCommentsOpenChange,
+}: {
+  authStatus: "loading" | "anonymous" | "authenticated";
+  displayName: string;
+  canvasTitle: string;
+  isCollaborating: boolean;
+  comments: CanvasCommentsController;
+  onSignIn: () => void;
+  onStartPlacement: () => void;
+  onGoToComment: (comment: CanvasComment) => void;
+  onCommentsOpenChange: (open: boolean) => void;
+}) => {
   const { theme, openSidebar } = useUIAppState();
+
+  useEffect(() => {
+    onCommentsOpenChange(openSidebar?.tab === "comments");
+  }, [onCommentsOpenChange, openSidebar?.tab]);
 
   return (
     <DefaultSidebar>
       <DefaultSidebar.TabTriggers>
-        <Sidebar.TabTrigger
-          tab="comments"
-          style={{ opacity: openSidebar?.tab === "comments" ? 1 : 0.4 }}
-        >
+        <Sidebar.TabTrigger tab="comments">
           {messageCircleIcon}
         </Sidebar.TabTrigger>
-        <Sidebar.TabTrigger
-          tab="presentation"
-          style={{ opacity: openSidebar?.tab === "presentation" ? 1 : 0.4 }}
-        >
+        <Sidebar.TabTrigger tab="presentation">
           {presentationIcon}
         </Sidebar.TabTrigger>
       </DefaultSidebar.TabTriggers>
       <Sidebar.Tab tab="comments">
-        <div className="app-sidebar-promo-container">
-          <div
-            className="app-sidebar-promo-image"
-            style={{
-              ["--image-source" as any]: `url(/oss_promo_comments_${
-                theme === THEME.DARK ? "dark" : "light"
-              }.jpg)`,
-              opacity: 0.7,
-            }}
-          />
-          <div className="app-sidebar-promo-text">
-            Make comments with Drawsy+
-          </div>
-          <LinkButton
-            href={`${
-              import.meta.env.VITE_APP_PLUS_LP
-            }/plus?utm_source=excalidraw&utm_medium=app&utm_content=comments_promo#excalidraw-redirect`}
-          >
-            Sign up now
-          </LinkButton>
-        </div>
+        <CommentsSidebar
+          authStatus={authStatus}
+          displayName={displayName}
+          canvasTitle={canvasTitle}
+          isCollaborating={isCollaborating}
+          placeholderImage={`/oss_promo_comments_${
+            theme === THEME.DARK ? "dark" : "light"
+          }.jpg`}
+          controller={comments}
+          onSignIn={onSignIn}
+          onStartPlacement={onStartPlacement}
+          onGoToComment={onGoToComment}
+        />
       </Sidebar.Tab>
       <Sidebar.Tab tab="presentation" className="px-3">
         <div className="app-sidebar-promo-container">
