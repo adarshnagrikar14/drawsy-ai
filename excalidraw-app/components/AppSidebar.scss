@@ -433,13 +433,12 @@
   }
 
   .comment-pin {
-    --comment-pin-color-delay: 150ms;
-
     position: absolute;
     display: flex;
     box-sizing: border-box;
     width: 2rem;
-    height: 2rem;
+    min-height: 2rem;
+    max-height: 2rem;
     align-items: center;
     margin-left: -1rem;
     padding: 0;
@@ -447,15 +446,15 @@
     transform-origin: left bottom;
     color: white;
     text-align: left;
-    overflow: hidden;
+    background: #29292d;
+    border: 2px solid transparent;
+    border-radius: 50% 50% 50% 0.28rem;
+    box-shadow: 0 3px 9px rgb(0 0 0 / 24%);
+    overflow: visible;
     cursor: pointer;
     pointer-events: auto;
     transition: width 240ms cubic-bezier(0.22, 0.75, 0.2, 1),
-      height 200ms cubic-bezier(0.22, 0.75, 0.2, 1),
-      min-height 200ms cubic-bezier(0.22, 0.75, 0.2, 1), padding 200ms ease,
-      border-color 140ms ease, border-radius 220ms ease,
-      background-color 70ms ease-out var(--comment-pin-color-delay),
-      box-shadow 200ms ease;
+      padding-inline 200ms ease, border-color 140ms ease, box-shadow 200ms ease;
 
     &.is-selected {
       z-index: 2;
@@ -463,12 +462,10 @@
 
     &:hover,
     &:focus-visible {
-      --comment-pin-color-delay: 0ms;
-
       z-index: 3;
       width: min(14rem, 70vw);
-      height: auto;
       min-height: 2.65rem;
+      max-height: 5rem;
       padding: 0.34rem 0.48rem;
       background: #29292d;
       border-color: rgb(255 255 255 / 10%);
@@ -477,7 +474,6 @@
     }
   }
 
-  .comment-pin,
   .comment-draft-bubble.is-cursor {
     box-sizing: border-box;
     width: 2rem;
@@ -489,21 +485,31 @@
 
   .comment-pin-number {
     position: absolute;
-    inset: 0;
+    top: 50%;
+    right: auto;
+    bottom: auto;
+    left: -2px;
     display: flex;
+    z-index: 1;
+    box-sizing: border-box;
+    width: 2rem;
+    height: 2rem;
     align-items: center;
     justify-content: center;
+    transform: translateY(-50%);
     color: white;
-    border-radius: inherit;
+    background: var(--color-primary);
+    border: 2px solid white;
+    border-radius: 50% 50% 50% 0.28rem;
+    box-shadow: 0 3px 9px rgb(0 0 0 / 24%);
     font-size: 0.68rem;
     font-weight: 700;
-    transition: top 200ms ease, right 200ms ease, bottom 200ms ease,
-      left 200ms ease, width 200ms ease, height 200ms ease,
-      background-color 90ms ease-out, border-radius 200ms ease,
-      transform 200ms ease;
+    line-height: 1;
+    transition: none;
   }
 
   .comment-pin-text {
+    display: -webkit-box;
     visibility: hidden;
     width: 0;
     min-width: 0;
@@ -513,28 +519,24 @@
     opacity: 0;
     transform: translateX(-0.2rem);
     white-space: pre-wrap;
+    overflow: hidden;
     overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
     transition: opacity 130ms ease, transform 170ms ease;
   }
 
   .comment-pin:hover .comment-pin-number,
   .comment-pin:focus-visible .comment-pin-number {
-    top: 50%;
     right: auto;
-    bottom: auto;
     left: 0.48rem;
-    width: 1.55rem;
-    height: 1.55rem;
-    transform: translateY(-50%);
-    background: var(--color-primary);
-    border-radius: 50% 50% 50% 0.22rem;
   }
 
   .comment-pin:hover .comment-pin-text,
   .comment-pin:focus-visible .comment-pin-text {
     visibility: visible;
-    width: calc(100% - 2.05rem);
-    margin-left: 2.05rem;
+    width: calc(100% - 2.5rem);
+    margin-left: 2.5rem;
     opacity: 1;
     transform: translateX(0);
     transition-delay: 55ms;
@@ -552,6 +554,12 @@
     }
   }
 
+  .comment-pin.is-preview-left .comment-pin-number {
+    right: -2px;
+    left: auto;
+    transform: translateY(-50%);
+  }
+
   .comment-pin.is-preview-left:hover .comment-pin-number,
   .comment-pin.is-preview-left:focus-visible .comment-pin-number {
     right: 0.48rem;
@@ -560,7 +568,7 @@
 
   .comment-pin.is-preview-left:hover .comment-pin-text,
   .comment-pin.is-preview-left:focus-visible .comment-pin-text {
-    margin-right: 2.05rem;
+    margin-right: 2.5rem;
     margin-left: 0;
   }
 
