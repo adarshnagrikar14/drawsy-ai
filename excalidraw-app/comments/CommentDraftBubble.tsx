@@ -8,19 +8,19 @@ export const CommentDraftBubble = ({
   anchor,
   placing,
   number,
-  saving,
+  initialBody,
   onCancel,
   onSave,
 }: {
   anchor: CommentAnchor | null;
   placing: boolean;
   number: number;
-  saving: boolean;
+  initialBody: string;
   onCancel: () => void;
   onSave: (body: string) => Promise<boolean>;
 }) => {
   const appState = useExcalidrawAppState();
-  const [body, setBody] = useState("");
+  const [body, setBody] = useState(initialBody);
   const [submitting, setSubmitting] = useState(false);
   const [pointer, setPointer] = useState({
     left: -40,
@@ -92,7 +92,7 @@ export const CommentDraftBubble = ({
 
   const save = async () => {
     const trimmed = body.trim();
-    if (trimmed && !saving && !submitting) {
+    if (trimmed && !submitting) {
       setSubmitting(true);
       try {
         await onSave(trimmed);
