@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { searchIcon, TrashIcon } from "@excalidraw/excalidraw/components/icons";
 
@@ -89,6 +89,7 @@ export const CommentsSidebar = ({
 }) => {
   const [query, setQuery] = useState("");
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const selectedItemRef = useRef<HTMLDivElement>(null);
   const filtered = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
     return controller.comments.filter(
@@ -97,6 +98,20 @@ export const CommentsSidebar = ({
         comment.messages[0]?.body.toLocaleLowerCase().includes(normalized),
     );
   }, [controller.comments, query]);
+
+  useEffect(() => {
+    if (!controller.selectedId || !selectedItemRef.current) {
+      return;
+    }
+    const frame = window.requestAnimationFrame(() => {
+      selectedItemRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+        inline: "nearest",
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [controller.selectedId, filtered]);
 
   const removeComment = async (comment: CanvasComment) => {
     setRemovingId(comment.id);
@@ -190,6 +205,11 @@ export const CommentsSidebar = ({
             return (
               <div
                 key={comment.id}
+                ref={
+                  controller.selectedId === comment.id
+                    ? selectedItemRef
+                    : undefined
+                }
                 className={`comments-list-item ${
                   controller.selectedId === comment.id ? "is-selected" : ""
                 } ${removingId === comment.id ? "is-removing" : ""}`}
