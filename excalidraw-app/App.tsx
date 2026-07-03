@@ -51,8 +51,6 @@ import {
   youtubeIcon,
 } from "@excalidraw/excalidraw/components/icons";
 import { Button } from "@excalidraw/excalidraw/components/Button";
-import { useExcalidrawSetAppState } from "@excalidraw/excalidraw/components/App";
-import { useUIAppState } from "@excalidraw/excalidraw/context/ui-appState";
 import { isElementLink } from "@excalidraw/element";
 import {
   bumpElementVersions,
@@ -166,8 +164,12 @@ import "./index.scss";
 
 import { ExcalidrawPlusPromoBanner } from "./components/ExcalidrawPlusPromoBanner";
 import { AppSidebar } from "./components/AppSidebar";
+import { CommentDraftBubble } from "./comments/CommentDraftBubble";
+import { CommentPins } from "./comments/CommentPins";
+import { useCanvasComments } from "./comments/useCanvasComments";
 
 import type { CollabAPI } from "./collab/Collab";
+import type { CanvasComment } from "./comments/types";
 
 polyfill();
 
@@ -232,34 +234,15 @@ const shareableLinkConfirmDialog = {
   color: "warning",
 } as const;
 
-const TopRightToolbar = ({ onShareSelect }: { onShareSelect: () => void }) => {
-  const { openSidebar } = useUIAppState();
-  const setAppState = useExcalidrawSetAppState();
-
-  const isSidebarTabOpen = useCallback(
-    (tab: string) => {
-      return (
-        openSidebar?.name === DEFAULT_SIDEBAR.name && openSidebar?.tab === tab
-      );
-    },
-    [openSidebar],
-  );
-
-  const toggleSidebarTab = useCallback(
-    (tab: string) => {
-      document.querySelector(".layer-ui__wrapper")?.classList.remove("animate");
-
-      setAppState({
-        openSidebar: isSidebarTabOpen(tab)
-          ? null
-          : { name: DEFAULT_SIDEBAR.name, tab },
-        openMenu: null,
-        openPopup: null,
-      });
-    },
-    [isSidebarTabOpen, setAppState],
-  );
-
+const TopRightToolbar = ({
+  onShareSelect,
+  onCommentSelect,
+  isPlacingComment,
+}: {
+  onShareSelect: () => void;
+  onCommentSelect: () => void;
+  isPlacingComment: boolean;
+}) => {
   return (
     <>
       <Button
@@ -272,11 +255,11 @@ const TopRightToolbar = ({ onShareSelect }: { onShareSelect: () => void }) => {
       </Button>
       <Button
         className={clsx("sidebar-trigger", "default-sidebar-trigger", {
-          active: isSidebarTabOpen("comments"),
+          active: isPlacingComment,
         })}
         title="Comments"
         aria-label="Comments"
-        onSelect={() => toggleSidebarTab("comments")}
+        onSelect={onCommentSelect}
       >
         {messageCircleIcon}
       </Button>
@@ -563,6 +546,7 @@ const ExcalidrawWrapper = () => {
     null,
   );
   const [loadingCanvasId, setLoadingCanvasId] = useState<string | null>(null);
+  const [commentsSidebarOpen, setCommentsSidebarOpen] = useState(false);
 
   const commitWorkspaceIndex = useCallback((index: WorkspaceIndex) => {
     workspaceIndexRef.current = index;
@@ -1640,6 +1624,105 @@ const ExcalidrawWrapper = () => {
   const activeProject = workspaceIndex?.projects.find(
     (project) => project.id === activeCanvas?.projectId,
   );
+  const comments = useCanvasComments({
+    auth: drawsyAuth,
+    canvasId: activeCanvas?.id || null,
+    enabled: !!activeCanvas && !isCollaborating,
+    sidebarOpen: commentsSidebarOpen,
+  });
+  const {
+    placing: isPlacingComment,
+    selectAnchor: selectCommentAnchor,
+    setDraftAnchor: setCommentDraftAnchor,
+    setPlacing: setCommentPlacement,
+    setSelectedId: setSelectedCommentId,
+  } = comments;
+
+  useEffect(() => {
+    if (!excalidrawAPI) {
+      return;
+    }
+    if (!isPlacingComment) {
+      return;
+    }
+    excalidrawAPI.setActiveTool({ type: "custom", customType: "comment" });
+    excalidrawAPI.setCursor("none");
+    const unsubscribe = excalidrawAPI.onPointerDown(
+      (_activeTool, pointerDownState) => {
+        selectCommentAnchor({
+          x: pointerDownState.origin.x,
+          y: pointerDownState.origin.y,
+          elementId: null,
+        });
+        excalidrawAPI.setActiveTool({ type: "selection" });
+      },
+    );
+    return () => {
+      unsubscribe();
+      const activeTool = excalidrawAPI.getAppState().activeTool;
+      if (activeTool.type === "custom" && activeTool.customType === "comment") {
+        excalidrawAPI.setActiveTool({ type: "selection" });
+      }
+      excalidrawAPI.resetCursor();
+    };
+  }, [excalidrawAPI, isPlacingComment, selectCommentAnchor]);
+
+  const goToComment = useCallback(
+    (comment: CanvasComment) => {
+      if (!excalidrawAPI) {
+        return;
+      }
+      const appState = excalidrawAPI.getAppState();
+      excalidrawAPI.updateScene({
+        appState: {
+          scrollX: appState.width / 2 / appState.zoom.value - comment.x,
+          scrollY: appState.height / 2 / appState.zoom.value - comment.y,
+          openSidebar: { name: DEFAULT_SIDEBAR.name, tab: "comments" },
+        },
+        captureUpdate: CaptureUpdateAction.NEVER,
+      });
+    },
+    [excalidrawAPI],
+  );
+
+  const selectComment = useCallback(
+    (comment: CanvasComment) => {
+      setSelectedCommentId(comment.id);
+      goToComment(comment);
+    },
+    [goToComment, setSelectedCommentId],
+  );
+
+  const beginCommentPlacement = useCallback(() => {
+    if (!excalidrawAPI) {
+      return;
+    }
+    if (
+      drawsyAuth.status !== "authenticated" ||
+      isCollaborating ||
+      !activeCanvas
+    ) {
+      excalidrawAPI.updateScene({
+        appState: {
+          openSidebar: { name: DEFAULT_SIDEBAR.name, tab: "comments" },
+        },
+      });
+      return;
+    }
+    setSelectedCommentId(null);
+    setCommentDraftAnchor(null);
+    setCommentPlacement(!isPlacingComment);
+    excalidrawAPI.updateScene({ appState: { openSidebar: null } });
+  }, [
+    drawsyAuth.status,
+    excalidrawAPI,
+    activeCanvas,
+    isPlacingComment,
+    isCollaborating,
+    setCommentDraftAnchor,
+    setCommentPlacement,
+    setSelectedCommentId,
+  ]);
 
   const renameActiveCanvas = useCallback(
     (title: string) => {
@@ -1869,6 +1952,8 @@ const ExcalidrawWrapper = () => {
                   onShareSelect={() =>
                     setShareDialogState({ isOpen: true, type: "share" })
                   }
+                  onCommentSelect={beginCommentPlacement}
+                  isPlacingComment={isPlacingComment}
                 />
               )}
             </div>
@@ -1994,7 +2079,38 @@ const ExcalidrawWrapper = () => {
           }}
         />
 
-        <AppSidebar />
+        <AppSidebar
+          authStatus={drawsyAuth.status}
+          displayName={
+            drawsyAuth.user?.displayName || drawsyAuth.user?.email || "You"
+          }
+          canvasTitle={activeCanvas?.title || "Canvas"}
+          isCollaborating={isCollaborating}
+          comments={comments}
+          onSignIn={() => void drawsyAuth.signIn().catch(() => undefined)}
+          onStartPlacement={beginCommentPlacement}
+          onGoToComment={goToComment}
+          onCommentsOpenChange={setCommentsSidebarOpen}
+        />
+        {drawsyAuth.status === "authenticated" && !isCollaborating && (
+          <CommentPins
+            comments={comments.comments}
+            selectedId={comments.selectedId}
+            onSelect={selectComment}
+          />
+        )}
+        {drawsyAuth.status === "authenticated" &&
+          !isCollaborating &&
+          (comments.placing || comments.draftAnchor) && (
+            <CommentDraftBubble
+              anchor={comments.draftAnchor}
+              placing={comments.placing}
+              number={comments.comments.length + 1}
+              saving={comments.saving}
+              onCancel={() => comments.setDraftAnchor(null)}
+              onSave={comments.create}
+            />
+          )}
 
         {errorMessage && (
           <ErrorDialog onClose={() => setErrorMessage("")}>

@@ -98,9 +98,9 @@ export const setCursorForShape = (
         ? laserPointerCursorDataURL_lightMode
         : laserPointerCursorDataURL_darkMode;
     interactiveCanvas.style.cursor = `url(${url}), auto`;
-  } else if (!["image", "custom"].includes(appState.activeTool.type)) {
-    interactiveCanvas.style.cursor = CURSOR_TYPE.CROSSHAIR;
+  } else if (appState.activeTool.type === "custom") {
+    // Custom tools own their cursor through the host API.
   } else if (appState.activeTool.type !== "image") {
-    interactiveCanvas.style.cursor = CURSOR_TYPE.AUTO;
+    interactiveCanvas.style.cursor = CURSOR_TYPE.CROSSHAIR;
   }
 };
