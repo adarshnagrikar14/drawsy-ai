@@ -2106,7 +2106,7 @@ const ExcalidrawWrapper = () => {
               anchor={comments.draftAnchor}
               placing={comments.placing}
               number={comments.comments.length + 1}
-              saving={comments.saving}
+              initialBody={comments.draftBody}
               onCancel={() => comments.setDraftAnchor(null)}
               onSave={comments.create}
             />
