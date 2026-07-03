@@ -88,7 +88,7 @@ export const CommentsSidebar = ({
   onGoToComment: (comment: CanvasComment) => void;
 }) => {
   const [query, setQuery] = useState("");
-  const [removingId, setRemovingId] = useState<string | null>(null);
+  const [removingIds, setRemovingIds] = useState<Set<string>>(() => new Set());
   const selectedItemRef = useRef<HTMLDivElement>(null);
   const filtered = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
@@ -114,7 +114,7 @@ export const CommentsSidebar = ({
   }, [controller.selectedId, filtered]);
 
   const removeComment = async (comment: CanvasComment) => {
-    setRemovingId(comment.id);
+    setRemovingIds((current) => new Set(current).add(comment.id));
     const prefersReducedMotion =
       typeof window.matchMedia === "function" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -124,7 +124,11 @@ export const CommentsSidebar = ({
       );
     }
     await controller.remove(comment);
-    setRemovingId(null);
+    setRemovingIds((current) => {
+      const next = new Set(current);
+      next.delete(comment.id);
+      return next;
+    });
   };
 
   if (authStatus !== "authenticated") {
@@ -212,7 +216,7 @@ export const CommentsSidebar = ({
                 }
                 className={`comments-list-item ${
                   controller.selectedId === comment.id ? "is-selected" : ""
-                } ${removingId === comment.id ? "is-removing" : ""}`}
+                } ${removingIds.has(comment.id) ? "is-removing" : ""}`}
               >
                 <button
                   type="button"
@@ -243,7 +247,7 @@ export const CommentsSidebar = ({
                   className="comments-delete"
                   aria-label={`Delete comment ${number}`}
                   title="Delete comment"
-                  disabled={controller.saving || removingId !== null}
+                  disabled={removingIds.has(comment.id)}
                   onClick={(event) => {
                     event.stopPropagation();
                     void removeComment(comment);
