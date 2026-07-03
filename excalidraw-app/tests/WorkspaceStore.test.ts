@@ -191,6 +191,34 @@ describe("WorkspaceStore", () => {
     ).toBeNull();
   });
 
+  it("queues synced child canvases when deleting an unsynced project", async () => {
+    const initial = await WorkspaceStore.initialize(createScene("Original"));
+    const project = await WorkspaceStore.createProject(
+      initial.index,
+      createScene("Project canvas"),
+    );
+    const projectId = project.document.projectId!;
+    const inconsistentIndex = await WorkspaceStore.markCanvasSynced(
+      project.index,
+      project.document.id,
+      3,
+      "a".repeat(64),
+      project.document.version,
+    );
+
+    const deleted = await WorkspaceStore.deleteProject(
+      inconsistentIndex,
+      projectId,
+      createScene("Replacement"),
+    );
+
+    expect(deleted?.index.pendingDeletes).toContainEqual({
+      type: "canvas",
+      id: project.document.id,
+      remoteVersion: 3,
+    });
+  });
+
   it("creates a blank replacement after deleting the final canvas", async () => {
     const initial = await WorkspaceStore.initialize(createScene("Only canvas"));
 

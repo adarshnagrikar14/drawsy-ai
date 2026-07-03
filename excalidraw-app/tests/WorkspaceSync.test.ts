@@ -155,6 +155,61 @@ describe("WorkspaceSync", () => {
     expect(await WorkspaceStore.getDocument("older-canvas")).toBeDefined();
   });
 
+  it("opens an older cached scene when the latest scene is unavailable", async () => {
+    WorkspaceStore.setScope("user-offline-cache");
+    const initial = await WorkspaceStore.initialize(createScene("Cached"));
+    const oldHash = "b".repeat(64);
+    const newHash = "c".repeat(64);
+    const synced = await WorkspaceStore.markCanvasSynced(
+      initial.index,
+      initial.document.id,
+      1,
+      oldHash,
+      initial.document.version,
+    );
+    const current = await WorkspaceStore.createCanvas(
+      synced,
+      createScene("Current"),
+    );
+    const cachedMetadata = synced.canvases[0];
+    const reconciled = await WorkspaceStore.reconcileRemote(
+      current.index,
+      [],
+      [
+        {
+          metadata: {
+            id: cachedMetadata.id,
+            title: "Updated remotely",
+            projectId: null,
+            createdAt: cachedMetadata.createdAt,
+            updatedAt: cachedMetadata.updatedAt + 1,
+            lastOpenedAt: cachedMetadata.lastOpenedAt,
+            remoteVersion: 2,
+            remoteContentHash: newHash,
+          },
+          scene: null,
+        },
+      ],
+      createScene("Replacement"),
+    );
+    const api = createApi();
+    api.getCanvasScene.mockRejectedValue(new TypeError("Failed to fetch"));
+
+    const opened = await new WorkspaceSync(api).openCanvas(
+      reconciled!.index,
+      cachedMetadata.id,
+    );
+
+    expect(opened?.usedCachedScene).toBe(true);
+    expect(opened?.document.scene.appState?.name).toBe("Cached");
+    expect(opened?.document.sync).toMatchObject({
+      remoteVersion: 1,
+      remoteContentHash: oldHash,
+      dirty: true,
+      contentDirty: false,
+    });
+  });
+
   it("removes a lazily listed canvas when it was deleted before opening", async () => {
     const api = createApi();
     const recent = {

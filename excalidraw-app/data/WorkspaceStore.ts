@@ -84,6 +84,7 @@ export type RemoteCanvasMetadata = Omit<
 type WorkspaceCanvasResult = {
   index: WorkspaceIndex;
   document: CanvasDocument;
+  usedCachedScene?: boolean;
 };
 
 const scopeForUser = (userId: string | null) =>
@@ -610,47 +611,91 @@ export class WorkspaceStore {
       if (!document) {
         return null;
       }
-      const now = Date.now();
-      const nextIndex: WorkspaceIndex = {
-        ...currentIndex,
-        activeCanvasId: canvasId,
-        canvases: currentIndex.canvases.map((canvas) =>
-          canvas.id === canvasId
-            ? { ...canvas, lastOpenedAt: now, version: canvas.version + 1 }
-            : canvas,
-        ),
-        projects: currentIndex.projects.map((project) =>
-          project.id === document.projectId
-            ? { ...project, lastOpenedAt: now }
-            : project,
-        ),
-      };
-      const openedCanvas = nextIndex.canvases.find(
+      return this.openCanvasUnlocked(currentIndex, canvasId, document);
+    });
+  }
+
+  static async openCachedCanvas(index: WorkspaceIndex, canvasId: string) {
+    return withWorkspaceLock(async () => {
+      const currentIndex = await getLatestMutationIndex(index);
+      const document = await getDocument(canvasId);
+      const currentMetadata = currentIndex.canvases.find(
         (canvas) => canvas.id === canvasId,
       );
-      if (openedCanvas) {
-        const sync = {
-          ...openedCanvas.sync,
-          dirty: true,
-        };
-        const dirtyOpenedCanvas = { ...openedCanvas, sync };
-        nextIndex.canvases = nextIndex.canvases.map((canvas) =>
-          canvas.id === canvasId ? dirtyOpenedCanvas : canvas,
-        );
-        await persistDocument(dirtyOpenedCanvas, document.scene);
+      if (!document || !currentMetadata) {
+        return null;
       }
-      await persistIndex(nextIndex);
-      return {
-        index: nextIndex,
-        document: openedCanvas
-          ? {
-              ...openedCanvas,
-              sync: { ...openedCanvas.sync, dirty: true },
-              scene: document.scene,
-            }
-          : document,
+      const cachedIndex: WorkspaceIndex = {
+        ...currentIndex,
+        canvases: currentIndex.canvases.map((canvas) =>
+          canvas.id === canvasId
+            ? {
+                ...canvas,
+                title: document.title,
+                projectId: document.projectId,
+                sync: {
+                  ...document.sync,
+                  dirty: false,
+                  contentDirty: false,
+                },
+              }
+            : canvas,
+        ),
       };
+      const opened = await this.openCanvasUnlocked(
+        cachedIndex,
+        canvasId,
+        document,
+      );
+      return { ...opened, usedCachedScene: true };
     });
+  }
+
+  private static async openCanvasUnlocked(
+    currentIndex: WorkspaceIndex,
+    canvasId: string,
+    document: CanvasDocument,
+  ): Promise<WorkspaceCanvasResult> {
+    const now = Date.now();
+    const nextIndex: WorkspaceIndex = {
+      ...currentIndex,
+      activeCanvasId: canvasId,
+      canvases: currentIndex.canvases.map((canvas) =>
+        canvas.id === canvasId
+          ? { ...canvas, lastOpenedAt: now, version: canvas.version + 1 }
+          : canvas,
+      ),
+      projects: currentIndex.projects.map((project) =>
+        project.id === document.projectId
+          ? { ...project, lastOpenedAt: now }
+          : project,
+      ),
+    };
+    const openedCanvas = nextIndex.canvases.find(
+      (canvas) => canvas.id === canvasId,
+    );
+    if (openedCanvas) {
+      const sync = {
+        ...openedCanvas.sync,
+        dirty: true,
+      };
+      const dirtyOpenedCanvas = { ...openedCanvas, sync };
+      nextIndex.canvases = nextIndex.canvases.map((canvas) =>
+        canvas.id === canvasId ? dirtyOpenedCanvas : canvas,
+      );
+      await persistDocument(dirtyOpenedCanvas, document.scene);
+    }
+    await persistIndex(nextIndex);
+    return {
+      index: nextIndex,
+      document: openedCanvas
+        ? {
+            ...openedCanvas,
+            sync: { ...openedCanvas.sync, dirty: true },
+            scene: document.scene,
+          }
+        : document,
+    };
   }
 
   static async cacheRemoteCanvas(
@@ -691,7 +736,7 @@ export class WorkspaceStore {
         id: deletedProject.id,
         remoteVersion: deletedProject.sync.remoteVersion,
       });
-    } else if (!projectId) {
+    } else {
       for (const canvas of index.canvases) {
         if (canvasIds.has(canvas.id) && canvas.sync.remoteVersion) {
           pendingDeletes.push({

@@ -118,6 +118,15 @@ export class WorkspaceSync {
           );
           return document ? { index: reconciled, document } : null;
         }
+        const canUseCachedScene =
+          cached &&
+          (!(error instanceof WorkspaceApiError) ||
+            error.status === 408 ||
+            error.status === 429 ||
+            error.status >= 500);
+        if (canUseCachedScene) {
+          return WorkspaceStore.openCachedCanvas(index, canvasId);
+        }
         throw error;
       }
     }

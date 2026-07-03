@@ -1120,6 +1120,7 @@ const ExcalidrawWrapper = () => {
       operation: (index: WorkspaceIndex) => Promise<{
         index: WorkspaceIndex;
         document?: CanvasDocument;
+        usedCachedScene?: boolean;
       } | null>,
     ) => {
       if (!excalidrawAPI || collabAPI?.isCollaborating()) {
@@ -1432,11 +1433,66 @@ const ExcalidrawWrapper = () => {
         message.source !== WORKSPACE_CLIENT_ID &&
         message.scope === WorkspaceStore.getScope()
       ) {
-        setWorkspaceSyncRetry((value) => value + 1);
+        void queueWorkspaceOperation(async () => {
+          const currentIndex = workspaceIndexRef.current;
+          const latestIndex = await WorkspaceStore.getIndex();
+          if (!currentIndex || !latestIndex || !excalidrawAPI) {
+            return;
+          }
+
+          const activeCanvasId = currentIndex.activeCanvasId;
+          const currentFingerprint = getWorkspaceSceneFingerprint(
+            excalidrawAPI.getSceneElementsIncludingDeleted(),
+            excalidrawAPI.getAppState(),
+            excalidrawAPI.getFiles(),
+          );
+          if (
+            workspaceSceneFingerprintsRef.current.get(activeCanvasId) !==
+            currentFingerprint
+          ) {
+            return;
+          }
+
+          const latestActive = latestIndex.canvases.find(
+            (canvas) => canvas.id === activeCanvasId,
+          );
+          const nextActiveCanvasId = latestActive
+            ? activeCanvasId
+            : latestIndex.activeCanvasId;
+          const nextIndex = {
+            ...latestIndex,
+            activeCanvasId: nextActiveCanvasId,
+          };
+          const previousActive = currentIndex.canvases.find(
+            (canvas) => canvas.id === activeCanvasId,
+          );
+          const nextActive = nextIndex.canvases.find(
+            (canvas) => canvas.id === nextActiveCanvasId,
+          );
+          commitWorkspaceIndex(nextIndex);
+          if (
+            nextActive &&
+            (nextActive.id !== previousActive?.id ||
+              nextActive.version > previousActive.version)
+          ) {
+            const document = await WorkspaceStore.getDocument(nextActive.id);
+            if (document) {
+              applyWorkspaceDocument(document);
+            }
+          }
+          setWorkspaceSyncRetry((value) => value + 1);
+        }).catch((error) => {
+          console.error("Failed to refresh workspace from another tab", error);
+        });
       }
     };
     return () => channel.close();
-  }, []);
+  }, [
+    applyWorkspaceDocument,
+    commitWorkspaceIndex,
+    excalidrawAPI,
+    queueWorkspaceOperation,
+  ]);
 
   useEffect(() => {
     if (drawsyAuth.error) {
@@ -1485,11 +1541,20 @@ const ExcalidrawWrapper = () => {
         workspaceSync
           ? workspaceSync.openCanvas(index, canvasId)
           : WorkspaceStore.openCanvas(index, canvasId),
-      ).finally(() => {
-        workspaceSwitchingRef.current = false;
-        setLoadingCanvasId(null);
-        excalidrawAPI?.updateScene({ appState: { isLoading: false } });
-      });
+      )
+        .then((result) => {
+          if (result?.usedCachedScene) {
+            excalidrawAPI?.setToast({
+              message:
+                "Opened the saved offline copy. Drawsy will check for updates when you're online.",
+            });
+          }
+        })
+        .finally(() => {
+          workspaceSwitchingRef.current = false;
+          setLoadingCanvasId(null);
+          excalidrawAPI?.updateScene({ appState: { isLoading: false } });
+        });
     },
     [excalidrawAPI, runWorkspaceSwitch, workspaceSync],
   );
