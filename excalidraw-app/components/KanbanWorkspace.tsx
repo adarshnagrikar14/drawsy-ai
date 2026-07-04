@@ -6,14 +6,15 @@ import {
   SloppinessCartoonistIcon,
   TrashIcon,
 } from "@excalidraw/excalidraw/components/icons";
+import { THEME, applyDarkModeFilter } from "@excalidraw/excalidraw";
 import { randomId } from "@excalidraw/common";
+import { useUIAppState } from "@excalidraw/excalidraw/context/ui-appState";
 import React, { useState } from "react";
 
 import type { KanbanBoard } from "../data/KanbanStore";
 
 type Props = {
   board: KanbanBoard;
-  backgroundColor: string;
   onChange: (board: KanbanBoard) => void;
 };
 
@@ -35,11 +36,8 @@ const ActionIcon = ({ type }: { type: string }) => (
   />
 );
 
-export const KanbanWorkspace = ({
-  board,
-  backgroundColor,
-  onChange,
-}: Props) => {
+export const KanbanWorkspace = ({ board, onChange }: Props) => {
+  const appState = useUIAppState();
   const [draftColumnId, setDraftColumnId] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState("");
   const [draggedCard, setDraggedCard] = useState<DraggedCard | null>(null);
@@ -181,7 +179,12 @@ export const KanbanWorkspace = ({
     <section
       className={`kanban-workspace kanban-roughness-${board.roughness ?? 1}`}
       aria-label="Kanban board"
-      style={{ backgroundColor }}
+      style={{
+        backgroundColor: applyDarkModeFilter(
+          appState.viewBackgroundColor,
+          appState.theme === THEME.DARK,
+        ),
+      }}
     >
       <div className="kanban-sloppiness-control" aria-label="Sloppiness">
         {(

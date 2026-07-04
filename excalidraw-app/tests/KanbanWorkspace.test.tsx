@@ -1,5 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
+import { getDefaultAppState } from "@excalidraw/excalidraw/appState";
+import { UIAppStateContext } from "@excalidraw/excalidraw/context/ui-appState";
 
 import { KanbanWorkspace } from "../components/KanbanWorkspace";
 
@@ -29,11 +31,17 @@ const board: KanbanBoard = {
 const Harness = ({ initialBoard = board }: { initialBoard?: KanbanBoard }) => {
   const [value, setValue] = useState(initialBoard);
   return (
-    <KanbanWorkspace
-      board={value}
-      backgroundColor="#121212"
-      onChange={setValue}
-    />
+    <UIAppStateContext.Provider
+      value={{
+        ...getDefaultAppState(),
+        width: 1000,
+        height: 800,
+        offsetLeft: 0,
+        offsetTop: 0,
+      }}
+    >
+      <KanbanWorkspace board={value} onChange={setValue} />
+    </UIAppStateContext.Provider>
   );
 };
 
