@@ -1,4 +1,4 @@
-import { clear, createStore } from "idb-keyval";
+import { clear, createStore, set } from "idb-keyval";
 
 import { WorkspaceStore, type CanvasScene } from "../data/WorkspaceStore";
 import { WorkspaceSync } from "../data/WorkspaceSync";
@@ -14,6 +14,12 @@ const createScene = (name: string): CanvasScene => ({
   appState: { name },
   files: {},
 });
+
+const createContentScene = (name: string, viewBackgroundColor: string) =>
+  ({
+    ...createScene(name),
+    appState: { name, viewBackgroundColor },
+  } as CanvasScene);
 
 const createApi = () => ({
   getWorkspace: vi.fn(
@@ -264,7 +270,7 @@ describe("WorkspaceSync", () => {
     const dirtyIndex = await WorkspaceStore.saveCanvas(
       syncedIndex,
       initial.document.id,
-      createScene("Local edit") as Parameters<
+      createContentScene("Local edit", "#f5f5f5") as Parameters<
         typeof WorkspaceStore.saveCanvas
       >[2],
     );
@@ -294,7 +300,7 @@ describe("WorkspaceSync", () => {
     expect(api.putCanvas).toHaveBeenCalledWith(
       expect.objectContaining({
         scene: expect.objectContaining({
-          appState: expect.objectContaining({ name: "Local edit" }),
+          appState: { viewBackgroundColor: "#f5f5f5" },
         }),
       }),
     );
@@ -319,7 +325,7 @@ describe("WorkspaceSync", () => {
     await WorkspaceStore.saveCanvas(
       syncedIndex,
       initial.document.id,
-      createScene("Local edit") as Parameters<
+      createContentScene("Local edit", "#f5f5f5") as Parameters<
         typeof WorkspaceStore.saveCanvas
       >[2],
     );
@@ -339,7 +345,9 @@ describe("WorkspaceSync", () => {
         },
       ],
     });
-    api.getCanvasScene.mockResolvedValue(createScene("Remote edit"));
+    api.getCanvasScene.mockResolvedValue(
+      createContentScene("Remote edit", "#eeeeee"),
+    );
     const sync = new WorkspaceSync(api);
 
     const workspace = await sync.initialize("user-4", createScene("Ignored"));
@@ -358,6 +366,97 @@ describe("WorkspaceSync", () => {
     expect(api.putCanvas).toHaveBeenCalledTimes(1);
     expect(api.putCanvas).toHaveBeenCalledWith(
       expect.objectContaining({ title: "Local edit (conflict)" }),
+    );
+  });
+
+  it("does not preserve legacy local view state as a conflict on refresh", async () => {
+    WorkspaceStore.setScope("user-view-refresh");
+    const initial = await WorkspaceStore.initialize(createScene("Untitled"));
+    const metadata = {
+      ...initial.index.canvases[0],
+      version: 2,
+      sync: {
+        remoteVersion: 1,
+        remoteContentHash: REMOTE_HASH,
+        dirty: true,
+        contentDirty: true,
+      },
+    };
+    await set(
+      "workspace-index:user:user-view-refresh",
+      { ...initial.index, canvases: [metadata] },
+      store,
+    );
+    await set(
+      `canvas:user:user-view-refresh:${metadata.id}`,
+      {
+        ...metadata,
+        scene: {
+          ...createScene("Untitled"),
+          appState: {
+            name: "Untitled",
+            scrollX: 320,
+            openSidebar: { name: "default", tab: "comments" },
+          },
+        },
+      },
+      store,
+    );
+    const api = createApi();
+    api.getWorkspace.mockResolvedValue({
+      projects: [],
+      canvases: [
+        {
+          id: metadata.id,
+          title: "Untitled",
+          projectId: null,
+          version: 2,
+          contentHash: "b".repeat(64),
+          createdAt: metadata.createdAt,
+          updatedAt: metadata.updatedAt + 1,
+          lastOpenedAt: metadata.lastOpenedAt,
+        },
+      ],
+    });
+    api.getCanvasScene.mockResolvedValue({
+      ...createScene("Untitled"),
+      appState: { name: "Untitled", scrollX: -120 },
+    });
+
+    const workspace = await new WorkspaceSync(api).initialize(
+      "user-view-refresh",
+      createScene("Ignored"),
+    );
+
+    expect(workspace.index.canvases).toHaveLength(1);
+    expect(workspace.document.title).toBe("Untitled");
+    expect(workspace.document.scene.appState).toMatchObject({
+      name: "Untitled",
+      scrollX: 320,
+    });
+  });
+
+  it("uploads canvas content without device-only view state", async () => {
+    const api = createApi();
+    const sync = new WorkspaceSync(api);
+    const workspace = await sync.initialize("user-cloud-scene", {
+      ...createScene("Canvas"),
+      appState: {
+        name: "Canvas",
+        scrollX: 200,
+        openSidebar: { name: "default", tab: "comments" },
+        viewBackgroundColor: "#f5f5f5",
+      },
+    } as CanvasScene);
+
+    await sync.push(workspace.index);
+
+    expect(api.putCanvas).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scene: expect.objectContaining({
+          appState: { viewBackgroundColor: "#f5f5f5" },
+        }),
+      }),
     );
   });
 
@@ -417,6 +516,14 @@ describe("WorkspaceSync", () => {
       REMOTE_HASH,
       initial.document.version,
     );
+    const localViewIndex = await WorkspaceStore.saveCanvas(
+      syncedIndex,
+      initial.document.id,
+      {
+        ...createScene("Original"),
+        appState: { name: "Original", scrollX: 180, scrollY: -40 },
+      } as Parameters<typeof WorkspaceStore.saveCanvas>[2],
+    );
     const api = createApi();
     api.getWorkspace.mockResolvedValue({
       projects: [],
@@ -433,11 +540,19 @@ describe("WorkspaceSync", () => {
         },
       ],
     });
-    api.getCanvasScene.mockResolvedValue(createScene("Remote edit"));
+    api.getCanvasScene.mockResolvedValue(
+      createContentScene("Remote edit", "#f5f5f5"),
+    );
     const sync = new WorkspaceSync(api);
-    const result = await sync.synchronize(syncedIndex);
+    const result = await sync.synchronize(localViewIndex);
 
     expect(result.document?.title).toBe("Remote edit");
+    expect(result.document?.scene.appState).toMatchObject({
+      name: "Remote edit",
+      scrollX: 180,
+      scrollY: -40,
+      viewBackgroundColor: "#f5f5f5",
+    });
     expect(result.index.canvases).toHaveLength(1);
     expect(api.getWorkspace).toHaveBeenCalledTimes(1);
     expect(api.putCanvas).not.toHaveBeenCalled();
