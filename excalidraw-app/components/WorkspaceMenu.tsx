@@ -21,9 +21,11 @@ import type {
 
 type Props = {
   index: WorkspaceIndex | null;
+  kanbanActive?: boolean;
   disabled: boolean;
   onCreateCanvas: () => void;
   onCreateProject: () => void;
+  onOpenKanban: () => void;
   onCreateProjectCanvas: (projectId: string) => void;
   onOpenCanvas: (canvasId: string) => void;
   onDeleteCanvas: (canvasId: string) => Promise<boolean>;
@@ -204,9 +206,11 @@ const HistoryPanel = ({
 
 export const WorkspaceMenu = ({
   index,
+  kanbanActive = false,
   disabled,
   onCreateCanvas,
   onCreateProject,
+  onOpenKanban,
   onCreateProjectCanvas,
   onOpenCanvas,
   onDeleteCanvas,
@@ -354,7 +358,30 @@ export const WorkspaceMenu = ({
         </button>
       </div>
 
-      {Array.from({ length: 3 }, (_, index) => (
+      <div
+        className={`workspace-create-card add-menu-card workspace-kanban-card ${
+          kanbanActive ? "is-current" : ""
+        }`}
+      >
+        <button
+          type="button"
+          className="workspace-create-action"
+          onClick={onOpenKanban}
+          disabled={interactionDisabled}
+          aria-current={kanbanActive ? "page" : undefined}
+        >
+          Kanban
+        </button>
+        <span className="workspace-kanban-preview" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none">
+            <rect x="3" y="4" width="18" height="16" rx="2.5" />
+            <path d="M9 4v16M15 4v16" />
+            <path d="M5.5 7h1M11.5 7h1M17.5 7h1" />
+          </svg>
+        </span>
+      </div>
+
+      {Array.from({ length: 2 }, (_, index) => (
         <div
           className="add-menu-card workspace-create-placeholder"
           key={index}
