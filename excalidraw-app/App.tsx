@@ -561,6 +561,10 @@ const ExcalidrawWrapper = () => {
   const [kanbanOpen, setKanbanOpen] = useState(() =>
     loadKanbanWorkspaceActive(),
   );
+  const [workspaceBackgroundColor, setWorkspaceBackgroundColor] = useState(
+    () => getDefaultAppState().viewBackgroundColor,
+  );
+  const workspaceBackgroundColorRef = useRef(workspaceBackgroundColor);
 
   const updateKanbanBoard = useCallback((board: KanbanBoard) => {
     setKanbanBoard(board);
@@ -1007,6 +1011,11 @@ const ExcalidrawWrapper = () => {
     appState: AppState,
     files: BinaryFiles,
   ) => {
+    if (workspaceBackgroundColorRef.current !== appState.viewBackgroundColor) {
+      workspaceBackgroundColorRef.current = appState.viewBackgroundColor;
+      setWorkspaceBackgroundColor(appState.viewBackgroundColor);
+    }
+
     if (collabAPI?.isCollaborating()) {
       collabAPI.syncElements(elements);
     }
@@ -2086,7 +2095,11 @@ const ExcalidrawWrapper = () => {
           }
         />
         {kanbanOpen && (
-          <KanbanWorkspace board={kanbanBoard} onChange={updateKanbanBoard} />
+          <KanbanWorkspace
+            board={kanbanBoard}
+            backgroundColor={workspaceBackgroundColor}
+            onChange={updateKanbanBoard}
+          />
         )}
         <DefaultSidebar.Trigger style={{ display: "none" }} />
         {!kanbanOpen && (
