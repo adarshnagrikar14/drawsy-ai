@@ -10,6 +10,12 @@ const createScene = (name: string): CanvasScene => ({
   files: {},
 });
 
+const createContentScene = (name: string, viewBackgroundColor: string) =>
+  ({
+    ...createScene(name),
+    appState: { name, viewBackgroundColor },
+  } as CanvasScene);
+
 describe("WorkspaceStore", () => {
   beforeEach(async () => {
     await clear(store);
@@ -317,7 +323,7 @@ describe("WorkspaceStore", () => {
     const firstTab = await WorkspaceStore.saveCanvas(
       initial.index,
       initial.document.id,
-      createScene("First tab") as Parameters<
+      createContentScene("First tab", "#f5f5f5") as Parameters<
         typeof WorkspaceStore.saveCanvas
       >[2],
     );
@@ -325,7 +331,7 @@ describe("WorkspaceStore", () => {
     const secondTab = await WorkspaceStore.saveCanvas(
       initial.index,
       initial.document.id,
-      createScene("Second tab") as Parameters<
+      createContentScene("Second tab", "#eeeeee") as Parameters<
         typeof WorkspaceStore.saveCanvas
       >[2],
     );
@@ -339,6 +345,59 @@ describe("WorkspaceStore", () => {
     expect(
       await WorkspaceStore.getDocument(secondTab.activeCanvasId),
     ).toMatchObject({ title: "Second tab (conflict)" });
+  });
+
+  it("stores local view changes without marking canvas content dirty", async () => {
+    const initial = await WorkspaceStore.initialize(createScene("Original"));
+    const synced = await WorkspaceStore.markCanvasSynced(
+      initial.index,
+      initial.document.id,
+      1,
+      "a".repeat(64),
+      initial.document.version,
+    );
+
+    const saved = await WorkspaceStore.saveCanvas(synced, initial.document.id, {
+      ...createScene("Original"),
+      appState: {
+        name: "Original",
+        scrollX: 240,
+        scrollY: -80,
+        openSidebar: { name: "default", tab: "comments" },
+      },
+    } as Parameters<typeof WorkspaceStore.saveCanvas>[2]);
+
+    expect(saved.canvases).toHaveLength(1);
+    expect(saved.canvases[0].version).toBe(synced.canvases[0].version);
+    expect(saved.canvases[0].sync).toEqual({
+      remoteVersion: 1,
+      remoteContentHash: "a".repeat(64),
+      dirty: false,
+      contentDirty: false,
+    });
+    expect(
+      (await WorkspaceStore.getDocument(initial.document.id))?.scene.appState,
+    ).toMatchObject({ scrollX: 240, scrollY: -80 });
+  });
+
+  it("does not fork a canvas when stale tabs only differ in local view", async () => {
+    const initial = await WorkspaceStore.initialize(createScene("Original"));
+    await WorkspaceStore.saveCanvas(initial.index, initial.document.id, {
+      ...createScene("Original"),
+      appState: { name: "Original", scrollX: 100 },
+    } as Parameters<typeof WorkspaceStore.saveCanvas>[2]);
+
+    const secondTab = await WorkspaceStore.saveCanvas(
+      initial.index,
+      initial.document.id,
+      {
+        ...createScene("Original"),
+        appState: { name: "Original", scrollX: -100 },
+      } as Parameters<typeof WorkspaceStore.saveCanvas>[2],
+    );
+
+    expect(secondTab.canvases).toHaveLength(1);
+    expect(secondTab.canvases[0].title).toBe("Original");
   });
 
   it("keeps edits dirty when they change during an in-flight sync", async () => {
