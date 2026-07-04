@@ -242,6 +242,10 @@ export const HintViewer = ({
   editorInterface,
   app,
 }: HintViewerProps) => {
+  if (typeof document !== "undefined" && document.querySelector(".is-kanban-open")) {
+    return null;
+  }
+
   const hints = getHints({
     appState,
     isMobile,
