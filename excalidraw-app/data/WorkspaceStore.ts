@@ -1,7 +1,10 @@
 import { randomId } from "@excalidraw/common";
 import { createStore, del, get, set } from "idb-keyval";
 
-import { clearAppStateForLocalStorage } from "@excalidraw/excalidraw/appState";
+import {
+  clearAppStateForDatabase,
+  clearAppStateForLocalStorage,
+} from "@excalidraw/excalidraw/appState";
 
 import type { ImportedDataState } from "@excalidraw/excalidraw/data/types";
 import type { AppState, BinaryFiles } from "@excalidraw/excalidraw/types";
@@ -120,6 +123,39 @@ const normalizeScene = (scene: CanvasScene): CanvasScene => ({
   files: scene.files || {},
 });
 
+export const normalizeWorkspaceSceneForSync = (
+  scene: CanvasScene,
+): CanvasScene => ({
+  elements: scene.elements || [],
+  appState: clearAppStateForDatabase(scene.appState || {}),
+  files: scene.files || {},
+});
+
+const getLocalOnlyAppState = (scene?: CanvasScene | null) => {
+  const localState = clearAppStateForLocalStorage(scene?.appState || {});
+  const synchronizedState = clearAppStateForDatabase(scene?.appState || {});
+  for (const key of Object.keys(synchronizedState) as Array<
+    keyof typeof localState
+  >) {
+    delete localState[key];
+  }
+  return localState;
+};
+
+export const mergeRemoteWorkspaceScene = (
+  remote: CanvasScene,
+  title: string,
+  local?: CanvasScene | null,
+): CanvasScene => ({
+  elements: remote.elements || [],
+  appState: {
+    ...getLocalOnlyAppState(local),
+    ...clearAppStateForDatabase(remote.appState || {}),
+    name: title,
+  },
+  files: remote.files || {},
+});
+
 const sortObjectKeys = (value: unknown): unknown => {
   if (Array.isArray(value)) {
     return value.map(sortObjectKeys);
@@ -136,8 +172,8 @@ const sortObjectKeys = (value: unknown): unknown => {
 };
 
 const scenesMatch = (first: CanvasScene, second: CanvasScene) =>
-  JSON.stringify(sortObjectKeys(normalizeScene(first))) ===
-  JSON.stringify(sortObjectKeys(normalizeScene(second)));
+  JSON.stringify(sortObjectKeys(normalizeWorkspaceSceneForSync(first))) ===
+  JSON.stringify(sortObjectKeys(normalizeWorkspaceSceneForSync(second)));
 
 const createCanvasSyncState = (
   sync?: Partial<CanvasSyncState>,
@@ -458,8 +494,9 @@ export class WorkspaceStore {
         return currentIndex;
       }
 
+      const currentDocument = await getDocument(canvasId);
+
       if (expected && metadata.version > expected.version) {
-        const currentDocument = await getDocument(canvasId);
         if (currentDocument && !scenesMatch(currentDocument.scene, scene)) {
           const title = getUniqueCanvasTitle(
             currentIndex,
@@ -504,12 +541,25 @@ export class WorkspaceStore {
         }
       }
 
+      const title = getSceneTitle(scene);
+      const contentChanged =
+        !currentDocument || !scenesMatch(currentDocument.scene, scene);
+      const titleChanged = metadata.title !== title;
+      if (!contentChanged && !titleChanged) {
+        await persistDocument(metadata, scene);
+        return currentIndex;
+      }
+
       const nextMetadata: CanvasDocumentMetadata = {
         ...metadata,
-        title: getSceneTitle(scene),
+        title,
         version: metadata.version + 1,
         updatedAt: Date.now(),
-        sync: { ...metadata.sync, dirty: true, contentDirty: true },
+        sync: {
+          ...metadata.sync,
+          dirty: true,
+          contentDirty: metadata.sync.contentDirty || contentChanged,
+        },
       };
       const nextIndex = {
         ...currentIndex,
