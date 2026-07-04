@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { Popover } from "radix-ui";
 
 import {
@@ -87,6 +87,9 @@ import {
   SelectionIcon,
   pencilIcon,
   searchIcon,
+  SloppinessArchitectIcon,
+  SloppinessArtistIcon,
+  SloppinessCartoonistIcon,
 } from "./icons";
 
 import { Island } from "./Island";
@@ -1056,6 +1059,50 @@ export const ShapesSwitcher = ({
 }) => {
   const [isExtraToolsMenuOpen, setIsExtraToolsMenuOpen] = useState(false);
   const stylesPanelMode = useStylesPanelMode();
+
+  const [isKanbanOpen, setIsKanbanOpen] = useState(() => {
+    return typeof document !== "undefined" && !!document.querySelector(".is-kanban-open");
+  });
+
+  const getKanbanRoughness = () => {
+    try {
+      const stored = window.localStorage.getItem("drawsy-kanban-board-v1");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed && typeof parsed.roughness === "number") {
+          return parsed.roughness;
+        }
+      }
+    } catch {}
+    return 1;
+  };
+
+  const [kanbanRoughness, setKanbanRoughness] = useState(getKanbanRoughness);
+
+  useEffect(() => {
+    const handleToggle = (e: Event) => {
+      setIsKanbanOpen((e as CustomEvent).detail);
+    };
+    const handleUpdated = (e: Event) => {
+      setKanbanRoughness((e as CustomEvent).detail);
+    };
+
+    window.addEventListener("kanbanToggle", handleToggle);
+    window.addEventListener("kanbanRoughnessUpdated", handleUpdated);
+
+    setIsKanbanOpen(!!document.querySelector(".is-kanban-open"));
+    setKanbanRoughness(getKanbanRoughness());
+
+    return () => {
+      window.removeEventListener("kanbanToggle", handleToggle);
+      window.removeEventListener("kanbanRoughnessUpdated", handleUpdated);
+    };
+  }, []);
+
+  const handleKanbanRoughnessChange = (roughness: 0 | 1 | 2) => {
+    setKanbanRoughness(roughness);
+    window.dispatchEvent(new CustomEvent("kanbanRoughnessChange", { detail: roughness }));
+  };
   const isFullStylesPanel = stylesPanelMode === "full";
   const isCompactStylesPanel = stylesPanelMode === "compact";
 
@@ -1156,6 +1203,7 @@ export const ShapesSwitcher = ({
               aria-label={capitalizeString(label)}
               aria-keyshortcuts={shortcut}
               data-testid={`toolbar-${value}`}
+              disabled={isKanbanOpen}
               onPointerDown={({ pointerType }) => {
                 if (!app.state.penDetected && pointerType === "pen") {
                   app.togglePenMode(true);
@@ -1188,139 +1236,176 @@ export const ShapesSwitcher = ({
       <div className="App-toolbar__divider" />
 
       <div className="App-toolbar__drawer-buttons">
-        <DropdownMenu open={isExtraToolsMenuOpen}>
-          <DropdownMenu.Trigger
-            className={clsx("App-toolbar__extra-tools-trigger", {
-              "App-toolbar__extra-tools-trigger--selected":
-                frameToolSelected ||
-                embeddableToolSelected ||
-                lassoToolSelected ||
-                (laserToolSelected && !app.props.isCollaborating),
-            })}
-            onToggle={() => {
-              setIsExtraToolsMenuOpen(!isExtraToolsMenuOpen);
-              setAppState({ openMenu: null, openPopup: null });
-            }}
-            title={t("toolBar.extraTools")}
-          >
-            {frameToolSelected
-              ? frameToolIcon
-              : embeddableToolSelected
-              ? EmbedIcon
-              : laserToolSelected && !app.props.isCollaborating
-              ? laserPointerToolIcon
-              : lassoToolSelected
-              ? LassoIcon
-              : extraToolsIcon}
-          </DropdownMenu.Trigger>
-          <DropdownMenu.Content
-            onClickOutside={() => setIsExtraToolsMenuOpen(false)}
-            onSelect={() => setIsExtraToolsMenuOpen(false)}
-            className="App-toolbar__extra-tools-dropdown"
-          >
-          <DropdownMenu.Item
-            onSelect={() => app.setActiveTool({ type: "frame" })}
-            icon={frameToolIcon}
-            shortcut={KEYS.F.toLocaleUpperCase()}
-            data-testid="toolbar-frame"
-            selected={frameToolSelected}
-          >
-            {t("toolBar.frame")}
-          </DropdownMenu.Item>
-          <DropdownMenu.Item
-            onSelect={() => app.setActiveTool({ type: "embeddable" })}
-            icon={EmbedIcon}
-            data-testid="toolbar-embeddable"
-            selected={embeddableToolSelected}
-          >
-            {t("toolBar.embeddable")}
-          </DropdownMenu.Item>
-          <DropdownMenu.Item
-            onSelect={() => app.setActiveTool({ type: "laser" })}
-            icon={laserPointerToolIcon}
-            data-testid="toolbar-laser"
-            selected={laserToolSelected}
-            shortcut={KEYS.K.toLocaleUpperCase()}
-          >
-            {t("toolBar.laser")}
-          </DropdownMenu.Item>
-          {isFullStylesPanel && (
-            <DropdownMenu.Item
-              onSelect={() => app.setActiveTool({ type: "lasso" })}
-              icon={LassoIcon}
-              data-testid="toolbar-lasso"
-              selected={lassoToolSelected}
-            >
-              {t("toolBar.lasso")}
-            </DropdownMenu.Item>
-          )}
-          <div style={{ margin: "6px 0", fontSize: 14, fontWeight: 600 }}>
-            Generate
-          </div>
-          {app.props.aiEnabled !== false && <TTDDialogTriggerTunnel.Out />}
-          <DropdownMenu.Item
-            onSelect={() => app.setOpenDialog({ name: "ttd", tab: "mermaid" })}
-            icon={mermaidLogoIcon}
-            data-testid="toolbar-embeddable"
-          >
-            {t("toolBar.mermaidToExcalidraw")}
-          </DropdownMenu.Item>
-          {app.props.aiEnabled !== false && app.plugins.diagramToCode && (
-            <DropdownMenu.Item
-              onSelect={() => app.onMagicframeToolSelect()}
-              icon={MagicIcon}
-              data-testid="toolbar-magicframe"
-              badge={<DropdownMenu.Item.Badge>AI</DropdownMenu.Item.Badge>}
-            >
-              {t("toolBar.magicframe")}
-            </DropdownMenu.Item>
-          )}
-          </DropdownMenu.Content>
-        </DropdownMenu>
-        <ToolButton
-          type="icon"
-          icon={searchIcon}
-          title={capitalizeString(t("search.title"))}
-          aria-label={capitalizeString(t("search.title"))}
-          className={clsx("App-toolbar__extra-tools-trigger", {
-            "App-toolbar__extra-tools-trigger--selected":
-              app.state.openSidebar?.name === DEFAULT_SIDEBAR.name &&
-              app.state.openSidebar?.tab === CANVAS_SEARCH_TAB,
-          })}
-          onClick={() =>
-            setAppState({
-              openSidebar:
-                app.state.openSidebar?.name === DEFAULT_SIDEBAR.name &&
-                app.state.openSidebar?.tab === CANVAS_SEARCH_TAB
-                  ? null
-                  : { name: DEFAULT_SIDEBAR.name, tab: CANVAS_SEARCH_TAB },
-              openMenu: null,
-              openPopup: null,
-            })
-          }
-        />
-        <ToolButton
-          type="icon"
-          icon={LibraryIcon}
-          title={capitalizeString(t("labels.libraries"))}
-          aria-label={capitalizeString(t("labels.libraries"))}
-          className={clsx("App-toolbar__extra-tools-trigger", {
-            "App-toolbar__extra-tools-trigger--selected":
-              app.state.openSidebar?.name === DEFAULT_SIDEBAR.name &&
-              app.state.openSidebar?.tab === LIBRARY_SIDEBAR_TAB,
-          })}
-          onClick={() =>
-            setAppState({
-              openSidebar:
-                app.state.openSidebar?.name === DEFAULT_SIDEBAR.name &&
-                app.state.openSidebar?.tab === LIBRARY_SIDEBAR_TAB
-                  ? null
-                  : { name: DEFAULT_SIDEBAR.name, tab: LIBRARY_SIDEBAR_TAB },
-              openMenu: null,
-              openPopup: null,
-            })
-          }
-        />
+        {isKanbanOpen ? (
+          <>
+            <ToolButton
+              type="icon"
+              icon={SloppinessArchitectIcon}
+              title="Architect style (Sloppiness: Low)"
+              aria-label="Architect style"
+              className={clsx("App-toolbar__extra-tools-trigger kanban-sloppiness-btn", {
+                "App-toolbar__extra-tools-trigger--selected": kanbanRoughness === 0,
+              })}
+              onClick={() => handleKanbanRoughnessChange(0)}
+            />
+            <ToolButton
+              type="icon"
+              icon={SloppinessArtistIcon}
+              title="Artist style (Sloppiness: Medium)"
+              aria-label="Artist style"
+              className={clsx("App-toolbar__extra-tools-trigger kanban-sloppiness-btn", {
+                "App-toolbar__extra-tools-trigger--selected": kanbanRoughness === 1,
+              })}
+              onClick={() => handleKanbanRoughnessChange(1)}
+            />
+            <ToolButton
+              type="icon"
+              icon={SloppinessCartoonistIcon}
+              title="Cartoonist style (Sloppiness: High)"
+              aria-label="Cartoonist style"
+              className={clsx("App-toolbar__extra-tools-trigger kanban-sloppiness-btn", {
+                "App-toolbar__extra-tools-trigger--selected": kanbanRoughness === 2,
+              })}
+              onClick={() => handleKanbanRoughnessChange(2)}
+            />
+          </>
+        ) : (
+          <>
+            <DropdownMenu open={isExtraToolsMenuOpen}>
+              <DropdownMenu.Trigger
+                className={clsx("App-toolbar__extra-tools-trigger", {
+                  "App-toolbar__extra-tools-trigger--selected":
+                    frameToolSelected ||
+                    embeddableToolSelected ||
+                    lassoToolSelected ||
+                    (laserToolSelected && !app.props.isCollaborating),
+                })}
+                onToggle={() => {
+                  setIsExtraToolsMenuOpen(!isExtraToolsMenuOpen);
+                  setAppState({ openMenu: null, openPopup: null });
+                }}
+                title={t("toolBar.extraTools")}
+              >
+                {frameToolSelected
+                  ? frameToolIcon
+                  : embeddableToolSelected
+                  ? EmbedIcon
+                  : laserToolSelected && !app.props.isCollaborating
+                  ? laserPointerToolIcon
+                  : lassoToolSelected
+                  ? LassoIcon
+                  : extraToolsIcon}
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Content
+                onClickOutside={() => setIsExtraToolsMenuOpen(false)}
+                onSelect={() => setIsExtraToolsMenuOpen(false)}
+                className="App-toolbar__extra-tools-dropdown"
+              >
+              <DropdownMenu.Item
+                onSelect={() => app.setActiveTool({ type: "frame" })}
+                icon={frameToolIcon}
+                shortcut={KEYS.F.toLocaleUpperCase()}
+                data-testid="toolbar-frame"
+                selected={frameToolSelected}
+              >
+                {t("toolBar.frame")}
+              </DropdownMenu.Item>
+              <DropdownMenu.Item
+                onSelect={() => app.setActiveTool({ type: "embeddable" })}
+                icon={EmbedIcon}
+                data-testid="toolbar-embeddable"
+                selected={embeddableToolSelected}
+              >
+                {t("toolBar.embeddable")}
+              </DropdownMenu.Item>
+              <DropdownMenu.Item
+                onSelect={() => app.setActiveTool({ type: "laser" })}
+                icon={laserPointerToolIcon}
+                data-testid="toolbar-laser"
+                selected={laserToolSelected}
+                shortcut={KEYS.K.toLocaleUpperCase()}
+              >
+                {t("toolBar.laser")}
+              </DropdownMenu.Item>
+              {isFullStylesPanel && (
+                <DropdownMenu.Item
+                  onSelect={() => app.setActiveTool({ type: "lasso" })}
+                  icon={LassoIcon}
+                  data-testid="toolbar-lasso"
+                  selected={lassoToolSelected}
+                >
+                  {t("toolBar.lasso")}
+                </DropdownMenu.Item>
+              )}
+              <div style={{ margin: "6px 0", fontSize: 14, fontWeight: 600 }}>
+                Generate
+              </div>
+              {app.props.aiEnabled !== false && <TTDDialogTriggerTunnel.Out />}
+              <DropdownMenu.Item
+                onSelect={() => app.setOpenDialog({ name: "ttd", tab: "mermaid" })}
+                icon={mermaidLogoIcon}
+                data-testid="toolbar-embeddable"
+              >
+                {t("toolBar.mermaidToExcalidraw")}
+              </DropdownMenu.Item>
+              {app.props.aiEnabled !== false && app.plugins.diagramToCode && (
+                <DropdownMenu.Item
+                  onSelect={() => app.onMagicframeToolSelect()}
+                  icon={MagicIcon}
+                  data-testid="toolbar-magicframe"
+                  badge={<DropdownMenu.Item.Badge>AI</DropdownMenu.Item.Badge>}
+                >
+                  {t("toolBar.magicframe")}
+                </DropdownMenu.Item>
+              )}
+              </DropdownMenu.Content>
+            </DropdownMenu>
+            <ToolButton
+              type="icon"
+              icon={searchIcon}
+              title={capitalizeString(t("search.title"))}
+              aria-label={capitalizeString(t("search.title"))}
+              className={clsx("App-toolbar__extra-tools-trigger", {
+                "App-toolbar__extra-tools-trigger--selected":
+                  app.state.openSidebar?.name === DEFAULT_SIDEBAR.name &&
+                  app.state.openSidebar?.tab === CANVAS_SEARCH_TAB,
+              })}
+              onClick={() =>
+                setAppState({
+                  openSidebar:
+                    app.state.openSidebar?.name === DEFAULT_SIDEBAR.name &&
+                    app.state.openSidebar?.tab === CANVAS_SEARCH_TAB
+                      ? null
+                      : { name: DEFAULT_SIDEBAR.name, tab: CANVAS_SEARCH_TAB },
+                  openMenu: null,
+                  openPopup: null,
+                })
+              }
+            />
+            <ToolButton
+              type="icon"
+              icon={LibraryIcon}
+              title={capitalizeString(t("labels.libraries"))}
+              aria-label={capitalizeString(t("labels.libraries"))}
+              className={clsx("App-toolbar__extra-tools-trigger", {
+                "App-toolbar__extra-tools-trigger--selected":
+                  app.state.openSidebar?.name === DEFAULT_SIDEBAR.name &&
+                  app.state.openSidebar?.tab === LIBRARY_SIDEBAR_TAB,
+              })}
+              onClick={() =>
+                setAppState({
+                  openSidebar:
+                    app.state.openSidebar?.name === DEFAULT_SIDEBAR.name &&
+                    app.state.openSidebar?.tab === LIBRARY_SIDEBAR_TAB
+                      ? null
+                      : { name: DEFAULT_SIDEBAR.name, tab: LIBRARY_SIDEBAR_TAB },
+                  openMenu: null,
+                  openPopup: null,
+                })
+              }
+            />
+          </>
+        )}
       </div>
     </>
   );

@@ -810,7 +810,23 @@
 }
 
 .excalidraw-app.is-kanban-open .excalidraw {
-  .shapes-section,
+  .shapes-section {
+    pointer-events: none;
+
+    .ToolIcon:not(.kanban-sloppiness-btn),
+    .App-toolbar__divider {
+      pointer-events: none;
+      opacity: 0.42;
+      filter: saturate(0.35);
+    }
+
+    .kanban-sloppiness-btn {
+      pointer-events: auto;
+      opacity: 1;
+      filter: none;
+    }
+  }
+
   .layer-ui__wrapper__top-right,
   .layer-ui__wrapper__footer {
     pointer-events: none;
@@ -838,7 +854,7 @@
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    padding: 6.5rem 1.5rem 1.5rem;
+    padding: 5.25rem 1.5rem 1.5rem;
     overflow: hidden;
     background: var(--color-surface-lowest);
     color: var(--color-on-surface);
@@ -924,18 +940,17 @@
     box-sizing: border-box;
     width: 100%;
     min-width: 0;
-    padding: 0 1rem 0.875rem;
+    padding: 0 1rem 0.375rem;
 
     &::after {
       position: absolute;
       right: 0;
       bottom: 0;
       left: 0;
-      height: 2px;
-      border-radius: 50%;
+      height: 1px;
       background: color-mix(
         in srgb,
-        var(--color-border-outline-variant) 75%,
+        var(--color-border-outline-variant) 20%,
         transparent
       );
       content: "";
@@ -960,30 +975,20 @@
     flex: 0 0 auto;
   }
 
-  .kanban-views button,
-  .kanban-actions button {
+  .kanban-views button {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.5rem;
-    height: 2.5rem;
-    padding: 0 0.75rem;
+    gap: 0.375rem;
+    height: 1.75rem;
+    padding: 0 0.625rem;
     border: 0;
-    border-radius: 0.75rem 0.6875rem 0.8125rem 0.72rem;
-    background: transparent;
-    color: var(--color-gray-60);
-    font: 600 0.8125rem/1 var(--ui-font);
+    border-radius: 9999px;
+    background: var(--color-primary);
+    color: white;
+    font: 600 0.75rem/1 var(--ui-font);
     white-space: nowrap;
-
-    &.is-active {
-      background: var(--color-surface-high);
-      color: var(--color-on-surface);
-    }
-
-    &:disabled {
-      cursor: default;
-      opacity: 0.55;
-    }
+    cursor: default;
   }
 
   .kanban-actions button {
@@ -1017,31 +1022,21 @@
     font: 0.8125rem/1 var(--ui-font);
   }
 
-  .kanban-view-icon,
-  .kanban-action-icon {
+  .kanban-view-icon {
     position: relative;
     display: inline-block;
-    flex: 0 0 1rem;
-    width: 1rem;
-    height: 1rem;
+    flex: 0 0 0.75rem;
+    width: 0.75rem;
+    height: 0.75rem;
     color: currentColor;
   }
 
   .kanban-view-icon--status {
-    border-radius: 50%;
-    background: currentColor;
-
-    &::after {
-      position: absolute;
-      top: 0.25rem;
-      left: 0.3rem;
-      width: 0.35rem;
-      height: 0.2rem;
-      border-bottom: 2px solid var(--color-surface-high);
-      border-left: 2px solid var(--color-surface-high);
-      content: "";
-      transform: rotate(-45deg);
-    }
+    background: 
+      linear-gradient(currentColor, currentColor) 0px 0px / 2px 100%,
+      linear-gradient(currentColor, currentColor) 5px 0px / 2px 100%,
+      linear-gradient(currentColor, currentColor) 10px 0px / 2px 100%;
+    background-repeat: no-repeat;
   }
 
   .kanban-view-icon--star {
@@ -1091,7 +1086,7 @@
     align-items: flex-start;
     gap: 1rem;
     min-height: 0;
-    padding: 1rem 0.125rem 2rem;
+    padding: 0.875rem 0.125rem 2rem;
     overflow: auto;
     overscroll-behavior: contain;
     scrollbar-width: thin;

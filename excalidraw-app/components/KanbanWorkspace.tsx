@@ -1,6 +1,5 @@
 import {
   PlusIcon,
-  searchIcon,
   SloppinessArchitectIcon,
   SloppinessArtistIcon,
   SloppinessCartoonistIcon,
@@ -9,7 +8,7 @@ import {
 import { THEME, applyDarkModeFilter } from "@excalidraw/excalidraw";
 import { randomId } from "@excalidraw/common";
 import { useUIAppState } from "@excalidraw/excalidraw/context/ui-appState";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 
 import type { KanbanBoard } from "../data/KanbanStore";
 
@@ -22,27 +21,28 @@ type DraggedCard = { cardId: string; columnId: string };
 
 const COLUMN_COLORS = ["neutral", "blue", "green", "violet"] as const;
 
-const ViewIcon = ({ type }: { type: "status" | "star" | "gantt" | "user" }) => (
-  <span
-    className={`kanban-view-icon kanban-view-icon--${type}`}
-    aria-hidden="true"
-  />
-);
 
-const ActionIcon = ({ type }: { type: string }) => (
-  <span
-    className={`kanban-action-icon kanban-action-icon--${type}`}
-    aria-hidden="true"
-  />
-);
 
 export const KanbanWorkspace = ({ board, onChange }: Props) => {
   const appState = useUIAppState();
+
+  useEffect(() => {
+    const handleRoughnessChange = (e: Event) => {
+      const roughness = (e as CustomEvent).detail;
+      commit({ ...board, roughness });
+    };
+    window.addEventListener("kanbanRoughnessChange", handleRoughnessChange);
+    return () => {
+      window.removeEventListener("kanbanRoughnessChange", handleRoughnessChange);
+    };
+  }, [board]);
+
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("kanbanRoughnessUpdated", { detail: board.roughness }));
+  }, [board.roughness]);
   const [draftColumnId, setDraftColumnId] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState("");
   const [draggedCard, setDraggedCard] = useState<DraggedCard | null>(null);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
 
   const commit = (next: KanbanBoard) =>
     onChange({ ...next, updatedAt: Date.now() });
@@ -173,8 +173,6 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
     setDraggedCard(null);
   };
 
-  const normalizedSearch = searchQuery.trim().toLocaleLowerCase();
-
   return (
     <section
       className={`kanban-workspace kanban-roughness-${board.roughness ?? 1}`}
@@ -186,92 +184,12 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
         ),
       }}
     >
-      <div className="kanban-sloppiness-control" aria-label="Sloppiness">
-        {(
-          [
-            [0, "Architect", SloppinessArchitectIcon],
-            [1, "Artist", SloppinessArtistIcon],
-            [2, "Cartoonist", SloppinessCartoonistIcon],
-          ] as const
-        ).map(([roughness, label, icon]) => (
-          <button
-            key={roughness}
-            type="button"
-            className={board.roughness === roughness ? "is-selected" : ""}
-            aria-label={label}
-            title={label}
-            onClick={() => commit({ ...board, roughness })}
-          >
-            {icon}
-          </button>
-        ))}
-      </div>
-      <header className="kanban-viewbar">
-        <nav className="kanban-views" aria-label="Kanban views">
-          <button type="button" className="is-active">
-            <ViewIcon type="status" /> By Status
-          </button>
-          <button type="button" disabled>
-            <ViewIcon type="star" /> All Projects
-          </button>
-          <button type="button" disabled>
-            <ViewIcon type="gantt" /> Gantt
-          </button>
-          <button type="button" disabled>
-            <ViewIcon type="user" /> My Projects
-          </button>
-        </nav>
-        <div className="kanban-actions" aria-label="Board actions">
-          {(["filter", "sort", "bolt", "spark"] as const).map((type) => (
-            <button key={type} type="button" disabled aria-label={type}>
-              <ActionIcon type={type} />
-            </button>
-          ))}
-          {searchOpen ? (
-            <input
-              autoFocus
-              aria-label="Search cards"
-              placeholder="Search"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Escape") {
-                  setSearchOpen(false);
-                  setSearchQuery("");
-                }
-              }}
-            />
-          ) : (
-            <button
-              type="button"
-              aria-label="Search cards"
-              onClick={() => setSearchOpen(true)}
-            >
-              {searchIcon}
-            </button>
-          )}
-          <button type="button" disabled aria-label="Properties">
-            <ActionIcon type="sliders" />
-          </button>
-          <button
-            type="button"
-            className="kanban-new"
-            onClick={() => beginCard()}
-          >
-            New
-          </button>
-        </div>
-      </header>
+
 
       <div className="kanban-board">
         {board.columns.map((column, columnIndex) => {
           const visibleCardIds = column.cardIds.filter((cardId) => {
-            const card = board.cards[cardId];
-            return (
-              card &&
-              (!normalizedSearch ||
-                card.title.toLocaleLowerCase().includes(normalizedSearch))
-            );
+            return !!board.cards[cardId];
           });
           return (
             <section

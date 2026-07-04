@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { vi } from "vitest";
 import { useState } from "react";
 import { getDefaultAppState } from "@excalidraw/excalidraw/appState";
 import { UIAppStateContext } from "@excalidraw/excalidraw/context/ui-appState";
@@ -49,7 +50,7 @@ describe("KanbanWorkspace", () => {
   it("adds, edits, and deletes cards without a network dependency", () => {
     render(<Harness />);
 
-    fireEvent.click(screen.getAllByText("New")[0]);
+    fireEvent.click(screen.getAllByText("New project")[0]);
     fireEvent.change(screen.getByLabelText("Card title for Not started"), {
       target: { value: "Ship Kanban" },
     });
@@ -80,19 +81,8 @@ describe("KanbanWorkspace", () => {
     expect(columns[1].querySelector("article")).not.toBeNull();
   });
 
-  it("searches cards and renames statuses inline", () => {
+  it("renames statuses inline", () => {
     render(<Harness />);
-
-    fireEvent.click(screen.getByLabelText("Search cards"));
-    fireEvent.change(screen.getByLabelText("Search cards"), {
-      target: { value: "missing" },
-    });
-    expect(screen.queryByDisplayValue("Refine comments")).toBeNull();
-
-    fireEvent.change(screen.getByLabelText("Search cards"), {
-      target: { value: "refine" },
-    });
-    expect(screen.getByDisplayValue("Refine comments")).not.toBeNull();
 
     const status = screen.getByLabelText("Rename Not started");
     fireEvent.change(status, { target: { value: "Next" } });
@@ -135,18 +125,31 @@ describe("KanbanWorkspace", () => {
   it("behaves as a workspace without dismissal controls", () => {
     render(<Harness />);
     expect(screen.queryByLabelText("Back to canvas")).toBeNull();
-    expect(screen.getByText("By Status")).not.toBeNull();
-    expect(screen.getByText("All Projects")).toBeDisabled();
     fireEvent.keyDown(window, { key: "Escape" });
     expect(screen.getByLabelText("Kanban board")).not.toBeNull();
   });
 
   it("persists the selected Excalidraw sloppiness level", () => {
+    const handleRoughnessUpdated = vi.fn();
+    window.addEventListener("kanbanRoughnessUpdated", handleRoughnessUpdated);
+
     render(<Harness />);
-    fireEvent.click(screen.getByLabelText("Cartoonist"));
+    
+    // Initial dispatch of roughness 1 on mount
+    expect(handleRoughnessUpdated).toHaveBeenCalledWith(
+      expect.objectContaining({ detail: 1 })
+    );
+
+    // Simulate change from top dock
+    fireEvent(
+      window,
+      new CustomEvent("kanbanRoughnessChange", { detail: 2 })
+    );
+
     expect(screen.getByLabelText("Kanban board")).toHaveClass(
       "kanban-roughness-2",
     );
-    expect(screen.getByLabelText("Cartoonist")).toHaveClass("is-selected");
+
+    window.removeEventListener("kanbanRoughnessUpdated", handleRoughnessUpdated);
   });
 });

@@ -570,11 +570,12 @@ const ExcalidrawWrapper = () => {
   const setKanbanWorkspaceActive = useCallback((active: boolean) => {
     setKanbanOpen(active);
     saveKanbanWorkspaceActive(active);
+    window.dispatchEvent(new CustomEvent("kanbanToggle", { detail: active }));
   }, []);
 
   useEffect(() => {
     const disabledSurfaces = document.querySelectorAll<HTMLElement>(
-      ".shapes-section, .layer-ui__wrapper__top-right, .layer-ui__wrapper__footer",
+      ".layer-ui__wrapper__top-right, .layer-ui__wrapper__footer",
     );
     disabledSurfaces.forEach((element) => {
       element.inert = kanbanOpen;
