@@ -424,9 +424,9 @@
     "link_title": "Shareable link",
     "link_details": "Export as a read-only link.",
     "link_button": "Export to Link",
-    "excalidrawplus_description": "Save the scene to your Drawsy+ workspace.",
+    "excalidrawplus_description": "Save the scene to your Draws+ workspace.",
     "excalidrawplus_button": "Export",
-    "excalidrawplus_exportError": "Couldn't export to Drawsy+ at this moment..."
+    "excalidrawplus_exportError": "Couldn't export to Draws+ at this moment..."
   },
   "helpDialog": {
     "blog": "Read our blog",
@@ -582,7 +582,7 @@
       "center_heading": "Your drawings are saved in your browser's storage.",
       "center_heading_line2": "Browser storage can be cleared unexpectedly.",
       "center_heading_line3": "Save your work to a file regularly to avoid losing it.",
-      "center_heading_plus": "Did you want to go to the Drawsy+ instead?",
+      "center_heading_plus": "Did you want to go to the Draws+ instead?",
       "menuHint": "Export, preferences, languages, ..."
     },
     "defaults": {
@@ -613,9 +613,9 @@
         "description": "Export the scene data to a file from which you can import later."
       },
       "excalidrawPlus": {
-        "title": "Drawsy+",
-        "button": "Export to Drawsy+",
-        "description": "Save the scene to your Drawsy+ workspace."
+        "title": "Draws+",
+        "button": "Export to Draws+",
+        "description": "Save the scene to your Draws+ workspace."
       }
     },
     "modal": {
