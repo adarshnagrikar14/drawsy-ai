@@ -118,6 +118,7 @@ describe("WorkspaceMenu", () => {
         disabled={false}
         onCreateCanvas={onCreateCanvas}
         onCreateProject={vi.fn()}
+        onOpenKanban={vi.fn()}
         onCreateProjectCanvas={vi.fn()}
         onOpenCanvas={onOpenCanvas}
         onDeleteCanvas={vi.fn()}
@@ -143,6 +144,7 @@ describe("WorkspaceMenu", () => {
         disabled={false}
         onCreateCanvas={vi.fn()}
         onCreateProject={vi.fn()}
+        onOpenKanban={vi.fn()}
         onCreateProjectCanvas={onCreateProjectCanvas}
         onOpenCanvas={onOpenCanvas}
         onDeleteCanvas={vi.fn()}
@@ -211,6 +213,7 @@ describe("WorkspaceMenu", () => {
         disabled={false}
         onCreateCanvas={vi.fn()}
         onCreateProject={vi.fn()}
+        onOpenKanban={vi.fn()}
         onCreateProjectCanvas={vi.fn()}
         onOpenCanvas={vi.fn()}
         onDeleteCanvas={vi.fn()}
@@ -240,6 +243,7 @@ describe("WorkspaceMenu", () => {
         disabled={false}
         onCreateCanvas={vi.fn()}
         onCreateProject={vi.fn()}
+        onOpenKanban={vi.fn()}
         onCreateProjectCanvas={vi.fn()}
         onOpenCanvas={vi.fn()}
         onDeleteCanvas={onDeleteCanvas}
@@ -271,6 +275,7 @@ describe("WorkspaceMenu", () => {
         disabled={false}
         onCreateCanvas={vi.fn()}
         onCreateProject={vi.fn()}
+        onOpenKanban={vi.fn()}
         onCreateProjectCanvas={vi.fn()}
         onOpenCanvas={vi.fn()}
         onDeleteCanvas={vi.fn()}
@@ -312,6 +317,7 @@ describe("WorkspaceMenu", () => {
         disabled={false}
         onCreateCanvas={vi.fn()}
         onCreateProject={vi.fn()}
+        onOpenKanban={vi.fn()}
         onCreateProjectCanvas={vi.fn()}
         onOpenCanvas={onOpenCanvas}
         onDeleteCanvas={vi.fn()}
@@ -327,6 +333,7 @@ describe("WorkspaceMenu", () => {
         loadingCanvasId="standalone-2"
         onCreateCanvas={vi.fn()}
         onCreateProject={vi.fn()}
+        onOpenKanban={vi.fn()}
         onCreateProjectCanvas={vi.fn()}
         onOpenCanvas={onOpenCanvas}
         onDeleteCanvas={vi.fn()}
@@ -351,6 +358,7 @@ describe("WorkspaceMenu", () => {
         disabled={false}
         onCreateCanvas={vi.fn()}
         onCreateProject={vi.fn()}
+        onOpenKanban={vi.fn()}
         onCreateProjectCanvas={vi.fn()}
         onOpenCanvas={onOpenCanvas}
         onDeleteCanvas={vi.fn()}
@@ -367,6 +375,7 @@ describe("WorkspaceMenu", () => {
         disabled={true}
         onCreateCanvas={vi.fn()}
         onCreateProject={vi.fn()}
+        onOpenKanban={vi.fn()}
         onCreateProjectCanvas={vi.fn()}
         onOpenCanvas={onOpenCanvas}
         onDeleteCanvas={vi.fn()}
@@ -378,5 +387,25 @@ describe("WorkspaceMenu", () => {
     fireEvent.mouseEnter(screen.getByLabelText("Recent standalone canvases"));
     expect(screen.queryByText("Product Ideas")).toBeNull();
     expect(onOpenCanvas).not.toHaveBeenCalled();
+  });
+
+  it("opens Kanban from the card below New Project", () => {
+    const onOpenKanban = vi.fn();
+    render(
+      <WorkspaceMenu
+        index={index}
+        disabled={false}
+        onCreateCanvas={vi.fn()}
+        onCreateProject={vi.fn()}
+        onOpenKanban={onOpenKanban}
+        onCreateProjectCanvas={vi.fn()}
+        onOpenCanvas={vi.fn()}
+        onDeleteCanvas={vi.fn()}
+        onDeleteProject={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Kanban"));
+    expect(onOpenKanban).toHaveBeenCalledTimes(1);
   });
 });
