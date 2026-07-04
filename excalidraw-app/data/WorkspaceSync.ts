@@ -1,4 +1,6 @@
 import {
+  mergeRemoteWorkspaceScene,
+  normalizeWorkspaceSceneForSync,
   WorkspaceStore,
   type CanvasScene,
   type RemoteCanvasMetadata,
@@ -195,7 +197,10 @@ export class WorkspaceSync {
           continue;
         }
         const remote = metadata.sync.contentDirty
-          ? await this.api.putCanvas(document)
+          ? await this.api.putCanvas({
+              ...document,
+              scene: normalizeWorkspaceSceneForSync(document.scene),
+            })
           : await this.api.patchCanvas(document);
         index = await WorkspaceStore.markCanvasSynced(
           index,
@@ -260,9 +265,19 @@ export class WorkspaceSync {
             local?.sync.remoteContentHash === contentHash);
         const scene =
           localDocument && contentMatches
-            ? localDocument.scene
+            ? {
+                ...localDocument.scene,
+                appState: {
+                  ...localDocument.scene.appState,
+                  name: canvas.title,
+                },
+              }
             : canvas.id === activeCanvasId || local?.sync.dirty
-            ? await this.api.getCanvasScene(canvas.id)
+            ? mergeRemoteWorkspaceScene(
+                await this.api.getCanvasScene(canvas.id),
+                canvas.title,
+                localDocument?.scene,
+              )
             : null;
         const metadata: RemoteCanvasMetadata = {
           ...canvas,
