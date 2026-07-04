@@ -107,7 +107,7 @@ export const ExportToExcalidrawPlus: React.FC<{
           }}
         />
       </div>
-      <h2>Draws+</h2>
+      <h2>Drawsy+</h2>
       <div className="Card-details">
         {t("exportDialog.excalidrawplus_description")}
       </div>

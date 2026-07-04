@@ -208,7 +208,7 @@ export const AppMainMenu: React.FC<{
       >
         <span className="drawsy-plus-menu-copy">
           <span className="drawsy-plus-menu-label">
-            <strong>Draws+</strong>
+            <strong>Drawsy+</strong>
             <small>AI and connected workspace</small>
           </span>
           <span className="drawsy-plus-menu-arrow" aria-hidden="true">

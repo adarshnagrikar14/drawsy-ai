@@ -79,7 +79,7 @@ export const AppSidebar = ({
             }}
           />
           <div className="app-sidebar-promo-text">
-            Create presentations with Draws+
+            Create presentations with Drawsy+
           </div>
           <LinkButton
             href={`${

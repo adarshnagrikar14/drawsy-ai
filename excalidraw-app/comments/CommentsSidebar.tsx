@@ -161,7 +161,7 @@ export const CommentsSidebar = ({
     return (
       <EmptyComments
         imageUrl={placeholderImage}
-        title="Make comments with Draws+"
+        title="Make comments with Drawsy+"
         description=""
         action={onStartPlacement}
         actionLabel="Place a comment"
