@@ -87,6 +87,14 @@ import type { ResolvablePromise } from "@excalidraw/common/utils";
 import CustomStats from "./CustomStats";
 import { WorkspaceMenu } from "./components/WorkspaceMenu";
 import { WorkspaceTitle } from "./components/WorkspaceTitle";
+import { KanbanWorkspace } from "./components/KanbanWorkspace";
+import {
+  loadKanbanWorkspaceActive,
+  loadKanbanBoard,
+  saveKanbanBoard,
+  saveKanbanWorkspaceActive,
+  type KanbanBoard,
+} from "./data/KanbanStore";
 import { useDrawsyAuth } from "./auth/useDrawsyAuth";
 import { WorkspaceApi } from "./data/WorkspaceApi";
 import { WorkspaceSync } from "./data/WorkspaceSync";
@@ -547,6 +555,37 @@ const ExcalidrawWrapper = () => {
   );
   const [loadingCanvasId, setLoadingCanvasId] = useState<string | null>(null);
   const [commentsSidebarOpen, setCommentsSidebarOpen] = useState(false);
+  const [kanbanBoard, setKanbanBoard] = useState<KanbanBoard>(() =>
+    loadKanbanBoard(),
+  );
+  const [kanbanOpen, setKanbanOpen] = useState(() =>
+    loadKanbanWorkspaceActive(),
+  );
+
+  const updateKanbanBoard = useCallback((board: KanbanBoard) => {
+    setKanbanBoard(board);
+    saveKanbanBoard(board);
+  }, []);
+
+  const setKanbanWorkspaceActive = useCallback((active: boolean) => {
+    setKanbanOpen(active);
+    saveKanbanWorkspaceActive(active);
+  }, []);
+
+  useEffect(() => {
+    const disabledSurfaces = document.querySelectorAll<HTMLElement>(
+      ".shapes-section, .layer-ui__wrapper__top-right, .layer-ui__wrapper__footer",
+    );
+    disabledSurfaces.forEach((element) => {
+      element.inert = kanbanOpen;
+      if (kanbanOpen) {
+        element.setAttribute("aria-disabled", "true");
+      } else {
+        element.removeAttribute("aria-disabled");
+      }
+    });
+    return () => disabledSurfaces.forEach((element) => (element.inert = false));
+  }, [kanbanOpen]);
 
   const commitWorkspaceIndex = useCallback((index: WorkspaceIndex) => {
     workspaceIndexRef.current = index;
@@ -1892,6 +1931,7 @@ const ExcalidrawWrapper = () => {
       style={{ height: "100%" }}
       className={clsx("excalidraw-app", {
         "is-collaborating": isCollaborating,
+        "is-kanban-open": kanbanOpen,
       })}
     >
       <Excalidraw
@@ -1988,18 +2028,50 @@ const ExcalidrawWrapper = () => {
           addMenu={
             <WorkspaceMenu
               index={workspaceIndex}
+              kanbanActive={kanbanOpen}
               disabled={!workspaceIndex || isCollaborating}
-              onCreateCanvas={createWorkspaceCanvas}
-              onCreateProject={createWorkspaceProject}
-              onCreateProjectCanvas={createWorkspaceProjectCanvas}
-              onOpenCanvas={openWorkspaceCanvas}
+              onCreateCanvas={() => {
+                setKanbanWorkspaceActive(false);
+                createWorkspaceCanvas();
+              }}
+              onCreateProject={() => {
+                setKanbanWorkspaceActive(false);
+                createWorkspaceProject();
+              }}
+              onOpenKanban={() => {
+                setCommentPlacement(false);
+                setCommentDraftAnchor(null);
+                setCommentsSidebarOpen(false);
+                excalidrawAPI?.updateScene({ appState: { openSidebar: null } });
+                setKanbanWorkspaceActive(true);
+              }}
+              onCreateProjectCanvas={(projectId) => {
+                setKanbanWorkspaceActive(false);
+                createWorkspaceProjectCanvas(projectId);
+              }}
+              onOpenCanvas={(canvasId) => {
+                setKanbanWorkspaceActive(false);
+                openWorkspaceCanvas(canvasId);
+              }}
               onDeleteCanvas={deleteWorkspaceCanvas}
               onDeleteProject={deleteWorkspaceProject}
               loadingCanvasId={loadingCanvasId}
             />
           }
           header={
-            activeCanvas ? (
+            kanbanOpen ? (
+              <WorkspaceTitle
+                canvasTitle={kanbanBoard.title}
+                projectTitle={null}
+                focusProjectTitle={false}
+                itemLabel="Kanban"
+                onCanvasTitleChange={(title) =>
+                  updateKanbanBoard({ ...kanbanBoard, title })
+                }
+                onProjectTitleChange={() => undefined}
+                onProjectTitleFocused={() => undefined}
+              />
+            ) : activeCanvas ? (
               <WorkspaceTitle
                 canvasTitle={activeCanvas.title}
                 projectTitle={activeProject?.title || null}
@@ -2013,11 +2085,16 @@ const ExcalidrawWrapper = () => {
             ) : null
           }
         />
+        {kanbanOpen && (
+          <KanbanWorkspace board={kanbanBoard} onChange={updateKanbanBoard} />
+        )}
         <DefaultSidebar.Trigger style={{ display: "none" }} />
-        <AppWelcomeScreen
-          onCollabDialogOpen={onCollabDialogOpen}
-          isCollabEnabled={!isCollabDisabled}
-        />
+        {!kanbanOpen && (
+          <AppWelcomeScreen
+            onCollabDialogOpen={onCollabDialogOpen}
+            isCollabEnabled={!isCollabDisabled}
+          />
+        )}
         <OverwriteConfirmDialog>
           <OverwriteConfirmDialog.Actions.ExportToImage />
           <OverwriteConfirmDialog.Actions.SaveToDisk />
@@ -2092,15 +2169,18 @@ const ExcalidrawWrapper = () => {
           onGoToComment={goToComment}
           onCommentsOpenChange={setCommentsSidebarOpen}
         />
-        {drawsyAuth.status === "authenticated" && !isCollaborating && (
-          <CommentPins
-            comments={comments.comments}
-            selectedId={comments.selectedId}
-            onSelect={selectComment}
-          />
-        )}
         {drawsyAuth.status === "authenticated" &&
           !isCollaborating &&
+          !kanbanOpen && (
+            <CommentPins
+              comments={comments.comments}
+              selectedId={comments.selectedId}
+              onSelect={selectComment}
+            />
+          )}
+        {drawsyAuth.status === "authenticated" &&
+          !isCollaborating &&
+          !kanbanOpen &&
           (comments.placing || comments.draftAnchor) && (
             <CommentDraftBubble
               anchor={comments.draftAnchor}
