@@ -7,6 +7,7 @@ type Props = {
   onCanvasTitleChange: (title: string) => void;
   onProjectTitleChange: (title: string) => void;
   onProjectTitleFocused: () => void;
+  itemLabel?: string;
 };
 
 const EditableTitle = ({
@@ -62,6 +63,7 @@ export const WorkspaceTitle = ({
   onCanvasTitleChange,
   onProjectTitleChange,
   onProjectTitleFocused,
+  itemLabel = "Canvas",
 }: Props) => (
   <div className="workspace-title" data-testid="workspace-title">
     {projectTitle && (
@@ -78,7 +80,7 @@ export const WorkspaceTitle = ({
     )}
     <EditableTitle
       value={canvasTitle}
-      ariaLabel="Canvas title"
+      ariaLabel={`${itemLabel} title`}
       onCommit={onCanvasTitleChange}
     />
   </div>
