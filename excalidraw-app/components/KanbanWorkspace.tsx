@@ -31,15 +31,25 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
       const roughness = (e as CustomEvent).detail;
       commit({ ...board, roughness });
     };
+    const handleRadiusChange = (e: Event) => {
+      const cardRadius = (e as CustomEvent).detail;
+      commit({ ...board, cardRadius });
+    };
     window.addEventListener("kanbanRoughnessChange", handleRoughnessChange);
+    window.addEventListener("kanbanRadiusChange", handleRadiusChange);
     return () => {
       window.removeEventListener("kanbanRoughnessChange", handleRoughnessChange);
+      window.removeEventListener("kanbanRadiusChange", handleRadiusChange);
     };
   }, [board]);
 
   useEffect(() => {
     window.dispatchEvent(new CustomEvent("kanbanRoughnessUpdated", { detail: board.roughness }));
   }, [board.roughness]);
+
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("kanbanRadiusUpdated", { detail: board.cardRadius ?? 1 }));
+  }, [board.cardRadius]);
   const [draftColumnId, setDraftColumnId] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState("");
   const [draggedCard, setDraggedCard] = useState<DraggedCard | null>(null);
@@ -175,7 +185,7 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
 
   return (
     <section
-      className={`kanban-workspace kanban-roughness-${board.roughness ?? 1}`}
+      className={`kanban-workspace kanban-roughness-${board.roughness ?? 1} kanban-radius-${board.cardRadius ?? 1}`}
       aria-label="Kanban board"
       style={{
         backgroundColor: applyDarkModeFilter(
@@ -184,8 +194,6 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
         ),
       }}
     >
-
-
       <div className="kanban-board">
         {board.columns.map((column, columnIndex) => {
           const visibleCardIds = column.cardIds.filter((cardId) => {
@@ -202,7 +210,9 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
             >
               <header className="kanban-column-header">
                 <div className="kanban-status-pill">
-                  <span className="kanban-status-dot" />
+                  <span className="kanban-status-dot">
+                    {column.cardIds.length}
+                  </span>
                   <input
                     aria-label={`Rename ${column.title}`}
                     defaultValue={column.title}
@@ -216,9 +226,6 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
                     }}
                   />
                 </div>
-                <span className="kanban-column-count">
-                  {column.cardIds.length}
-                </span>
                 {column.cardIds.length === 0 && board.columns.length > 1 && (
                   <button
                     type="button"

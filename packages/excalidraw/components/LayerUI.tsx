@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import React from "react";
+import React, { useState, useEffect } from "react";
 
 import {
   CLASSES,
@@ -163,6 +163,21 @@ const LayerUI = ({
   const stylesPanelMode = useStylesPanelMode();
   const isCompactStylesPanel = stylesPanelMode === "compact";
   const tunnels = useInitializeTunnels();
+
+  const [isKanbanOpen, setIsKanbanOpen] = useState(() => {
+    return typeof document !== "undefined" && !!document.querySelector(".is-kanban-open");
+  });
+
+  useEffect(() => {
+    const handleToggle = (e: Event) => {
+      setIsKanbanOpen((e as CustomEvent).detail);
+    };
+    window.addEventListener("kanbanToggle", handleToggle);
+    setIsKanbanOpen(!!document.querySelector(".is-kanban-open"));
+    return () => {
+      window.removeEventListener("kanbanToggle", handleToggle);
+    };
+  }, []);
 
   const spacing = isCompactStylesPanel
     ? {
@@ -343,20 +358,24 @@ const LayerUI = ({
                           />
                           {heading}
                           <Stack.Row gap={spacing.toolbarInnerRowGap}>
-                            <PenModeButton
-                              zenModeEnabled={appState.zenModeEnabled}
-                              checked={appState.penMode}
-                              onChange={() => onPenModeToggle(null)}
-                              title={t("toolBar.penMode")}
-                              penDetected={appState.penDetected}
-                            />
-                            <LockButton
-                              checked={appState.activeTool.locked}
-                              onChange={onLockToggle}
-                              title={t("toolBar.lock")}
-                            />
+                            {!isKanbanOpen && (
+                              <>
+                                <PenModeButton
+                                  zenModeEnabled={appState.zenModeEnabled}
+                                  checked={appState.penMode}
+                                  onChange={() => onPenModeToggle(null)}
+                                  title={t("toolBar.penMode")}
+                                  penDetected={appState.penDetected}
+                                />
+                                <LockButton
+                                  checked={appState.activeTool.locked}
+                                  onChange={onLockToggle}
+                                  title={t("toolBar.lock")}
+                                />
 
-                            <div className="App-toolbar__divider" />
+                                <div className="App-toolbar__divider" />
+                              </>
+                            )}
 
                             <ShapesSwitcher
                               setAppState={setAppState}

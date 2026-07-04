@@ -1306,6 +1306,27 @@ export const EdgeRoundIcon = createIcon(
   tablerIconProps,
 );
 
+export const EdgeExtraRoundIcon = createIcon(
+  <g
+    strokeWidth="1.5"
+    stroke="currentColor"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+    <path d="M4 16v-4a8 8 0 0 1 8 -8h4" />
+    <line x1="20" y1="4" x2="20" y2="4.01" />
+    <line x1="20" y1="8" x2="20" y2="8.01" />
+    <line x1="20" y1="12" x2="20" y2="12.01" />
+    <line x1="4" y1="20" x2="4" y2="20.01" />
+    <line x1="8" y1="20" x2="8" y2="20.01" />
+    <line x1="12" y1="20" x2="12" y2="20.01" />
+    <line x1="16" y1="20" x2="16" y2="20.01" />
+    <line x1="20" y1="20" x2="20" y2="20.01" />
+  </g>,
+  tablerIconProps,
+);
+
 export const ArrowheadNoneIcon = React.memo(
   ({ flip = false }: { flip?: boolean }) =>
     createIcon(

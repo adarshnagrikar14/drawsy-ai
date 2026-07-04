@@ -152,4 +152,26 @@ describe("KanbanWorkspace", () => {
 
     window.removeEventListener("kanbanRoughnessUpdated", handleRoughnessUpdated);
   });
+
+  it("persists the selected Kanban card radius level", () => {
+    const handleRadiusUpdated = vi.fn();
+    window.addEventListener("kanbanRadiusUpdated", handleRadiusUpdated);
+
+    render(<Harness />);
+    
+    expect(handleRadiusUpdated).toHaveBeenCalledWith(
+      expect.objectContaining({ detail: 1 })
+    );
+
+    fireEvent(
+      window,
+      new CustomEvent("kanbanRadiusChange", { detail: 2 })
+    );
+
+    expect(screen.getByLabelText("Kanban board")).toHaveClass(
+      "kanban-radius-2",
+    );
+
+    window.removeEventListener("kanbanRadiusUpdated", handleRadiusUpdated);
+  });
 });

@@ -90,6 +90,9 @@ import {
   SloppinessArchitectIcon,
   SloppinessArtistIcon,
   SloppinessCartoonistIcon,
+  EdgeSharpIcon,
+  EdgeRoundIcon,
+  EdgeExtraRoundIcon,
 } from "./icons";
 
 import { Island } from "./Island";
@@ -1077,7 +1080,21 @@ export const ShapesSwitcher = ({
     return 1;
   };
 
+  const getKanbanRadius = () => {
+    try {
+      const stored = window.localStorage.getItem("drawsy-kanban-board-v1");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed && typeof parsed.cardRadius === "number") {
+          return parsed.cardRadius;
+        }
+      }
+    } catch {}
+    return 1;
+  };
+
   const [kanbanRoughness, setKanbanRoughness] = useState(getKanbanRoughness);
+  const [kanbanRadius, setKanbanRadius] = useState(getKanbanRadius);
 
   useEffect(() => {
     const handleToggle = (e: Event) => {
@@ -1086,22 +1103,33 @@ export const ShapesSwitcher = ({
     const handleUpdated = (e: Event) => {
       setKanbanRoughness((e as CustomEvent).detail);
     };
+    const handleRadiusUpdated = (e: Event) => {
+      setKanbanRadius((e as CustomEvent).detail);
+    };
 
     window.addEventListener("kanbanToggle", handleToggle);
     window.addEventListener("kanbanRoughnessUpdated", handleUpdated);
+    window.addEventListener("kanbanRadiusUpdated", handleRadiusUpdated);
 
     setIsKanbanOpen(!!document.querySelector(".is-kanban-open"));
     setKanbanRoughness(getKanbanRoughness());
+    setKanbanRadius(getKanbanRadius());
 
     return () => {
       window.removeEventListener("kanbanToggle", handleToggle);
       window.removeEventListener("kanbanRoughnessUpdated", handleUpdated);
+      window.removeEventListener("kanbanRadiusUpdated", handleRadiusUpdated);
     };
   }, []);
 
   const handleKanbanRoughnessChange = (roughness: 0 | 1 | 2) => {
     setKanbanRoughness(roughness);
     window.dispatchEvent(new CustomEvent("kanbanRoughnessChange", { detail: roughness }));
+  };
+
+  const handleKanbanRadiusChange = (radius: 0 | 1 | 2) => {
+    setKanbanRadius(radius);
+    window.dispatchEvent(new CustomEvent("kanbanRadiusChange", { detail: radius }));
   };
   const isFullStylesPanel = stylesPanelMode === "full";
   const isCompactStylesPanel = stylesPanelMode === "compact";
@@ -1132,119 +1160,17 @@ export const ShapesSwitcher = ({
 
   return (
     <>
-      {getToolbarTools(app).map(
-        ({ value, icon, key, numericKey, fillable, toolbar }) => {
-          if (
-            toolbar === false ||
-            UIOptions.tools?.[
-              value as Extract<
-                typeof value,
-                keyof AppProps["UIOptions"]["tools"]
-              >
-            ] === false
-          ) {
-            return null;
-          }
-
-          const label = t(`toolBar.${value}`);
-          const letter =
-            key && capitalizeString(typeof key === "string" ? key : key[0]);
-          const shortcut = letter
-            ? `${letter} ${t("helpDialog.or")} ${numericKey}`
-            : `${numericKey}`;
-          const keybindingLabel =
-            value === "hand" ? undefined : numericKey || letter;
-
-          // when in compact styles panel mode (tablet)
-          // use a ToolPopover for selection/lasso toggle as well
-          if (
-            (value === "selection" || value === "lasso") &&
-            isCompactStylesPanel
-          ) {
-            return (
-              <ToolPopover
-                key={"selection-popover"}
-                app={app}
-                options={SELECTION_TOOLS}
-                activeTool={activeTool}
-                defaultOption={app.state.preferredSelectionTool.type}
-                namePrefix="selectionType"
-                title={capitalizeString(t("toolBar.selection"))}
-                data-testid="toolbar-selection"
-                onToolChange={(type: string) => {
-                  if (type === "selection" || type === "lasso") {
-                    app.setActiveTool({ type });
-                    setAppState({
-                      preferredSelectionTool: { type, initialized: true },
-                    });
-                  }
-                }}
-                displayedOption={
-                  SELECTION_TOOLS.find(
-                    (tool) =>
-                      tool.type === app.state.preferredSelectionTool.type,
-                  ) || SELECTION_TOOLS[0]
-                }
-                fillable={activeTool.type === "selection"}
-              />
-            );
-          }
-
-          return (
-            <ToolButton
-              className={clsx("Shape", { fillable })}
-              key={value}
-              type="radio"
-              icon={icon}
-              checked={activeTool.type === value}
-              name="editor-current-shape"
-              title={`${capitalizeString(label)} — ${shortcut}`}
-              keyBindingLabel={keybindingLabel}
-              aria-label={capitalizeString(label)}
-              aria-keyshortcuts={shortcut}
-              data-testid={`toolbar-${value}`}
-              disabled={isKanbanOpen}
-              onPointerDown={({ pointerType }) => {
-                if (!app.state.penDetected && pointerType === "pen") {
-                  app.togglePenMode(true);
-                }
-
-                if (value === "selection") {
-                  if (app.state.activeTool.type === "selection") {
-                    app.setActiveTool({ type: "lasso" });
-                  } else {
-                    app.setActiveTool({ type: "selection" });
-                  }
-                }
-              }}
-              onChange={({ pointerType }) => {
-                if (app.state.activeTool.type !== value) {
-                  trackEvent("toolbar", value, "ui");
-                }
-                if (value === "image") {
-                  app.setActiveTool({
-                    type: value,
-                  });
-                } else {
-                  app.setActiveTool({ type: value });
-                }
-              }}
-            />
-          );
-        },
-      )}
-      <div className="App-toolbar__divider" />
-
-      <div className="App-toolbar__drawer-buttons">
-        {isKanbanOpen ? (
-          <>
+      {isKanbanOpen ? (
+        <div style={{ display: "flex", gap: "0.25rem", alignItems: "center" }}>
+          {/* Sloppiness Control */}
+          <div style={{ display: "flex", gap: "0.15rem" }}>
             <ToolButton
               type="icon"
               icon={SloppinessArchitectIcon}
               title="Architect style (Sloppiness: Low)"
               aria-label="Architect style"
-              className={clsx("App-toolbar__extra-tools-trigger kanban-sloppiness-btn", {
-                "App-toolbar__extra-tools-trigger--selected": kanbanRoughness === 0,
+              className={clsx("kanban-sloppiness-btn", {
+                "is-active": kanbanRoughness === 0,
               })}
               onClick={() => handleKanbanRoughnessChange(0)}
             />
@@ -1253,8 +1179,8 @@ export const ShapesSwitcher = ({
               icon={SloppinessArtistIcon}
               title="Artist style (Sloppiness: Medium)"
               aria-label="Artist style"
-              className={clsx("App-toolbar__extra-tools-trigger kanban-sloppiness-btn", {
-                "App-toolbar__extra-tools-trigger--selected": kanbanRoughness === 1,
+              className={clsx("kanban-sloppiness-btn", {
+                "is-active": kanbanRoughness === 1,
               })}
               onClick={() => handleKanbanRoughnessChange(1)}
             />
@@ -1263,14 +1189,155 @@ export const ShapesSwitcher = ({
               icon={SloppinessCartoonistIcon}
               title="Cartoonist style (Sloppiness: High)"
               aria-label="Cartoonist style"
-              className={clsx("App-toolbar__extra-tools-trigger kanban-sloppiness-btn", {
-                "App-toolbar__extra-tools-trigger--selected": kanbanRoughness === 2,
+              className={clsx("kanban-sloppiness-btn", {
+                "is-active": kanbanRoughness === 2,
               })}
               onClick={() => handleKanbanRoughnessChange(2)}
             />
-          </>
-        ) : (
-          <>
+          </div>
+
+          <div className="App-toolbar__divider" />
+
+          {/* Radius Control */}
+          <div style={{ display: "flex", gap: "0.15rem" }}>
+            <ToolButton
+              type="icon"
+              icon={EdgeSharpIcon}
+              title="Corner Radius: Sharp"
+              aria-label="Radius Sharp"
+              className={clsx("kanban-radius-btn", {
+                "is-active": kanbanRadius === 0,
+              })}
+              onClick={() => handleKanbanRadiusChange(0)}
+            />
+            <ToolButton
+              type="icon"
+              icon={EdgeRoundIcon}
+              title="Corner Radius: Rounded"
+              aria-label="Radius Rounded"
+              className={clsx("kanban-radius-btn", {
+                "is-active": kanbanRadius === 1,
+              })}
+              onClick={() => handleKanbanRadiusChange(1)}
+            />
+            <ToolButton
+              type="icon"
+              icon={EdgeExtraRoundIcon}
+              title="Corner Radius: Extra Rounded"
+              aria-label="Radius Extra Rounded"
+              className={clsx("kanban-radius-btn", {
+                "is-active": kanbanRadius === 2,
+              })}
+              onClick={() => handleKanbanRadiusChange(2)}
+            />
+          </div>
+        </div>
+      ) : (
+        <>
+          {getToolbarTools(app).map(
+            ({ value, icon, key, numericKey, fillable, toolbar }) => {
+              if (
+                toolbar === false ||
+                UIOptions.tools?.[
+                  value as Extract<
+                    typeof value,
+                    keyof AppProps["UIOptions"]["tools"]
+                  >
+                ] === false
+              ) {
+                return null;
+              }
+
+              const label = t(`toolBar.${value}`);
+              const letter =
+                key && capitalizeString(typeof key === "string" ? key : key[0]);
+              const shortcut = letter
+                ? `${letter} ${t("helpDialog.or")} ${numericKey}`
+                : `${numericKey}`;
+              const keybindingLabel =
+                value === "hand" ? undefined : numericKey || letter;
+
+              // when in compact styles panel mode (tablet)
+              // use a ToolPopover for selection/lasso toggle as well
+              if (
+                (value === "selection" || value === "lasso") &&
+                isCompactStylesPanel
+              ) {
+                return (
+                  <ToolPopover
+                    key={"selection-popover"}
+                    app={app}
+                    options={SELECTION_TOOLS}
+                    activeTool={activeTool}
+                    defaultOption={app.state.preferredSelectionTool.type}
+                    namePrefix="selectionType"
+                    title={capitalizeString(t("toolBar.selection"))}
+                    data-testid="toolbar-selection"
+                    onToolChange={(type: string) => {
+                      if (type === "selection" || type === "lasso") {
+                        app.setActiveTool({ type });
+                        setAppState({
+                          preferredSelectionTool: { type, initialized: true },
+                        });
+                      }
+                    }}
+                    displayedOption={
+                      SELECTION_TOOLS.find(
+                        (tool) =>
+                          tool.type === app.state.preferredSelectionTool.type,
+                      ) || SELECTION_TOOLS[0]
+                    }
+                    fillable={activeTool.type === "selection"}
+                  />
+                );
+              }
+
+              return (
+                <ToolButton
+                  className={clsx("Shape", { fillable })}
+                  key={value}
+                  type="radio"
+                  icon={icon}
+                  checked={activeTool.type === value}
+                  name="editor-current-shape"
+                  title={`${capitalizeString(label)} — ${shortcut}`}
+                  keyBindingLabel={keybindingLabel}
+                  aria-label={capitalizeString(label)}
+                  aria-keyshortcuts={shortcut}
+                  data-testid={`toolbar-${value}`}
+                  disabled={isKanbanOpen}
+                  onPointerDown={({ pointerType }) => {
+                    if (!app.state.penDetected && pointerType === "pen") {
+                      app.togglePenMode(true);
+                    }
+
+                    if (value === "selection") {
+                      if (app.state.activeTool.type === "selection") {
+                        app.setActiveTool({ type: "lasso" });
+                      } else {
+                        app.setActiveTool({ type: "selection" });
+                      }
+                    }
+                  }}
+                  onChange={({ pointerType }) => {
+                    if (app.state.activeTool.type !== value) {
+                      trackEvent("toolbar", value, "ui");
+                    }
+                    if (value === "image") {
+                      app.setActiveTool({
+                        type: value,
+                      });
+                    } else {
+                      app.setActiveTool({ type: value });
+                    }
+                  }}
+                />
+              );
+            },
+          )}
+          <div className="App-toolbar__divider" />
+
+          <div className="App-toolbar__drawer-buttons">
             <DropdownMenu open={isExtraToolsMenuOpen}>
               <DropdownMenu.Trigger
                 className={clsx("App-toolbar__extra-tools-trigger", {
@@ -1301,63 +1368,63 @@ export const ShapesSwitcher = ({
                 onSelect={() => setIsExtraToolsMenuOpen(false)}
                 className="App-toolbar__extra-tools-dropdown"
               >
-              <DropdownMenu.Item
-                onSelect={() => app.setActiveTool({ type: "frame" })}
-                icon={frameToolIcon}
-                shortcut={KEYS.F.toLocaleUpperCase()}
-                data-testid="toolbar-frame"
-                selected={frameToolSelected}
-              >
-                {t("toolBar.frame")}
-              </DropdownMenu.Item>
-              <DropdownMenu.Item
-                onSelect={() => app.setActiveTool({ type: "embeddable" })}
-                icon={EmbedIcon}
-                data-testid="toolbar-embeddable"
-                selected={embeddableToolSelected}
-              >
-                {t("toolBar.embeddable")}
-              </DropdownMenu.Item>
-              <DropdownMenu.Item
-                onSelect={() => app.setActiveTool({ type: "laser" })}
-                icon={laserPointerToolIcon}
-                data-testid="toolbar-laser"
-                selected={laserToolSelected}
-                shortcut={KEYS.K.toLocaleUpperCase()}
-              >
-                {t("toolBar.laser")}
-              </DropdownMenu.Item>
-              {isFullStylesPanel && (
                 <DropdownMenu.Item
-                  onSelect={() => app.setActiveTool({ type: "lasso" })}
-                  icon={LassoIcon}
-                  data-testid="toolbar-lasso"
-                  selected={lassoToolSelected}
+                  onSelect={() => app.setActiveTool({ type: "frame" })}
+                  icon={frameToolIcon}
+                  shortcut={KEYS.F.toLocaleUpperCase()}
+                  data-testid="toolbar-frame"
+                  selected={frameToolSelected}
                 >
-                  {t("toolBar.lasso")}
+                  {t("toolBar.frame")}
                 </DropdownMenu.Item>
-              )}
-              <div style={{ margin: "6px 0", fontSize: 14, fontWeight: 600 }}>
-                Generate
-              </div>
-              {app.props.aiEnabled !== false && <TTDDialogTriggerTunnel.Out />}
-              <DropdownMenu.Item
-                onSelect={() => app.setOpenDialog({ name: "ttd", tab: "mermaid" })}
-                icon={mermaidLogoIcon}
-                data-testid="toolbar-embeddable"
-              >
-                {t("toolBar.mermaidToExcalidraw")}
-              </DropdownMenu.Item>
-              {app.props.aiEnabled !== false && app.plugins.diagramToCode && (
                 <DropdownMenu.Item
-                  onSelect={() => app.onMagicframeToolSelect()}
-                  icon={MagicIcon}
-                  data-testid="toolbar-magicframe"
-                  badge={<DropdownMenu.Item.Badge>AI</DropdownMenu.Item.Badge>}
+                  onSelect={() => app.setActiveTool({ type: "embeddable" })}
+                  icon={EmbedIcon}
+                  data-testid="toolbar-embeddable"
+                  selected={embeddableToolSelected}
                 >
-                  {t("toolBar.magicframe")}
+                  {t("toolBar.embeddable")}
                 </DropdownMenu.Item>
-              )}
+                <DropdownMenu.Item
+                  onSelect={() => app.setActiveTool({ type: "laser" })}
+                  icon={laserPointerToolIcon}
+                  data-testid="toolbar-laser"
+                  selected={laserToolSelected}
+                  shortcut={KEYS.K.toLocaleUpperCase()}
+                >
+                  {t("toolBar.laser")}
+                </DropdownMenu.Item>
+                {isFullStylesPanel && (
+                  <DropdownMenu.Item
+                    onSelect={() => app.setActiveTool({ type: "lasso" })}
+                    icon={LassoIcon}
+                    data-testid="toolbar-lasso"
+                    selected={lassoToolSelected}
+                  >
+                    {t("toolBar.lasso")}
+                  </DropdownMenu.Item>
+                )}
+                <div style={{ margin: "6px 0", fontSize: 14, fontWeight: 600 }}>
+                  Generate
+                </div>
+                {app.props.aiEnabled !== false && <TTDDialogTriggerTunnel.Out />}
+                <DropdownMenu.Item
+                  onSelect={() => app.setOpenDialog({ name: "ttd", tab: "mermaid" })}
+                  icon={mermaidLogoIcon}
+                  data-testid="toolbar-embeddable"
+                >
+                  {t("toolBar.mermaidToExcalidraw")}
+                </DropdownMenu.Item>
+                {app.props.aiEnabled !== false && app.plugins.diagramToCode && (
+                  <DropdownMenu.Item
+                    onSelect={() => app.onMagicframeToolSelect()}
+                    icon={MagicIcon}
+                    data-testid="toolbar-magicframe"
+                    badge={<DropdownMenu.Item.Badge>AI</DropdownMenu.Item.Badge>}
+                  >
+                    {t("toolBar.magicframe")}
+                  </DropdownMenu.Item>
+                )}
               </DropdownMenu.Content>
             </DropdownMenu>
             <ToolButton
@@ -1404,9 +1471,9 @@ export const ShapesSwitcher = ({
                 })
               }
             />
-          </>
-        )}
-      </div>
+          </div>
+        </>
+      )}
     </>
   );
 };

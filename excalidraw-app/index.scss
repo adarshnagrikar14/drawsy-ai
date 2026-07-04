@@ -1,5 +1,17 @@
 @import "../packages/excalidraw/css/variables.module.scss";
 
+@font-face {
+  font-family: "Virgil";
+  src: url("https://excalidraw.com/FG_Virgil.woff2") format("woff2");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Excalifont";
+  src: url("https://excalidraw.com/FG_Virgil.woff2") format("woff2");
+  font-display: swap;
+}
+
 .excalidraw {
   --color-primary-contrast-offset: #625ee0; // to offset Chubb illusion
 
@@ -813,21 +825,26 @@
   .shapes-section {
     pointer-events: none;
 
-    .ToolIcon:not(.kanban-sloppiness-btn),
+    .ToolIcon:not(.kanban-sloppiness-btn):not(.kanban-radius-btn),
     .App-toolbar__divider {
       pointer-events: none;
       opacity: 0.42;
       filter: saturate(0.35);
     }
 
-    .kanban-sloppiness-btn {
+    .kanban-sloppiness-btn,
+    .kanban-radius-btn {
       pointer-events: auto;
       opacity: 1;
       filter: none;
+
+      &.is-active {
+        background: var(--color-primary-light);
+        color: var(--color-primary);
+      }
     }
   }
 
-  .layer-ui__wrapper__top-right,
   .layer-ui__wrapper__footer {
     pointer-events: none;
     opacity: 0.42;
@@ -861,11 +878,28 @@
     font-family: var(--ui-font);
   }
 
+  .kanban-radius-0 {
+    --kanban-card-radius: 0px;
+  }
+
+  .kanban-radius-1 {
+    --kanban-card-radius: 8px;
+  }
+
+  .kanban-radius-2 {
+    --kanban-card-radius: 20px;
+  }
+
+  .kanban-roughness-0 {
+    --ui-font: Assistant, system-ui, BlinkMacSystemFont, -apple-system, sans-serif;
+  }
+
   .kanban-roughness-1 {
+    --ui-font: "Excalifont", "Virgil", Assistant, system-ui, BlinkMacSystemFont, -apple-system, sans-serif;
     --kanban-rough-offset-x: 1px;
     --kanban-rough-offset-y: -1px;
-    --kanban-rough-rotate: -0.18deg;
-    --kanban-rough-second-opacity: 0.32;
+    --kanban-rough-rotate: -0.2deg;
+    --kanban-rough-second-opacity: 0.55;
     --kanban-rough-third-opacity: 0;
     --kanban-fill-offset-x: 1px;
     --kanban-fill-offset-y: 1px;
@@ -877,11 +911,12 @@
   }
 
   .kanban-roughness-2 {
+    --ui-font: "Excalifont", "Virgil", Assistant, system-ui, BlinkMacSystemFont, -apple-system, sans-serif;
     --kanban-rough-offset-x: 2px;
-    --kanban-rough-offset-y: -1px;
-    --kanban-rough-rotate: -0.42deg;
-    --kanban-rough-second-opacity: 0.45;
-    --kanban-rough-third-opacity: 0.2;
+    --kanban-rough-offset-y: -1.5px;
+    --kanban-rough-rotate: 0.35deg;
+    --kanban-rough-second-opacity: 0.75;
+    --kanban-rough-third-opacity: 0.45;
     --kanban-fill-offset-x: 2px;
     --kanban-fill-offset-y: 1px;
     --kanban-rough-line: color-mix(
@@ -1170,11 +1205,6 @@
     }
   }
 
-  .kanban-column-count {
-    color: var(--kanban-accent);
-    font: 600 0.8125rem/1 var(--ui-font);
-  }
-
   .kanban-column-header {
     button {
       display: grid;
@@ -1201,11 +1231,18 @@
   }
 
   .kanban-status-dot {
-    flex: 0 0 0.625rem;
-    width: 0.625rem;
-    height: 0.625rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 1.25rem;
+    width: 1.25rem;
+    height: 1.25rem;
     border-radius: 50%;
     background: var(--kanban-accent);
+    color: white;
+    font-weight: 700;
+    font-size: 0.7rem;
+    line-height: 1;
   }
 
   .kanban-cards {
@@ -1221,7 +1258,7 @@
     padding: 0.875rem;
     border: 1px solid
       color-mix(in srgb, var(--kanban-accent) 30%, transparent);
-    border-radius: 0.85rem 0.72rem 0.92rem 0.78rem;
+    border-radius: var(--kanban-card-radius, 0.85rem 0.72rem 0.92rem 0.78rem);
     background: color-mix(
       in srgb,
       var(--kanban-accent) 18%,
@@ -1331,7 +1368,7 @@
     padding: 0.625rem 0.75rem;
     border: 1px solid
       color-mix(in srgb, var(--kanban-accent) 28%, transparent);
-    border-radius: 0.75rem 0.65rem 0.82rem 0.7rem;
+    border-radius: var(--kanban-card-radius, 0.75rem 0.65rem 0.82rem 0.7rem);
     background: color-mix(
       in srgb,
       var(--kanban-accent) 14%,
@@ -1370,7 +1407,7 @@
     padding: 0.625rem;
     border: 1px solid
       color-mix(in srgb, var(--kanban-accent) 45%, transparent);
-    border-radius: 0.8rem 0.68rem 0.86rem 0.72rem;
+    border-radius: var(--kanban-card-radius, 0.8rem 0.68rem 0.86rem 0.72rem);
     background: color-mix(
       in srgb,
       var(--kanban-accent) 18%,

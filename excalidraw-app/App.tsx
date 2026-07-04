@@ -246,11 +246,31 @@ const TopRightToolbar = ({
   onShareSelect,
   onCommentSelect,
   isPlacingComment,
+  isKanbanOpen,
+  onCollabDialogOpen,
 }: {
   onShareSelect: () => void;
   onCommentSelect: () => void;
   isPlacingComment: boolean;
+  isKanbanOpen: boolean;
+  onCollabDialogOpen: () => void;
 }) => {
+  if (isKanbanOpen) {
+    return (
+      <>
+        <Button
+          className="sidebar-trigger default-sidebar-trigger"
+          title="Invite"
+          aria-label="Invite"
+          onSelect={onCollabDialogOpen}
+        >
+          {usersIcon}
+        </Button>
+        <ExcalidrawPlusPromoBanner isSignedIn={isExcalidrawPlusSignedUser} />
+      </>
+    );
+  }
+
   return (
     <>
       <Button
@@ -575,7 +595,7 @@ const ExcalidrawWrapper = () => {
 
   useEffect(() => {
     const disabledSurfaces = document.querySelectorAll<HTMLElement>(
-      ".layer-ui__wrapper__top-right, .layer-ui__wrapper__footer",
+      ".layer-ui__wrapper__footer",
     );
     disabledSurfaces.forEach((element) => {
       element.inert = kanbanOpen;
@@ -1995,6 +2015,8 @@ const ExcalidrawWrapper = () => {
                   }
                   onCommentSelect={beginCommentPlacement}
                   isPlacingComment={isPlacingComment}
+                  isKanbanOpen={kanbanOpen}
+                  onCollabDialogOpen={onCollabDialogOpen}
                 />
               )}
             </div>

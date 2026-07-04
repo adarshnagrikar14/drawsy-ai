@@ -26,6 +26,7 @@ export type KanbanBoard = {
   columns: KanbanColumn[];
   cards: Record<string, KanbanCard>;
   roughness: 0 | 1 | 2;
+  cardRadius?: 0 | 1 | 2;
   createdAt: number;
   updatedAt: number;
 };
@@ -49,6 +50,7 @@ export const createKanbanBoard = (): KanbanBoard => {
     ],
     cards: {},
     roughness: 1,
+    cardRadius: 1,
     createdAt: now,
     updatedAt: now,
   };
@@ -80,6 +82,10 @@ export const loadKanbanBoard = (): KanbanBoard => {
           roughness:
             parsed.roughness === 0 || parsed.roughness === 2
               ? parsed.roughness
+              : 1,
+          cardRadius:
+            parsed.cardRadius === 0 || parsed.cardRadius === 2
+              ? parsed.cardRadius
               : 1,
         };
       }
