@@ -93,6 +93,8 @@ import {
   EdgeSharpIcon,
   EdgeRoundIcon,
   EdgeExtraRoundIcon,
+  LockedIcon,
+  UnlockedIcon,
 } from "./icons";
 
 import { Island } from "./Island";
@@ -1093,8 +1095,22 @@ export const ShapesSwitcher = ({
     return 1;
   };
 
+  const getKanbanLocked = () => {
+    try {
+      const stored = window.localStorage.getItem("drawsy-kanban-board-v1");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed && typeof parsed.isLocked === "boolean") {
+          return parsed.isLocked;
+        }
+      }
+    } catch {}
+    return false;
+  };
+
   const [kanbanRoughness, setKanbanRoughness] = useState(getKanbanRoughness);
   const [kanbanRadius, setKanbanRadius] = useState(getKanbanRadius);
+  const [kanbanLocked, setKanbanLocked] = useState(getKanbanLocked);
 
   useEffect(() => {
     const handleToggle = (e: Event) => {
@@ -1106,19 +1122,25 @@ export const ShapesSwitcher = ({
     const handleRadiusUpdated = (e: Event) => {
       setKanbanRadius((e as CustomEvent).detail);
     };
+    const handleLockUpdated = (e: Event) => {
+      setKanbanLocked((e as CustomEvent).detail);
+    };
 
     window.addEventListener("kanbanToggle", handleToggle);
     window.addEventListener("kanbanRoughnessUpdated", handleUpdated);
     window.addEventListener("kanbanRadiusUpdated", handleRadiusUpdated);
+    window.addEventListener("kanbanLockUpdated", handleLockUpdated);
 
     setIsKanbanOpen(!!document.querySelector(".is-kanban-open"));
     setKanbanRoughness(getKanbanRoughness());
     setKanbanRadius(getKanbanRadius());
+    setKanbanLocked(getKanbanLocked());
 
     return () => {
       window.removeEventListener("kanbanToggle", handleToggle);
       window.removeEventListener("kanbanRoughnessUpdated", handleUpdated);
       window.removeEventListener("kanbanRadiusUpdated", handleRadiusUpdated);
+      window.removeEventListener("kanbanLockUpdated", handleLockUpdated);
     };
   }, []);
 
@@ -1130,6 +1152,11 @@ export const ShapesSwitcher = ({
   const handleKanbanRadiusChange = (radius: 0 | 1 | 2) => {
     setKanbanRadius(radius);
     window.dispatchEvent(new CustomEvent("kanbanRadiusChange", { detail: radius }));
+  };
+
+  const handleKanbanLockChange = (isLocked: boolean) => {
+    setKanbanLocked(isLocked);
+    window.dispatchEvent(new CustomEvent("kanbanLockChange", { detail: isLocked }));
   };
   const isFullStylesPanel = stylesPanelMode === "full";
   const isCompactStylesPanel = stylesPanelMode === "compact";
@@ -1231,6 +1258,20 @@ export const ShapesSwitcher = ({
               onClick={() => handleKanbanRadiusChange(2)}
             />
           </div>
+
+          <div className="App-toolbar__divider" />
+
+          {/* Lock Control */}
+          <ToolButton
+            type="icon"
+            icon={kanbanLocked ? LockedIcon : UnlockedIcon}
+            title={kanbanLocked ? "Unlock board (Locked state)" : "Lock board (Normal state)"}
+            aria-label={kanbanLocked ? "Unlock board" : "Lock board"}
+            className={clsx("kanban-lock-btn", {
+              "is-active": kanbanLocked,
+            })}
+            onClick={() => handleKanbanLockChange(!kanbanLocked)}
+          />
         </div>
       ) : (
         <>

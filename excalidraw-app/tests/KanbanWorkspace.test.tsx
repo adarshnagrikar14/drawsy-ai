@@ -174,4 +174,29 @@ describe("KanbanWorkspace", () => {
 
     window.removeEventListener("kanbanRadiusUpdated", handleRadiusUpdated);
   });
+
+  it("enforces lock state disabling card dragging and editing", () => {
+    const handleLockUpdated = vi.fn();
+    window.addEventListener("kanbanLockUpdated", handleLockUpdated);
+
+    const { container } = render(<Harness />);
+    
+    expect(handleLockUpdated).toHaveBeenCalledWith(
+      expect.objectContaining({ detail: false })
+    );
+
+    fireEvent(
+      window,
+      new CustomEvent("kanbanLockChange", { detail: true })
+    );
+
+    expect(screen.getByLabelText("Kanban board")).toHaveClass(
+      "is-locked",
+    );
+
+    const inputs = container.querySelectorAll("article.kanban-card input");
+    expect(inputs[0]).toHaveAttribute("readonly");
+
+    window.removeEventListener("kanbanLockUpdated", handleLockUpdated);
+  });
 });

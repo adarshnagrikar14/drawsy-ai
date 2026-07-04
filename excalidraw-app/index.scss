@@ -825,7 +825,7 @@
   .shapes-section {
     pointer-events: none;
 
-    .ToolIcon:not(.kanban-sloppiness-btn):not(.kanban-radius-btn),
+    .ToolIcon:not(.kanban-sloppiness-btn):not(.kanban-radius-btn):not(.kanban-lock-btn),
     .App-toolbar__divider {
       pointer-events: none;
       opacity: 0.42;
@@ -833,7 +833,8 @@
     }
 
     .kanban-sloppiness-btn,
-    .kanban-radius-btn {
+    .kanban-radius-btn,
+    .kanban-lock-btn {
       pointer-events: auto;
       opacity: 1;
       filter: none;
@@ -924,6 +925,16 @@
       var(--color-border-outline-variant) 58%,
       transparent
     );
+  }
+
+  .kanban-workspace.is-locked {
+    .kanban-card {
+      cursor: default !important;
+    }
+    input {
+      pointer-events: none;
+      cursor: default;
+    }
   }
 
   .kanban-sloppiness-control {

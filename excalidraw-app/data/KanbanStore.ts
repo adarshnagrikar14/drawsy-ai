@@ -27,6 +27,7 @@ export type KanbanBoard = {
   cards: Record<string, KanbanCard>;
   roughness: 0 | 1 | 2;
   cardRadius?: 0 | 1 | 2;
+  isLocked?: boolean;
   createdAt: number;
   updatedAt: number;
 };
@@ -87,6 +88,7 @@ export const loadKanbanBoard = (): KanbanBoard => {
             parsed.cardRadius === 0 || parsed.cardRadius === 2
               ? parsed.cardRadius
               : 1,
+          isLocked: !!parsed.isLocked,
         };
       }
     }

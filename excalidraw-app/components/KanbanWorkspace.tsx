@@ -35,11 +35,17 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
       const cardRadius = (e as CustomEvent).detail;
       commit({ ...board, cardRadius });
     };
+    const handleLockChange = (e: Event) => {
+      const isLocked = (e as CustomEvent).detail;
+      commit({ ...board, isLocked });
+    };
     window.addEventListener("kanbanRoughnessChange", handleRoughnessChange);
     window.addEventListener("kanbanRadiusChange", handleRadiusChange);
+    window.addEventListener("kanbanLockChange", handleLockChange);
     return () => {
       window.removeEventListener("kanbanRoughnessChange", handleRoughnessChange);
       window.removeEventListener("kanbanRadiusChange", handleRadiusChange);
+      window.removeEventListener("kanbanLockChange", handleLockChange);
     };
   }, [board]);
 
@@ -50,6 +56,10 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
   useEffect(() => {
     window.dispatchEvent(new CustomEvent("kanbanRadiusUpdated", { detail: board.cardRadius ?? 1 }));
   }, [board.cardRadius]);
+
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("kanbanLockUpdated", { detail: !!board.isLocked }));
+  }, [board.isLocked]);
   const [draftColumnId, setDraftColumnId] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState("");
   const [draggedCard, setDraggedCard] = useState<DraggedCard | null>(null);
@@ -58,6 +68,9 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
     onChange({ ...next, updatedAt: Date.now() });
 
   const beginCard = (columnId = board.columns[0]?.id) => {
+    if (board.isLocked) {
+      return;
+    }
     if (columnId) {
       setDraftColumnId(columnId);
       setDraftTitle("");
@@ -65,6 +78,9 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
   };
 
   const addCard = (columnId: string) => {
+    if (board.isLocked) {
+      return;
+    }
     const title = draftTitle.trim();
     if (!title) {
       return;
@@ -96,6 +112,9 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
   };
 
   const updateCard = (cardId: string, title: string) => {
+    if (board.isLocked) {
+      return;
+    }
     const card = board.cards[cardId];
     const nextTitle = title.trim();
     if (!card || !nextTitle || nextTitle === card.title) {
@@ -111,6 +130,9 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
   };
 
   const deleteCard = (cardId: string) => {
+    if (board.isLocked) {
+      return;
+    }
     const { [cardId]: _deletedCard, ...cards } = board.cards;
     commit({
       ...board,
@@ -122,7 +144,10 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
     });
   };
 
-  const addColumn = () =>
+  const addColumn = () => {
+    if (board.isLocked) {
+      return;
+    }
     commit({
       ...board,
       columns: [
@@ -130,8 +155,12 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
         { id: randomId(), title: "New status", cardIds: [] },
       ],
     });
+  };
 
   const updateColumn = (columnId: string, title: string) => {
+    if (board.isLocked) {
+      return;
+    }
     const nextTitle = title.trim();
     if (!nextTitle) {
       return;
@@ -145,6 +174,9 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
   };
 
   const deleteEmptyColumn = (columnId: string) => {
+    if (board.isLocked) {
+      return;
+    }
     const column = board.columns.find((item) => item.id === columnId);
     if (!column || column.cardIds.length || board.columns.length === 1) {
       return;
@@ -156,6 +188,10 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
   };
 
   const moveCard = (targetColumnId: string, targetCardId?: string) => {
+    if (board.isLocked) {
+      setDraggedCard(null);
+      return;
+    }
     if (!draggedCard || targetCardId === draggedCard.cardId) {
       setDraggedCard(null);
       return;
@@ -185,7 +221,7 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
 
   return (
     <section
-      className={`kanban-workspace kanban-roughness-${board.roughness ?? 1} kanban-radius-${board.cardRadius ?? 1}`}
+      className={`kanban-workspace kanban-roughness-${board.roughness ?? 1} kanban-radius-${board.cardRadius ?? 1} ${board.isLocked ? "is-locked" : ""}`}
       aria-label="Kanban board"
       style={{
         backgroundColor: applyDarkModeFilter(
@@ -205,8 +241,14 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
                 COLUMN_COLORS[columnIndex % COLUMN_COLORS.length]
               } ${draggedCard ? "is-dragging" : ""}`}
               key={column.id}
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={() => moveCard(column.id)}
+              onDragOver={(event) => {
+                if (board.isLocked) return;
+                event.preventDefault();
+              }}
+              onDrop={() => {
+                if (board.isLocked) return;
+                moveCard(column.id);
+              }}
             >
               <header className="kanban-column-header">
                 <div className="kanban-status-pill">
@@ -216,6 +258,7 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
                   <input
                     aria-label={`Rename ${column.title}`}
                     defaultValue={column.title}
+                    readOnly={board.isLocked}
                     onBlur={(event) =>
                       updateColumn(column.id, event.currentTarget.value)
                     }
@@ -226,7 +269,7 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
                     }}
                   />
                 </div>
-                {column.cardIds.length === 0 && board.columns.length > 1 && (
+                {column.cardIds.length === 0 && board.columns.length > 1 && !board.isLocked && (
                   <button
                     type="button"
                     aria-label={`Delete ${column.title}`}
@@ -248,13 +291,18 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
                     <article
                       className="kanban-card"
                       key={card.id}
-                      draggable
-                      onDragStart={() =>
-                        setDraggedCard({ cardId: card.id, columnId: column.id })
-                      }
+                      draggable={!board.isLocked}
+                      onDragStart={() => {
+                        if (board.isLocked) return;
+                        setDraggedCard({ cardId: card.id, columnId: column.id });
+                      }}
                       onDragEnd={() => setDraggedCard(null)}
-                      onDragOver={(event) => event.preventDefault()}
+                      onDragOver={(event) => {
+                        if (board.isLocked) return;
+                        event.preventDefault();
+                      }}
                       onDrop={(event) => {
+                        if (board.isLocked) return;
                         event.stopPropagation();
                         moveCard(column.id, card.id);
                       }}
@@ -263,6 +311,7 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
                         <input
                           aria-label={`Edit ${card.title}`}
                           defaultValue={card.title}
+                          readOnly={board.isLocked}
                           onBlur={(event) =>
                             updateCard(card.id, event.currentTarget.value)
                           }
@@ -272,13 +321,15 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
                             }
                           }}
                         />
-                        <button
-                          type="button"
-                          aria-label={`Delete ${card.title}`}
-                          onClick={() => deleteCard(card.id)}
-                        >
-                          {TrashIcon}
-                        </button>
+                        {!board.isLocked && (
+                          <button
+                            type="button"
+                            aria-label={`Delete ${card.title}`}
+                            onClick={() => deleteCard(card.id)}
+                          >
+                            {TrashIcon}
+                          </button>
+                        )}
                       </div>
                       <div className="kanban-card-person">
                         <span>{(card.assignee || "You").charAt(0)}</span>
@@ -295,46 +346,50 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
                 })}
               </div>
 
-              {draftColumnId === column.id ? (
-                <form
-                  className="kanban-card-composer"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    addCard(column.id);
-                  }}
-                >
-                  <input
-                    autoFocus
-                    aria-label={`Card title for ${column.title}`}
-                    placeholder="New project"
-                    value={draftTitle}
-                    onChange={(event) => setDraftTitle(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Escape") {
-                        setDraftColumnId(null);
-                        setDraftTitle("");
-                      }
+              {!board.isLocked && (
+                draftColumnId === column.id ? (
+                  <form
+                    className="kanban-card-composer"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      addCard(column.id);
                     }}
-                  />
-                  <button type="submit" disabled={!draftTitle.trim()}>
-                    Add
+                  >
+                    <input
+                      autoFocus
+                      aria-label={`Card title for ${column.title}`}
+                      placeholder="New project"
+                      value={draftTitle}
+                      onChange={(event) => setDraftTitle(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Escape") {
+                          setDraftColumnId(null);
+                          setDraftTitle("");
+                        }
+                      }}
+                    />
+                    <button type="submit" disabled={!draftTitle.trim()}>
+                      Add
+                    </button>
+                  </form>
+                ) : (
+                  <button
+                    type="button"
+                    className="kanban-add-card"
+                    onClick={() => beginCard(column.id)}
+                  >
+                    {PlusIcon} New project
                   </button>
-                </form>
-              ) : (
-                <button
-                  type="button"
-                  className="kanban-add-card"
-                  onClick={() => beginCard(column.id)}
-                >
-                  {PlusIcon} New project
-                </button>
+                )
               )}
             </section>
           );
         })}
-        <button type="button" className="kanban-add-group" onClick={addColumn}>
-          {PlusIcon} Add status
-        </button>
+        {!board.isLocked && (
+          <button type="button" className="kanban-add-group" onClick={addColumn}>
+            {PlusIcon} Add status
+          </button>
+        )}
       </div>
     </section>
   );
