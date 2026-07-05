@@ -134,23 +134,23 @@ describe("KanbanWorkspace", () => {
     window.addEventListener("kanbanRoughnessUpdated", handleRoughnessUpdated);
 
     render(<Harness />);
-    
+
     // Initial dispatch of roughness 1 on mount
     expect(handleRoughnessUpdated).toHaveBeenCalledWith(
-      expect.objectContaining({ detail: 1 })
+      expect.objectContaining({ detail: 1 }),
     );
 
     // Simulate change from top dock
-    fireEvent(
-      window,
-      new CustomEvent("kanbanRoughnessChange", { detail: 2 })
-    );
+    fireEvent(window, new CustomEvent("kanbanRoughnessChange", { detail: 2 }));
 
     expect(screen.getByLabelText("Kanban board")).toHaveClass(
       "kanban-roughness-2",
     );
 
-    window.removeEventListener("kanbanRoughnessUpdated", handleRoughnessUpdated);
+    window.removeEventListener(
+      "kanbanRoughnessUpdated",
+      handleRoughnessUpdated,
+    );
   });
 
   it("persists the selected Kanban card radius level", () => {
@@ -158,15 +158,12 @@ describe("KanbanWorkspace", () => {
     window.addEventListener("kanbanRadiusUpdated", handleRadiusUpdated);
 
     render(<Harness />);
-    
+
     expect(handleRadiusUpdated).toHaveBeenCalledWith(
-      expect.objectContaining({ detail: 1 })
+      expect.objectContaining({ detail: 1 }),
     );
 
-    fireEvent(
-      window,
-      new CustomEvent("kanbanRadiusChange", { detail: 2 })
-    );
+    fireEvent(window, new CustomEvent("kanbanRadiusChange", { detail: 2 }));
 
     expect(screen.getByLabelText("Kanban board")).toHaveClass(
       "kanban-radius-2",
@@ -180,19 +177,14 @@ describe("KanbanWorkspace", () => {
     window.addEventListener("kanbanLockUpdated", handleLockUpdated);
 
     const { container } = render(<Harness />);
-    
+
     expect(handleLockUpdated).toHaveBeenCalledWith(
-      expect.objectContaining({ detail: false })
+      expect.objectContaining({ detail: false }),
     );
 
-    fireEvent(
-      window,
-      new CustomEvent("kanbanLockChange", { detail: true })
-    );
+    fireEvent(window, new CustomEvent("kanbanLockChange", { detail: true }));
 
-    expect(screen.getByLabelText("Kanban board")).toHaveClass(
-      "is-locked",
-    );
+    expect(screen.getByLabelText("Kanban board")).toHaveClass("is-locked");
 
     const inputs = container.querySelectorAll("article.kanban-card input");
     expect(inputs[0]).toHaveAttribute("readonly");
@@ -204,10 +196,7 @@ describe("KanbanWorkspace", () => {
     const { container } = render(<Harness />);
     expect(container.querySelectorAll(".kanban-column").length).toBe(2);
 
-    fireEvent(
-      window,
-      new CustomEvent("kanbanAddStatus")
-    );
+    fireEvent(window, new CustomEvent("kanbanAddStatus"));
 
     expect(container.querySelectorAll(".kanban-column").length).toBe(3);
   });
@@ -226,5 +215,71 @@ describe("KanbanWorkspace", () => {
     act(() => vi.advanceTimersByTime(240));
     expect(container.querySelectorAll(".kanban-column").length).toBe(1);
     vi.useRealTimers();
+  });
+
+  it("searches and filters cards without changing the board", () => {
+    const secondCard = {
+      id: "urgent-card",
+      title: "Ship release",
+      priority: "high" as const,
+      createdAt: 2,
+      updatedAt: 2,
+    };
+    const initialBoard: KanbanBoard = {
+      ...board,
+      columns: [
+        { ...board.columns[0], cardIds: ["card", secondCard.id] },
+        board.columns[1],
+      ],
+      cards: { ...board.cards, [secondCard.id]: secondCard },
+    };
+    render(<Harness initialBoard={initialBoard} />);
+
+    fireEvent.change(screen.getByLabelText("Search projects"), {
+      target: { value: "release" },
+    });
+    expect(screen.queryByDisplayValue("Refine comments")).toBeNull();
+    expect(screen.getByDisplayValue("Ship release")).not.toBeNull();
+
+    fireEvent.click(screen.getByText("Clear"));
+    fireEvent.change(screen.getByLabelText("Filter by priority"), {
+      target: { value: "none" },
+    });
+    expect(screen.getByDisplayValue("Refine comments")).not.toBeNull();
+    expect(screen.queryByDisplayValue("Ship release")).toBeNull();
+  });
+
+  it("edits project details and links canvas context", () => {
+    render(<Harness />);
+    fireEvent.click(
+      screen.getByDisplayValue("Refine comments").closest("article")!,
+    );
+
+    expect(
+      screen.getByLabelText("Project details: Refine comments"),
+    ).not.toBeNull();
+    fireEvent.change(screen.getByLabelText("Priority"), {
+      target: { value: "high" },
+    });
+    fireEvent.change(screen.getByLabelText("Progress"), {
+      target: { value: "60" },
+    });
+    fireEvent.change(screen.getByLabelText("Add canvas link"), {
+      target: { value: "@canvas1" },
+    });
+    fireEvent.keyDown(screen.getByLabelText("Add canvas link"), {
+      key: "Enter",
+    });
+    fireEvent.change(screen.getByLabelText("Add checklist item"), {
+      target: { value: "Review prototype" },
+    });
+    fireEvent.keyDown(screen.getByLabelText("Add checklist item"), {
+      key: "Enter",
+    });
+
+    expect(screen.getAllByText("@canvas1").length).toBeGreaterThan(0);
+    expect(screen.getByText("Review prototype")).not.toBeNull();
+    expect(screen.getAllByText("60%").length).toBeGreaterThan(0);
+    expect(screen.getByText("high")).not.toBeNull();
   });
 });
