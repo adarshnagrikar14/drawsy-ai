@@ -1139,7 +1139,8 @@
     gap: 1.25rem;
     min-height: 0;
     padding: 0.875rem 0.125rem 2rem;
-    overflow: auto;
+    overflow-x: auto;
+    overflow-y: hidden;
     overscroll-behavior: contain;
     scrollbar-width: thin;
     width: 100%;
@@ -1176,6 +1177,8 @@
     flex-direction: column;
     gap: 0.625rem;
     min-height: 8rem;
+    max-height: 100%;
+    overflow: hidden;
     padding: 0.75rem;
     border-radius: 1.25rem 1.05rem 1.35rem 1.12rem;
     background: color-mix(
@@ -1191,6 +1194,21 @@
       background: color-mix(
         in srgb,
         var(--kanban-accent) 18%,
+        var(--color-surface-lowest)
+      );
+    }
+
+    &.is-dragging {
+      min-height: 100%;
+    }
+
+    &.is-drop-target {
+      outline: 2px solid
+        color-mix(in srgb, var(--kanban-accent) 70%, var(--color-primary));
+      outline-offset: -2px;
+      background: color-mix(
+        in srgb,
+        var(--kanban-accent) 20%,
         var(--color-surface-lowest)
       );
     }
@@ -1244,6 +1262,7 @@
     align-items: center;
     gap: 0.5rem;
     min-height: 1.75rem;
+    flex: 0 0 auto;
     padding: 0 0.25rem;
   }
 
@@ -1317,8 +1336,14 @@
 
   .kanban-cards {
     display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
     flex-direction: column;
     gap: 0.625rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0.125rem 0.25rem 0.125rem 0.125rem;
+    scrollbar-width: thin;
   }
 
   .kanban-card {
@@ -1462,6 +1487,7 @@
   .kanban-add-group {
     position: relative;
     display: flex;
+    flex: 0 0 auto;
     align-items: center;
     gap: 0.5rem;
     min-height: 2.75rem;
@@ -1502,6 +1528,7 @@
   .kanban-card-composer {
     position: relative;
     display: grid;
+    flex: 0 0 auto;
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 0.5rem;
     padding: 0.625rem;

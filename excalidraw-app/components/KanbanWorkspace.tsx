@@ -27,6 +27,7 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
   const [draftColumnId, setDraftColumnId] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState("");
   const [draggedCard, setDraggedCard] = useState<DraggedCard | null>(null);
+  const [dragOverColumnId, setDragOverColumnId] = useState<string | null>(null);
   const [lastAddedColumnId, setLastAddedColumnId] = useState<string | null>(null);
   const [deletingColumnId, setDeletingColumnId] = useState<string | null>(null);
   const boardContainerRef = useRef<HTMLDivElement>(null);
@@ -259,6 +260,46 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
     );
     commit({ ...board, columns: nextColumns });
     setDraggedCard(null);
+    setDragOverColumnId(null);
+  };
+
+  const autoScrollBoard = (event: React.DragEvent<HTMLDivElement>) => {
+    if (!draggedCard) {
+      return;
+    }
+    const boardElement = event.currentTarget;
+    const { left, right } = boardElement.getBoundingClientRect();
+    const edgeSize = 72;
+    if (event.clientX < left + edgeSize) {
+      boardElement.scrollBy({ left: -24 });
+    } else if (event.clientX > right - edgeSize) {
+      boardElement.scrollBy({ left: 24 });
+    }
+  };
+
+  const handleColumnDragOver = (
+    event: React.DragEvent<HTMLElement>,
+    columnId: string,
+  ) => {
+    if (board.isLocked || !draggedCard) {
+      return;
+    }
+    event.preventDefault();
+    setDragOverColumnId(columnId);
+
+    const cardsElement = event.currentTarget.querySelector<HTMLElement>(
+      ".kanban-cards",
+    );
+    if (!cardsElement) {
+      return;
+    }
+    const { top, bottom } = cardsElement.getBoundingClientRect();
+    const edgeSize = 48;
+    if (event.clientY < top + edgeSize) {
+      cardsElement.scrollBy({ top: -20 });
+    } else if (event.clientY > bottom - edgeSize) {
+      cardsElement.scrollBy({ top: 20 });
+    }
   };
 
   return (
@@ -275,6 +316,7 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
       <div
         className={`kanban-board columns-count-${board.columns.length}`}
         ref={boardContainerRef}
+        onDragOver={autoScrollBoard}
       >
         {board.columns.map((column, columnIndex) => {
           const visibleCardIds = column.cardIds.filter((cardId) => {
@@ -282,16 +324,14 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
           });
           const isNew = column.id === lastAddedColumnId;
           const isDeleting = column.id === deletingColumnId;
+          const isDropTarget = column.id === dragOverColumnId;
           return (
             <section
               className={`kanban-column kanban-column--${
                 COLUMN_COLORS[columnIndex % COLUMN_COLORS.length]
-              } ${draggedCard ? "is-dragging" : ""} ${isNew ? "kanban-column--new" : ""} ${isDeleting ? "kanban-column--deleting" : ""}`}
+              } ${draggedCard ? "is-dragging" : ""} ${isDropTarget ? "is-drop-target" : ""} ${isNew ? "kanban-column--new" : ""} ${isDeleting ? "kanban-column--deleting" : ""}`}
               key={column.id}
-              onDragOver={(event) => {
-                if (board.isLocked) return;
-                event.preventDefault();
-              }}
+              onDragOver={(event) => handleColumnDragOver(event, column.id)}
               onDrop={() => {
                 if (board.isLocked) return;
                 moveCard(column.id);
@@ -343,7 +383,10 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
                         if (board.isLocked) return;
                         setDraggedCard({ cardId: card.id, columnId: column.id });
                       }}
-                      onDragEnd={() => setDraggedCard(null)}
+                      onDragEnd={() => {
+                        setDraggedCard(null);
+                        setDragOverColumnId(null);
+                      }}
                       onDragOver={(event) => {
                         if (board.isLocked) return;
                         event.preventDefault();
