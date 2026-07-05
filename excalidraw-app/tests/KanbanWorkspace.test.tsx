@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { vi } from "vitest";
 import { useState } from "react";
 import { getDefaultAppState } from "@excalidraw/excalidraw/appState";
@@ -198,5 +198,33 @@ describe("KanbanWorkspace", () => {
     expect(inputs[0]).toHaveAttribute("readonly");
 
     window.removeEventListener("kanbanLockUpdated", handleLockUpdated);
+  });
+
+  it("adds a new status when kanbanAddStatus event is dispatched", () => {
+    const { container } = render(<Harness />);
+    expect(container.querySelectorAll(".kanban-column").length).toBe(2);
+
+    fireEvent(
+      window,
+      new CustomEvent("kanbanAddStatus")
+    );
+
+    expect(container.querySelectorAll(".kanban-column").length).toBe(3);
+  });
+
+  it("animates an empty status before deleting it", () => {
+    vi.useFakeTimers();
+    const { container } = render(<Harness />);
+
+    fireEvent.click(screen.getByLabelText("Delete Done"));
+
+    expect(
+      screen.getByLabelText("Rename Done").closest(".kanban-column"),
+    ).toHaveClass("kanban-column--deleting");
+    expect(container.querySelectorAll(".kanban-column").length).toBe(2);
+
+    act(() => vi.advanceTimersByTime(240));
+    expect(container.querySelectorAll(".kanban-column").length).toBe(1);
+    vi.useRealTimers();
   });
 });
