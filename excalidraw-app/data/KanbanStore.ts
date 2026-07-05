@@ -9,6 +9,14 @@ export type KanbanCard = {
   assignee?: string;
   progress?: number;
   priority?: "low" | "medium" | "high" | null;
+  description?: string;
+  dueAt?: string | null;
+  canvasTags?: string[];
+  checklist?: Array<{
+    id: string;
+    title: string;
+    completed: boolean;
+  }>;
   createdAt: number;
   updatedAt: number;
 };

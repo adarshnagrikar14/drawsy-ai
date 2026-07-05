@@ -11,6 +11,7 @@ import { useUIAppState } from "@excalidraw/excalidraw/context/ui-appState";
 import React, { useState, useEffect, useRef } from "react";
 
 import type { KanbanBoard } from "../data/KanbanStore";
+import type { KanbanCard } from "../data/KanbanStore";
 
 type Props = {
   board: KanbanBoard;
@@ -21,6 +22,14 @@ type DraggedCard = { cardId: string; columnId: string };
 
 const COLUMN_COLORS = ["neutral", "blue", "green", "violet"] as const;
 const COLUMN_ANIMATION_MS = 240;
+type PriorityFilter = "all" | "none" | NonNullable<KanbanCard["priority"]>;
+type CardSort = "manual" | "updated" | "priority" | "progress";
+
+const PRIORITY_WEIGHT: Record<NonNullable<KanbanCard["priority"]>, number> = {
+  high: 3,
+  medium: 2,
+  low: 1,
+};
 
 export const KanbanWorkspace = ({ board, onChange }: Props) => {
   const appState = useUIAppState();
@@ -28,8 +37,14 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
   const [draftTitle, setDraftTitle] = useState("");
   const [draggedCard, setDraggedCard] = useState<DraggedCard | null>(null);
   const [dragOverColumnId, setDragOverColumnId] = useState<string | null>(null);
-  const [lastAddedColumnId, setLastAddedColumnId] = useState<string | null>(null);
+  const [lastAddedColumnId, setLastAddedColumnId] = useState<string | null>(
+    null,
+  );
   const [deletingColumnId, setDeletingColumnId] = useState<string | null>(null);
+  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>("all");
+  const [cardSort, setCardSort] = useState<CardSort>("manual");
   const boardContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -64,7 +79,10 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
     window.addEventListener("kanbanLockChange", handleLockChange);
     window.addEventListener("kanbanAddStatus", handleAddStatus);
     return () => {
-      window.removeEventListener("kanbanRoughnessChange", handleRoughnessChange);
+      window.removeEventListener(
+        "kanbanRoughnessChange",
+        handleRoughnessChange,
+      );
       window.removeEventListener("kanbanRadiusChange", handleRadiusChange);
       window.removeEventListener("kanbanLockChange", handleLockChange);
       window.removeEventListener("kanbanAddStatus", handleAddStatus);
@@ -90,16 +108,35 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
   }, [lastAddedColumnId, board.columns.length]);
 
   useEffect(() => {
-    window.dispatchEvent(new CustomEvent("kanbanRoughnessUpdated", { detail: board.roughness }));
+    window.dispatchEvent(
+      new CustomEvent("kanbanRoughnessUpdated", { detail: board.roughness }),
+    );
   }, [board.roughness]);
 
   useEffect(() => {
-    window.dispatchEvent(new CustomEvent("kanbanRadiusUpdated", { detail: board.cardRadius ?? 1 }));
+    window.dispatchEvent(
+      new CustomEvent("kanbanRadiusUpdated", { detail: board.cardRadius ?? 1 }),
+    );
   }, [board.cardRadius]);
 
   useEffect(() => {
-    window.dispatchEvent(new CustomEvent("kanbanLockUpdated", { detail: !!board.isLocked }));
+    window.dispatchEvent(
+      new CustomEvent("kanbanLockUpdated", { detail: !!board.isLocked }),
+    );
   }, [board.isLocked]);
+
+  useEffect(() => {
+    if (!selectedCardId) {
+      return;
+    }
+    const closeDetails = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setSelectedCardId(null);
+      }
+    };
+    window.addEventListener("keydown", closeDetails);
+    return () => window.removeEventListener("keydown", closeDetails);
+  }, [selectedCardId]);
 
   const commit = (next: KanbanBoard) =>
     onChange({ ...next, updatedAt: Date.now() });
@@ -166,6 +203,23 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
     });
   };
 
+  const patchCard = (cardId: string, patch: Partial<KanbanCard>) => {
+    if (board.isLocked) {
+      return;
+    }
+    const card = board.cards[cardId];
+    if (!card) {
+      return;
+    }
+    commit({
+      ...board,
+      cards: {
+        ...board.cards,
+        [cardId]: { ...card, ...patch, updatedAt: Date.now() },
+      },
+    });
+  };
+
   const deleteCard = (cardId: string) => {
     if (board.isLocked) {
       return;
@@ -179,6 +233,7 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
         cardIds: column.cardIds.filter((id) => id !== cardId),
       })),
     });
+    setSelectedCardId((selected) => (selected === cardId ? null : selected));
   };
 
   const addColumn = () => {
@@ -287,9 +342,8 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
     event.preventDefault();
     setDragOverColumnId(columnId);
 
-    const cardsElement = event.currentTarget.querySelector<HTMLElement>(
-      ".kanban-cards",
-    );
+    const cardsElement =
+      event.currentTarget.querySelector<HTMLElement>(".kanban-cards");
     if (!cardsElement) {
       return;
     }
@@ -302,9 +356,62 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
     }
   };
 
+  const normalizedSearch = searchQuery.trim().toLocaleLowerCase();
+  const visibleCardIdsFor = (cardIds: string[]) => {
+    const visible = cardIds.filter((cardId) => {
+      const card = board.cards[cardId];
+      if (!card) {
+        return false;
+      }
+      const matchesPriority =
+        priorityFilter === "all" ||
+        (priorityFilter === "none"
+          ? !card.priority
+          : card.priority === priorityFilter);
+      const searchable = [
+        card.title,
+        card.assignee,
+        card.description,
+        ...(card.canvasTags ?? []),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLocaleLowerCase();
+      return (
+        matchesPriority &&
+        (!normalizedSearch || searchable.includes(normalizedSearch))
+      );
+    });
+    if (cardSort === "manual") {
+      return visible;
+    }
+    return [...visible].sort((leftId, rightId) => {
+      const left = board.cards[leftId];
+      const right = board.cards[rightId];
+      if (cardSort === "updated") {
+        return right.updatedAt - left.updatedAt;
+      }
+      if (cardSort === "progress") {
+        return (right.progress ?? 0) - (left.progress ?? 0);
+      }
+      return (
+        (right.priority ? PRIORITY_WEIGHT[right.priority] : 0) -
+        (left.priority ? PRIORITY_WEIGHT[left.priority] : 0)
+      );
+    });
+  };
+
+  const selectedCard = selectedCardId ? board.cards[selectedCardId] : null;
+  const hasActiveQuery =
+    !!normalizedSearch || priorityFilter !== "all" || cardSort !== "manual";
+
   return (
     <section
-      className={`kanban-workspace kanban-roughness-${board.roughness ?? 1} kanban-radius-${board.cardRadius ?? 1} ${board.isLocked ? "is-locked" : ""}`}
+      className={`kanban-workspace kanban-roughness-${
+        board.roughness ?? 1
+      } kanban-radius-${board.cardRadius ?? 1} ${
+        board.isLocked ? "is-locked" : ""
+      }`}
       aria-label="Kanban board"
       style={{
         backgroundColor: applyDarkModeFilter(
@@ -313,15 +420,76 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
         ),
       }}
     >
+      <div className="kanban-viewbar">
+        <div className="kanban-view-heading">
+          <span className="kanban-view-icon kanban-view-icon--status" />
+          <strong>By status</strong>
+          <span>{Object.keys(board.cards).length} projects</span>
+        </div>
+        <div className="kanban-actions" aria-label="Board controls">
+          <label className="kanban-search">
+            <span aria-hidden="true">⌕</span>
+            <input
+              aria-label="Search projects"
+              placeholder="Search projects"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+            />
+          </label>
+          <select
+            aria-label="Filter by priority"
+            value={priorityFilter}
+            onChange={(event) =>
+              setPriorityFilter(event.target.value as PriorityFilter)
+            }
+          >
+            <option value="all">All priorities</option>
+            <option value="high">High priority</option>
+            <option value="medium">Medium priority</option>
+            <option value="low">Low priority</option>
+            <option value="none">No priority</option>
+          </select>
+          <select
+            aria-label="Sort projects"
+            value={cardSort}
+            onChange={(event) => setCardSort(event.target.value as CardSort)}
+          >
+            <option value="manual">Manual order</option>
+            <option value="updated">Recently updated</option>
+            <option value="priority">Priority</option>
+            <option value="progress">Progress</option>
+          </select>
+          {hasActiveQuery && (
+            <button
+              type="button"
+              className="kanban-clear-controls"
+              onClick={() => {
+                setSearchQuery("");
+                setPriorityFilter("all");
+                setCardSort("manual");
+              }}
+            >
+              Clear
+            </button>
+          )}
+          {!board.isLocked && (
+            <button
+              type="button"
+              className="kanban-new"
+              onClick={() => beginCard()}
+            >
+              {PlusIcon} New project
+            </button>
+          )}
+        </div>
+      </div>
       <div
         className={`kanban-board columns-count-${board.columns.length}`}
         ref={boardContainerRef}
         onDragOver={autoScrollBoard}
       >
         {board.columns.map((column, columnIndex) => {
-          const visibleCardIds = column.cardIds.filter((cardId) => {
-            return !!board.cards[cardId];
-          });
+          const visibleCardIds = visibleCardIdsFor(column.cardIds);
           const isNew = column.id === lastAddedColumnId;
           const isDeleting = column.id === deletingColumnId;
           const isDropTarget = column.id === dragOverColumnId;
@@ -329,7 +497,11 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
             <section
               className={`kanban-column kanban-column--${
                 COLUMN_COLORS[columnIndex % COLUMN_COLORS.length]
-              } ${draggedCard ? "is-dragging" : ""} ${isDropTarget ? "is-drop-target" : ""} ${isNew ? "kanban-column--new" : ""} ${isDeleting ? "kanban-column--deleting" : ""}`}
+              } ${draggedCard ? "is-dragging" : ""} ${
+                isDropTarget ? "is-drop-target" : ""
+              } ${isNew ? "kanban-column--new" : ""} ${
+                isDeleting ? "kanban-column--deleting" : ""
+              }`}
               key={column.id}
               onDragOver={(event) => handleColumnDragOver(event, column.id)}
               onDrop={() => {
@@ -356,15 +528,17 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
                     }}
                   />
                 </div>
-                {column.cardIds.length === 0 && board.columns.length > 1 && !board.isLocked && (
-                  <button
-                    type="button"
-                    aria-label={`Delete ${column.title}`}
-                    onClick={() => deleteEmptyColumn(column.id)}
-                  >
-                    {TrashIcon}
-                  </button>
-                )}
+                {column.cardIds.length === 0 &&
+                  board.columns.length > 1 &&
+                  !board.isLocked && (
+                    <button
+                      type="button"
+                      aria-label={`Delete ${column.title}`}
+                      onClick={() => deleteEmptyColumn(column.id)}
+                    >
+                      {TrashIcon}
+                    </button>
+                  )}
               </header>
 
               <div className="kanban-cards">
@@ -381,7 +555,10 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
                       draggable={!board.isLocked}
                       onDragStart={() => {
                         if (board.isLocked) return;
-                        setDraggedCard({ cardId: card.id, columnId: column.id });
+                        setDraggedCard({
+                          cardId: card.id,
+                          columnId: column.id,
+                        });
                       }}
                       onDragEnd={() => {
                         setDraggedCard(null);
@@ -395,6 +572,16 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
                         if (board.isLocked) return;
                         event.stopPropagation();
                         moveCard(column.id, card.id);
+                      }}
+                      onClick={(event) => {
+                        if (
+                          (event.target as HTMLElement).closest(
+                            "input, button, select, a",
+                          )
+                        ) {
+                          return;
+                        }
+                        setSelectedCardId(card.id);
                       }}
                     >
                       <div className="kanban-card-title">
@@ -421,6 +608,25 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
                           </button>
                         )}
                       </div>
+                      {(card.priority ||
+                        card.dueAt ||
+                        card.canvasTags?.length) && (
+                        <div className="kanban-card-meta">
+                          {card.priority && (
+                            <span
+                              className={`kanban-priority kanban-priority--${card.priority}`}
+                            >
+                              {card.priority}
+                            </span>
+                          )}
+                          {card.dueAt && <span>Due {card.dueAt}</span>}
+                          {(card.canvasTags ?? []).slice(0, 2).map((tag) => (
+                            <span className="kanban-canvas-tag" key={tag}>
+                              @{tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                       <div className="kanban-card-person">
                         <span>{(card.assignee || "You").charAt(0)}</span>
                         {card.assignee || "You"}
@@ -436,8 +642,12 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
                 })}
               </div>
 
-              {!board.isLocked && (
-                draftColumnId === column.id ? (
+              {visibleCardIds.length === 0 && column.cardIds.length > 0 && (
+                <div className="kanban-empty-filter">No matching projects</div>
+              )}
+
+              {!board.isLocked &&
+                (draftColumnId === column.id ? (
                   <form
                     className="kanban-card-composer"
                     onSubmit={(event) => {
@@ -470,12 +680,231 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
                   >
                     {PlusIcon} New project
                   </button>
-                )
-              )}
+                ))}
             </section>
           );
         })}
       </div>
+      {selectedCard && (
+        <aside
+          className="kanban-detail"
+          aria-label={`Project details: ${selectedCard.title}`}
+        >
+          <header>
+            <div>
+              <span>Project</span>
+              <strong>{selectedCard.title}</strong>
+            </div>
+            <button
+              type="button"
+              aria-label="Close project details"
+              onClick={() => setSelectedCardId(null)}
+            >
+              ×
+            </button>
+          </header>
+          <div className="kanban-detail-scroll">
+            <label>
+              <span>Title</span>
+              <input
+                value={selectedCard.title}
+                readOnly={board.isLocked}
+                onChange={(event) =>
+                  patchCard(selectedCard.id, { title: event.target.value })
+                }
+              />
+            </label>
+            <div className="kanban-detail-grid">
+              <label>
+                <span>Assignee</span>
+                <input
+                  value={selectedCard.assignee ?? ""}
+                  placeholder="Unassigned"
+                  readOnly={board.isLocked}
+                  onChange={(event) =>
+                    patchCard(selectedCard.id, { assignee: event.target.value })
+                  }
+                />
+              </label>
+              <label>
+                <span>Priority</span>
+                <select
+                  value={selectedCard.priority ?? ""}
+                  disabled={board.isLocked}
+                  onChange={(event) =>
+                    patchCard(selectedCard.id, {
+                      priority: (event.target.value ||
+                        null) as KanbanCard["priority"],
+                    })
+                  }
+                >
+                  <option value="">None</option>
+                  <option value="high">High</option>
+                  <option value="medium">Medium</option>
+                  <option value="low">Low</option>
+                </select>
+              </label>
+              <label>
+                <span>Progress</span>
+                <div className="kanban-progress-input">
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={selectedCard.progress ?? 0}
+                    disabled={board.isLocked}
+                    onChange={(event) =>
+                      patchCard(selectedCard.id, {
+                        progress: Number(event.target.value),
+                      })
+                    }
+                  />
+                  <output>{selectedCard.progress ?? 0}%</output>
+                </div>
+              </label>
+              <label>
+                <span>Due date</span>
+                <input
+                  type="date"
+                  value={selectedCard.dueAt ?? ""}
+                  readOnly={board.isLocked}
+                  onChange={(event) =>
+                    patchCard(selectedCard.id, {
+                      dueAt: event.target.value || null,
+                    })
+                  }
+                />
+              </label>
+            </div>
+            <label>
+              <span>Description</span>
+              <textarea
+                rows={5}
+                value={selectedCard.description ?? ""}
+                placeholder="Add context, decisions, or acceptance notes…"
+                readOnly={board.isLocked}
+                onChange={(event) =>
+                  patchCard(selectedCard.id, {
+                    description: event.target.value,
+                  })
+                }
+              />
+            </label>
+            <section className="kanban-detail-section">
+              <div className="kanban-detail-section-title">
+                <strong>Canvas links</strong>
+                <span>Use @name to connect project context</span>
+              </div>
+              <div className="kanban-tag-editor">
+                {(selectedCard.canvasTags ?? []).map((tag) => (
+                  <button
+                    type="button"
+                    key={tag}
+                    disabled={board.isLocked}
+                    title="Remove canvas link"
+                    onClick={() =>
+                      patchCard(selectedCard.id, {
+                        canvasTags: selectedCard.canvasTags?.filter(
+                          (item) => item !== tag,
+                        ),
+                      })
+                    }
+                  >
+                    @{tag} <span>×</span>
+                  </button>
+                ))}
+                {!board.isLocked && (
+                  <input
+                    aria-label="Add canvas link"
+                    placeholder="@canvas1 + Enter"
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter") return;
+                      event.preventDefault();
+                      const tag = event.currentTarget.value
+                        .trim()
+                        .replace(/^@/, "");
+                      if (!tag || selectedCard.canvasTags?.includes(tag))
+                        return;
+                      patchCard(selectedCard.id, {
+                        canvasTags: [...(selectedCard.canvasTags ?? []), tag],
+                      });
+                      event.currentTarget.value = "";
+                    }}
+                  />
+                )}
+              </div>
+            </section>
+            <section className="kanban-detail-section">
+              <div className="kanban-detail-section-title">
+                <strong>Checklist</strong>
+                <span>
+                  {
+                    (selectedCard.checklist ?? []).filter(
+                      (item) => item.completed,
+                    ).length
+                  }
+                  /{selectedCard.checklist?.length ?? 0} complete
+                </span>
+              </div>
+              <div className="kanban-checklist">
+                {(selectedCard.checklist ?? []).map((item) => (
+                  <label key={item.id}>
+                    <input
+                      type="checkbox"
+                      checked={item.completed}
+                      disabled={board.isLocked}
+                      onChange={() =>
+                        patchCard(selectedCard.id, {
+                          checklist: selectedCard.checklist?.map((entry) =>
+                            entry.id === item.id
+                              ? { ...entry, completed: !entry.completed }
+                              : entry,
+                          ),
+                        })
+                      }
+                    />
+                    <span>{item.title}</span>
+                    {!board.isLocked && (
+                      <button
+                        type="button"
+                        aria-label={`Delete checklist item ${item.title}`}
+                        onClick={() =>
+                          patchCard(selectedCard.id, {
+                            checklist: selectedCard.checklist?.filter(
+                              (entry) => entry.id !== item.id,
+                            ),
+                          })
+                        }
+                      >
+                        ×
+                      </button>
+                    )}
+                  </label>
+                ))}
+                {!board.isLocked && (
+                  <input
+                    aria-label="Add checklist item"
+                    placeholder="+ Add checklist item"
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter") return;
+                      event.preventDefault();
+                      const title = event.currentTarget.value.trim();
+                      if (!title) return;
+                      patchCard(selectedCard.id, {
+                        checklist: [
+                          ...(selectedCard.checklist ?? []),
+                          { id: randomId(), title, completed: false },
+                        ],
+                      });
+                      event.currentTarget.value = "";
+                    }}
+                  />
+                )}
+              </div>
+            </section>
+          </div>
+        </aside>
+      )}
     </section>
   );
 };
