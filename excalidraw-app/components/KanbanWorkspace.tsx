@@ -8,7 +8,7 @@ import {
 import { THEME, applyDarkModeFilter } from "@excalidraw/excalidraw";
 import { randomId } from "@excalidraw/common";
 import { useUIAppState } from "@excalidraw/excalidraw/context/ui-appState";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 
 import type { KanbanBoard } from "../data/KanbanStore";
 
@@ -20,11 +20,16 @@ type Props = {
 type DraggedCard = { cardId: string; columnId: string };
 
 const COLUMN_COLORS = ["neutral", "blue", "green", "violet"] as const;
-
-
+const COLUMN_ANIMATION_MS = 240;
 
 export const KanbanWorkspace = ({ board, onChange }: Props) => {
   const appState = useUIAppState();
+  const [draftColumnId, setDraftColumnId] = useState<string | null>(null);
+  const [draftTitle, setDraftTitle] = useState("");
+  const [draggedCard, setDraggedCard] = useState<DraggedCard | null>(null);
+  const [lastAddedColumnId, setLastAddedColumnId] = useState<string | null>(null);
+  const [deletingColumnId, setDeletingColumnId] = useState<string | null>(null);
+  const boardContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleRoughnessChange = (e: Event) => {
@@ -39,15 +44,49 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
       const isLocked = (e as CustomEvent).detail;
       commit({ ...board, isLocked });
     };
+    const handleAddStatus = () => {
+      if (board.isLocked) {
+        return;
+      }
+      const newId = randomId();
+      setLastAddedColumnId(newId);
+      commit({
+        ...board,
+        columns: [
+          ...board.columns,
+          { id: newId, title: "New status", cardIds: [] },
+        ],
+      });
+    };
     window.addEventListener("kanbanRoughnessChange", handleRoughnessChange);
     window.addEventListener("kanbanRadiusChange", handleRadiusChange);
     window.addEventListener("kanbanLockChange", handleLockChange);
+    window.addEventListener("kanbanAddStatus", handleAddStatus);
     return () => {
       window.removeEventListener("kanbanRoughnessChange", handleRoughnessChange);
       window.removeEventListener("kanbanRadiusChange", handleRadiusChange);
       window.removeEventListener("kanbanLockChange", handleLockChange);
+      window.removeEventListener("kanbanAddStatus", handleAddStatus);
     };
   }, [board]);
+
+  useEffect(() => {
+    if (
+      lastAddedColumnId &&
+      board.columns.length > 4 &&
+      boardContainerRef.current
+    ) {
+      const timer = setTimeout(() => {
+        if (boardContainerRef.current) {
+          boardContainerRef.current.scrollTo({
+            left: boardContainerRef.current.scrollWidth,
+            behavior: "smooth",
+          });
+        }
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [lastAddedColumnId, board.columns.length]);
 
   useEffect(() => {
     window.dispatchEvent(new CustomEvent("kanbanRoughnessUpdated", { detail: board.roughness }));
@@ -60,9 +99,6 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
   useEffect(() => {
     window.dispatchEvent(new CustomEvent("kanbanLockUpdated", { detail: !!board.isLocked }));
   }, [board.isLocked]);
-  const [draftColumnId, setDraftColumnId] = useState<string | null>(null);
-  const [draftTitle, setDraftTitle] = useState("");
-  const [draggedCard, setDraggedCard] = useState<DraggedCard | null>(null);
 
   const commit = (next: KanbanBoard) =>
     onChange({ ...next, updatedAt: Date.now() });
@@ -148,11 +184,13 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
     if (board.isLocked) {
       return;
     }
+    const newId = randomId();
+    setLastAddedColumnId(newId);
     commit({
       ...board,
       columns: [
         ...board.columns,
-        { id: randomId(), title: "New status", cardIds: [] },
+        { id: newId, title: "New status", cardIds: [] },
       ],
     });
   };
@@ -174,17 +212,21 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
   };
 
   const deleteEmptyColumn = (columnId: string) => {
-    if (board.isLocked) {
+    if (board.isLocked || deletingColumnId) {
       return;
     }
     const column = board.columns.find((item) => item.id === columnId);
     if (!column || column.cardIds.length || board.columns.length === 1) {
       return;
     }
-    commit({
-      ...board,
-      columns: board.columns.filter((item) => item.id !== columnId),
-    });
+    setDeletingColumnId(columnId);
+    window.setTimeout(() => {
+      commit({
+        ...board,
+        columns: board.columns.filter((item) => item.id !== columnId),
+      });
+      setDeletingColumnId(null);
+    }, COLUMN_ANIMATION_MS);
   };
 
   const moveCard = (targetColumnId: string, targetCardId?: string) => {
@@ -230,16 +272,21 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
         ),
       }}
     >
-      <div className="kanban-board">
+      <div
+        className={`kanban-board columns-count-${board.columns.length}`}
+        ref={boardContainerRef}
+      >
         {board.columns.map((column, columnIndex) => {
           const visibleCardIds = column.cardIds.filter((cardId) => {
             return !!board.cards[cardId];
           });
+          const isNew = column.id === lastAddedColumnId;
+          const isDeleting = column.id === deletingColumnId;
           return (
             <section
               className={`kanban-column kanban-column--${
                 COLUMN_COLORS[columnIndex % COLUMN_COLORS.length]
-              } ${draggedCard ? "is-dragging" : ""}`}
+              } ${draggedCard ? "is-dragging" : ""} ${isNew ? "kanban-column--new" : ""} ${isDeleting ? "kanban-column--deleting" : ""}`}
               key={column.id}
               onDragOver={(event) => {
                 if (board.isLocked) return;
@@ -385,11 +432,6 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
             </section>
           );
         })}
-        {!board.isLocked && (
-          <button type="button" className="kanban-add-group" onClick={addColumn}>
-            {PlusIcon} Add status
-          </button>
-        )}
       </div>
     </section>
   );

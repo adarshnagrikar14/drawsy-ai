@@ -825,16 +825,22 @@
   .shapes-section {
     pointer-events: none;
 
-    .ToolIcon:not(.kanban-sloppiness-btn):not(.kanban-radius-btn):not(.kanban-lock-btn),
-    .App-toolbar__divider {
+    .ToolIcon:not(.kanban-sloppiness-btn):not(.kanban-radius-btn):not(.kanban-lock-btn):not(.kanban-add-status-btn) {
       pointer-events: none;
       opacity: 0.42;
       filter: saturate(0.35);
     }
 
+    .App-toolbar__divider {
+      pointer-events: none;
+      opacity: 0.8;
+      filter: none;
+    }
+
     .kanban-sloppiness-btn,
     .kanban-radius-btn,
-    .kanban-lock-btn {
+    .kanban-lock-btn,
+    .kanban-add-status-btn {
       pointer-events: auto;
       opacity: 1;
       filter: none;
@@ -1130,12 +1136,34 @@
     display: flex;
     flex: 1 1 auto;
     align-items: flex-start;
-    gap: 1rem;
+    gap: 1.25rem;
     min-height: 0;
     padding: 0.875rem 0.125rem 2rem;
     overflow: auto;
     overscroll-behavior: contain;
     scrollbar-width: thin;
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+
+    /* When <= 4 columns are present, columns share full width equally */
+    &.columns-count-1,
+    &.columns-count-2,
+    &.columns-count-3,
+    &.columns-count-4 {
+      .kanban-column {
+        flex: 1 1 0px;
+        min-width: 19rem; /* DONT shrink beyond this point of width */
+        max-width: 100%;
+      }
+    }
+
+    /* When > 4 columns are present, columns maintain a constant width and scroll horizontally */
+    &:not(.columns-count-1):not(.columns-count-2):not(.columns-count-3):not(.columns-count-4) {
+      .kanban-column {
+        flex: 0 0 19rem;
+      }
+    }
   }
 
   .kanban-column {
@@ -1165,6 +1193,37 @@
         var(--kanban-accent) 18%,
         var(--color-surface-lowest)
       );
+    }
+
+    &.kanban-column--new {
+      animation: kanban-column-enter 240ms ease-out both;
+    }
+
+    &.kanban-column--deleting {
+      animation: kanban-column-exit 240ms ease-in both;
+      pointer-events: none;
+    }
+  }
+
+  @keyframes kanban-column-enter {
+    from {
+      opacity: 0;
+      transform: translateX(1rem);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes kanban-column-exit {
+    from {
+      opacity: 1;
+      transform: none;
+    }
+    to {
+      opacity: 0;
+      transform: translateX(1rem);
     }
   }
 
@@ -1278,6 +1337,12 @@
     box-shadow: 0 2px 5px rgb(0 0 0 / 10%);
     cursor: grab;
     position: relative;
+    
+    transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1),
+                box-shadow 0.22s ease,
+                background-color 0.2s ease,
+                border-color 0.2s ease;
+    animation: kanban-card-entrance 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 
     &:hover {
       border-color: color-mix(in srgb, var(--kanban-accent) 55%, transparent);
@@ -1286,10 +1351,34 @@
         var(--kanban-accent) 23%,
         var(--island-bg-color)
       );
+      transform: translateY(-2px);
+      box-shadow: 0 5px 10px rgba(0, 0, 0, 0.12);
 
       .kanban-card-title button {
         opacity: 0.75;
       }
+    }
+
+    &:active {
+      cursor: grabbing;
+    }
+
+    &.is-dragging {
+      transform: rotate(2.5deg) scale(1.03);
+      box-shadow: 0 15px 30px rgba(0, 0, 0, 0.15);
+      opacity: 0.8;
+      cursor: grabbing;
+    }
+  }
+
+  @keyframes kanban-card-entrance {
+    from {
+      opacity: 0;
+      transform: translateY(20px) scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
     }
   }
 

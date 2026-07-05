@@ -95,6 +95,7 @@ import {
   EdgeExtraRoundIcon,
   LockedIcon,
   UnlockedIcon,
+  PlusIcon,
 } from "./icons";
 
 import { Island } from "./Island";
@@ -1158,6 +1159,10 @@ export const ShapesSwitcher = ({
     setKanbanLocked(isLocked);
     window.dispatchEvent(new CustomEvent("kanbanLockChange", { detail: isLocked }));
   };
+
+  const handleKanbanAddStatus = () => {
+    window.dispatchEvent(new CustomEvent("kanbanAddStatus"));
+  };
   const isFullStylesPanel = stylesPanelMode === "full";
   const isCompactStylesPanel = stylesPanelMode === "compact";
 
@@ -1189,6 +1194,20 @@ export const ShapesSwitcher = ({
     <>
       {isKanbanOpen ? (
         <div style={{ display: "flex", gap: "0.25rem", alignItems: "center" }}>
+          {/* Lock Control */}
+          <ToolButton
+            type="icon"
+            icon={kanbanLocked ? LockedIcon : UnlockedIcon}
+            title={kanbanLocked ? "Unlock board (Locked state)" : "Lock board (Normal state)"}
+            aria-label={kanbanLocked ? "Unlock board" : "Lock board"}
+            className={clsx("kanban-lock-btn", {
+              "is-active": kanbanLocked,
+            })}
+            onClick={() => handleKanbanLockChange(!kanbanLocked)}
+          />
+
+          <div className="App-toolbar__divider" />
+
           {/* Sloppiness Control */}
           <div style={{ display: "flex", gap: "0.15rem" }}>
             <ToolButton
@@ -1261,16 +1280,15 @@ export const ShapesSwitcher = ({
 
           <div className="App-toolbar__divider" />
 
-          {/* Lock Control */}
+          {/* Add Status Control */}
           <ToolButton
             type="icon"
-            icon={kanbanLocked ? LockedIcon : UnlockedIcon}
-            title={kanbanLocked ? "Unlock board (Locked state)" : "Lock board (Normal state)"}
-            aria-label={kanbanLocked ? "Unlock board" : "Lock board"}
-            className={clsx("kanban-lock-btn", {
-              "is-active": kanbanLocked,
-            })}
-            onClick={() => handleKanbanLockChange(!kanbanLocked)}
+            icon={PlusIcon}
+            title="Add Status"
+            aria-label="Add Status"
+            className="kanban-add-status-btn"
+            disabled={kanbanLocked}
+            onClick={handleKanbanAddStatus}
           />
         </div>
       ) : (
