@@ -273,9 +273,7 @@ describe("KanbanWorkspace", () => {
     fireEvent.change(screen.getByLabelText("Add checklist item"), {
       target: { value: "Review prototype" },
     });
-    fireEvent.keyDown(screen.getByLabelText("Add checklist item"), {
-      key: "Enter",
-    });
+    fireEvent.submit(screen.getByLabelText("Add checklist item").closest("form")!);
 
     expect(screen.getAllByText("@canvas1").length).toBeGreaterThan(0);
     expect(screen.getByText("Review prototype")).not.toBeNull();

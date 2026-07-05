@@ -4,6 +4,7 @@ import {
   SloppinessArtistIcon,
   SloppinessCartoonistIcon,
   TrashIcon,
+  searchIcon,
 } from "@excalidraw/excalidraw/components/icons";
 import { THEME, applyDarkModeFilter } from "@excalidraw/excalidraw";
 import { randomId } from "@excalidraw/common";
@@ -31,6 +32,39 @@ const PRIORITY_WEIGHT: Record<NonNullable<KanbanCard["priority"]>, number> = {
   low: 1,
 };
 
+const formatDueDate = (dueAt: string) => {
+  const dueDate = new Date(`${dueAt}T00:00:00`);
+  if (Number.isNaN(dueDate.getTime())) {
+    return { label: dueAt, tone: "default" } as const;
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const days = Math.round((dueDate.getTime() - today.getTime()) / 86_400_000);
+  const date = dueDate.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    ...(dueDate.getFullYear() !== today.getFullYear()
+      ? { year: "numeric" as const }
+      : {}),
+  });
+  const relative =
+    days < 0
+      ? `${Math.abs(days)}d overdue`
+      : days === 0
+        ? "Today"
+        : days < 7
+          ? `${days}d`
+          : days < 42
+            ? `${Math.ceil(days / 7)}w`
+            : `${Math.ceil(days / 30)}m`;
+
+  return {
+    label: `${relative} · ${date}`,
+    tone: days < 0 ? "overdue" : days <= 2 ? "urgent" : days <= 7 ? "soon" : "default",
+  } as const;
+};
+
 export const KanbanWorkspace = ({ board, onChange }: Props) => {
   const appState = useUIAppState();
   const [draftColumnId, setDraftColumnId] = useState<string | null>(null);
@@ -45,6 +79,7 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>("all");
   const [cardSort, setCardSort] = useState<CardSort>("manual");
+  const [checklistDraft, setChecklistDraft] = useState("");
   const boardContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -136,6 +171,10 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
     };
     window.addEventListener("keydown", closeDetails);
     return () => window.removeEventListener("keydown", closeDetails);
+  }, [selectedCardId]);
+
+  useEffect(() => {
+    setChecklistDraft("");
   }, [selectedCardId]);
 
   const commit = (next: KanbanBoard) =>
@@ -402,6 +441,9 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
   };
 
   const selectedCard = selectedCardId ? board.cards[selectedCardId] : null;
+  const checklistTotal = selectedCard?.checklist?.length ?? 0;
+  const checklistCompleted =
+    selectedCard?.checklist?.filter((item) => item.completed).length ?? 0;
   const hasActiveQuery =
     !!normalizedSearch || priorityFilter !== "all" || cardSort !== "manual";
 
@@ -424,11 +466,13 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
         <div className="kanban-view-heading">
           <span className="kanban-view-icon kanban-view-icon--status" />
           <strong>By status</strong>
-          <span>{Object.keys(board.cards).length} projects</span>
+          <span className="kanban-project-count">
+            {Object.keys(board.cards).length} projects
+          </span>
         </div>
         <div className="kanban-actions" aria-label="Board controls">
           <label className="kanban-search">
-            <span aria-hidden="true">⌕</span>
+            <span aria-hidden="true">{searchIcon}</span>
             <input
               aria-label="Search projects"
               placeholder="Search projects"
@@ -470,15 +514,6 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
               }}
             >
               Clear
-            </button>
-          )}
-          {!board.isLocked && (
-            <button
-              type="button"
-              className="kanban-new"
-              onClick={() => beginCard()}
-            >
-              {PlusIcon} New project
             </button>
           )}
         </div>
@@ -544,6 +579,9 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
               <div className="kanban-cards">
                 {visibleCardIds.map((cardId) => {
                   const card = board.cards[cardId];
+                  const dueDate = card.dueAt
+                    ? formatDueDate(card.dueAt)
+                    : null;
                   const progress = Math.max(
                     0,
                     Math.min(100, card.progress || 0),
@@ -586,6 +624,7 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
                     >
                       <div className="kanban-card-title">
                         <input
+                          key={card.title}
                           aria-label={`Edit ${card.title}`}
                           defaultValue={card.title}
                           readOnly={board.isLocked}
@@ -619,7 +658,14 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
                               {card.priority}
                             </span>
                           )}
-                          {card.dueAt && <span>Due {card.dueAt}</span>}
+                          {dueDate && (
+                            <span
+                              className={`kanban-due kanban-due--${dueDate.tone}`}
+                              title={`Due ${card.dueAt}`}
+                            >
+                              {dueDate.label}
+                            </span>
+                          )}
                           {(card.canvasTags ?? []).slice(0, 2).map((tag) => (
                             <span className="kanban-canvas-tag" key={tag}>
                               @{tag}
@@ -627,15 +673,17 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
                           ))}
                         </div>
                       )}
-                      <div className="kanban-card-person">
-                        <span>{(card.assignee || "You").charAt(0)}</span>
-                        {card.assignee || "You"}
-                      </div>
-                      <div className="kanban-card-progress">
-                        <span>{progress}%</span>
-                        <i>
-                          <b style={{ width: `${progress}%` }} />
-                        </i>
+                      <div className="kanban-card-footer">
+                        <div className="kanban-card-person">
+                          <span>{(card.assignee || "You").charAt(0)}</span>
+                          <b>{card.assignee || "You"}</b>
+                        </div>
+                        <div className="kanban-card-progress">
+                          <i>
+                            <b style={{ width: `${progress}%` }} />
+                          </i>
+                          <span>{progress}%</span>
+                        </div>
                       </div>
                     </article>
                   );
@@ -693,7 +741,15 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
           <header>
             <div>
               <span>Project</span>
-              <strong>{selectedCard.title}</strong>
+              <input
+                className="kanban-detail-title-input"
+                aria-label="Project title"
+                value={selectedCard.title}
+                readOnly={board.isLocked}
+                onChange={(event) =>
+                  patchCard(selectedCard.id, { title: event.target.value })
+                }
+              />
             </div>
             <button
               type="button"
@@ -704,16 +760,6 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
             </button>
           </header>
           <div className="kanban-detail-scroll">
-            <label>
-              <span>Title</span>
-              <input
-                value={selectedCard.title}
-                readOnly={board.isLocked}
-                onChange={(event) =>
-                  patchCard(selectedCard.id, { title: event.target.value })
-                }
-              />
-            </label>
             <div className="kanban-detail-grid">
               <label>
                 <span>Assignee</span>
@@ -752,6 +798,11 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
                     min="0"
                     max="100"
                     value={selectedCard.progress ?? 0}
+                    style={
+                      {
+                        "--kanban-progress": `${selectedCard.progress ?? 0}%`,
+                      } as React.CSSProperties
+                    }
                     disabled={board.isLocked}
                     onChange={(event) =>
                       patchCard(selectedCard.id, {
@@ -779,7 +830,7 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
             <label>
               <span>Description</span>
               <textarea
-                rows={5}
+                rows={3}
                 value={selectedCard.description ?? ""}
                 placeholder="Add context, decisions, or acceptance notes…"
                 readOnly={board.isLocked}
@@ -792,8 +843,10 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
             </label>
             <section className="kanban-detail-section">
               <div className="kanban-detail-section-title">
-                <strong>Canvas links</strong>
-                <span>Use @name to connect project context</span>
+                <div>
+                  <strong>Canvas links</strong>
+                  <span>Use @name to connect project context</span>
+                </div>
               </div>
               <div className="kanban-tag-editor">
                 {(selectedCard.canvasTags ?? []).map((tag) => (
@@ -810,7 +863,8 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
                       })
                     }
                   >
-                    @{tag} <span>×</span>
+                    <span className="kanban-tag-name">@{tag}</span>
+                    <span aria-hidden="true">×</span>
                   </button>
                 ))}
                 {!board.isLocked && (
@@ -836,34 +890,34 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
             </section>
             <section className="kanban-detail-section">
               <div className="kanban-detail-section-title">
-                <strong>Checklist</strong>
-                <span>
-                  {
-                    (selectedCard.checklist ?? []).filter(
-                      (item) => item.completed,
-                    ).length
-                  }
-                  /{selectedCard.checklist?.length ?? 0} complete
+                <div>
+                  <strong>Checklist</strong>
+                  <span>Completion steps</span>
+                </div>
+                <span className="kanban-checklist-count">
+                  {checklistCompleted} of {checklistTotal}
                 </span>
               </div>
               <div className="kanban-checklist">
                 {(selectedCard.checklist ?? []).map((item) => (
-                  <label key={item.id}>
-                    <input
-                      type="checkbox"
-                      checked={item.completed}
-                      disabled={board.isLocked}
-                      onChange={() =>
-                        patchCard(selectedCard.id, {
-                          checklist: selectedCard.checklist?.map((entry) =>
-                            entry.id === item.id
-                              ? { ...entry, completed: !entry.completed }
-                              : entry,
-                          ),
-                        })
-                      }
-                    />
-                    <span>{item.title}</span>
+                  <div className="kanban-checklist-item" key={item.id}>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={item.completed}
+                        disabled={board.isLocked}
+                        onChange={() =>
+                          patchCard(selectedCard.id, {
+                            checklist: selectedCard.checklist?.map((entry) =>
+                              entry.id === item.id
+                                ? { ...entry, completed: !entry.completed }
+                                : entry,
+                            ),
+                          })
+                        }
+                      />
+                      <span>{item.title}</span>
+                    </label>
                     {!board.isLocked && (
                       <button
                         type="button"
@@ -879,16 +933,14 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
                         ×
                       </button>
                     )}
-                  </label>
+                  </div>
                 ))}
                 {!board.isLocked && (
-                  <input
-                    aria-label="Add checklist item"
-                    placeholder="+ Add checklist item"
-                    onKeyDown={(event) => {
-                      if (event.key !== "Enter") return;
+                  <form
+                    className="kanban-checklist-add"
+                    onSubmit={(event) => {
                       event.preventDefault();
-                      const title = event.currentTarget.value.trim();
+                      const title = checklistDraft.trim();
                       if (!title) return;
                       patchCard(selectedCard.id, {
                         checklist: [
@@ -896,9 +948,20 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
                           { id: randomId(), title, completed: false },
                         ],
                       });
-                      event.currentTarget.value = "";
+                      setChecklistDraft("");
                     }}
-                  />
+                  >
+                    <span
+                      className="kanban-checklist-add-box"
+                      aria-hidden="true"
+                    />
+                    <input
+                      aria-label="Add checklist item"
+                      placeholder="Add a step…"
+                      value={checklistDraft}
+                      onChange={(event) => setChecklistDraft(event.target.value)}
+                    />
+                  </form>
                 )}
               </div>
             </section>
