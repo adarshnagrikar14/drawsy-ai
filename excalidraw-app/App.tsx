@@ -1766,6 +1766,14 @@ const ExcalidrawWrapper = () => {
     [excalidrawAPI, runWorkspaceSwitch, workspaceSync],
   );
 
+  const openKanbanCanvasLink = useCallback(
+    (canvasId: string) => {
+      setKanbanWorkspaceActive(false);
+      openWorkspaceCanvas(canvasId);
+    },
+    [openWorkspaceCanvas, setKanbanWorkspaceActive],
+  );
+
   const deleteWorkspaceCanvas = useCallback(
     async (canvasId: string) =>
       !!(await runWorkspaceSwitch((index) =>
@@ -2298,6 +2306,12 @@ const ExcalidrawWrapper = () => {
             onChange={updateKanbanBoard}
             readOnly={kanbanRole === "viewer"}
             syncStatus={kanbanSyncStatus}
+            currentUserId={drawsyAuth.user?.uid || null}
+            currentUserDisplayName={
+              drawsyAuth.user?.displayName || drawsyAuth.user?.email || "You"
+            }
+            canvases={workspaceIndex?.canvases || []}
+            onOpenCanvas={openKanbanCanvasLink}
           />
         )}
         <DefaultSidebar.Trigger style={{ display: "none" }} />
