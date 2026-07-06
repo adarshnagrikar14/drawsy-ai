@@ -2,7 +2,7 @@ import { copyTextToSystemClipboard } from "@excalidraw/excalidraw/clipboard";
 import { Dialog } from "@excalidraw/excalidraw/components/Dialog";
 import { FilledButton } from "@excalidraw/excalidraw/components/FilledButton";
 import { TextField } from "@excalidraw/excalidraw/components/TextField";
-import { copyIcon, usersIcon } from "@excalidraw/excalidraw/components/icons";
+import { copyIcon, share } from "@excalidraw/excalidraw/components/icons";
 import { useEffect, useState } from "react";
 
 import "./KanbanShareDialog.scss";
@@ -120,7 +120,7 @@ export const KanbanShareDialog = (props: Props) => {
     <Dialog size="small" onCloseRequest={props.onClose} title={false}>
       <div className="kanban-share-dialog">
         <header>
-          <span className="kanban-share-dialog__icon">{usersIcon}</span>
+          <span className="kanban-share-dialog__icon">{share}</span>
           <div>
             <h2>
               {props.mode === "invite" ? "Invite to Kanban" : "Join Kanban"}
