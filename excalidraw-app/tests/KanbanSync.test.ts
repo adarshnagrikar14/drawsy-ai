@@ -79,6 +79,7 @@ const snapshot = (): RemoteKanbanSnapshot => ({
         dueDate: 1,
         legacyAssigneeText: 1,
         legacyCanvasTags: 1,
+        assigneeIds: 1,
       },
       assigneeIds: [],
       title: "Task",
@@ -205,6 +206,113 @@ describe("KanbanSync reconciliation", () => {
         afterId: null,
       },
     });
+  });
+
+  it("syncs real assignees and real canvas links", () => {
+    const remote = snapshot();
+    remote.members.push({
+      userId: "user-0002",
+      role: "editor",
+      membershipVersion: 1,
+      invitedBy: "user-0001",
+      joinedAt: 2,
+      updatedAt: 2,
+    });
+    const local = remoteSnapshotToKanbanBoard(remote);
+    local.cards["card-0001"].assigneeIds = ["user-0002"];
+    local.cards["card-0001"].canvasLinks = [
+      {
+        id: "link-0001",
+        canvasId: "canvas-0001",
+        title: "Launch flow",
+        state: "available",
+        createdAt: 6,
+      },
+    ];
+
+    const commands = createKanbanCommands(remote, local, identity());
+
+    expect(commands.map((command) => command.type)).toEqual([
+      "updateCard",
+      "createCanvasLink",
+    ]);
+    expect(commands[0]).toMatchObject({
+      entityId: "card-0001",
+      payload: { assigneeIds: ["user-0002"] },
+    });
+    expect(commands[1]).toMatchObject({
+      entityId: "link-0001",
+      payload: { cardId: "card-0001", canvasId: "canvas-0001" },
+    });
+  });
+
+  it("removes real canvas links with a delete command", () => {
+    const remote = snapshot();
+    remote.canvasLinks = [
+      {
+        id: "link-0001",
+        boardId: "board-0001",
+        cardId: "card-0001",
+        canvasId: "canvas-0001",
+        state: "available",
+        title: "Launch flow",
+        createdAt: 6,
+      },
+    ];
+    const local = remoteSnapshotToKanbanBoard(remote);
+    local.cards["card-0001"].canvasLinks = [];
+
+    const commands = createKanbanCommands(remote, local, identity());
+
+    expect(commands).toEqual([
+      expect.objectContaining({
+        type: "deleteCanvasLink",
+        entityId: "link-0001",
+        payload: {},
+      }),
+    ]);
+  });
+
+  it("removes canvas links when their card is deleted", () => {
+    const remote = snapshot();
+    remote.canvasLinks = [
+      {
+        id: "link-0001",
+        boardId: "board-0001",
+        cardId: "card-0001",
+        canvasId: "canvas-0001",
+        state: "available",
+        title: "Launch flow",
+        createdAt: 6,
+      },
+    ];
+    const local = remoteSnapshotToKanbanBoard(remote);
+    delete local.cards["card-0001"];
+    local.columns[0].cardIds = [];
+
+    const commands = createKanbanCommands(remote, local, identity());
+
+    expect(commands.map((command) => command.type)).toEqual([
+      "deleteCard",
+      "deleteCanvasLink",
+    ]);
+  });
+
+  it("splits unlock into a standalone command before other edits", () => {
+    const remote = snapshot();
+    remote.board.isLocked = true;
+    const local = remoteSnapshotToKanbanBoard(remote);
+    local.isLocked = false;
+    local.cards["card-0001"].title = "Edited while unlocking";
+
+    const commands = createKanbanCommands(remote, local, identity());
+
+    expect(commands).toEqual([
+      expect.objectContaining({
+        type: "updateBoard",
+        payload: { isLocked: false },
+      }),
+    ]);
   });
 
   it("coalesces a column rename and reorder into one command", () => {

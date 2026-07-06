@@ -52,9 +52,11 @@ describe("KanbanApi", () => {
     expect(fetchMock).toHaveBeenCalledWith(
       "https://backend.example/v1/kanban/boards/board-0001/commands",
       expect.objectContaining({
+        cache: "no-store",
         method: "POST",
         headers: expect.objectContaining({
           Authorization: "Bearer firebase-token",
+          "Cache-Control": "no-store",
         }),
       }),
     );
@@ -85,6 +87,14 @@ describe("KanbanApi", () => {
       type: "revision",
       latestRevision: 7,
     });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://backend.example/v1/kanban/boards/board-0001/events",
+      expect.objectContaining({
+        cache: "no-store",
+        headers: expect.objectContaining({
+          "Cache-Control": "no-cache",
+        }),
+      }),
+    );
   });
 });

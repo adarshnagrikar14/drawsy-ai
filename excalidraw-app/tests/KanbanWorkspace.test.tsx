@@ -7,6 +7,7 @@ import { UIAppStateContext } from "@excalidraw/excalidraw/context/ui-appState";
 import { KanbanWorkspace } from "../components/KanbanWorkspace";
 
 import type { KanbanBoard } from "../data/KanbanStore";
+import type { CanvasDocumentMetadata } from "../data/WorkspaceStore";
 
 const board: KanbanBoard = {
   schemaVersion: 1,
@@ -29,8 +30,34 @@ const board: KanbanBoard = {
   updatedAt: 1,
 };
 
-const Harness = ({ initialBoard = board }: { initialBoard?: KanbanBoard }) => {
+const canvas: CanvasDocumentMetadata = {
+  id: "canvas-0001",
+  title: "Launch flow",
+  projectId: null,
+  version: 1,
+  createdAt: 1,
+  updatedAt: 1,
+  lastOpenedAt: 10,
+  sync: {
+    remoteVersion: 0,
+    dirty: false,
+    contentDirty: false,
+    remoteContentHash: null,
+  },
+};
+
+const Harness = ({
+  initialBoard = board,
+  onBoard,
+}: {
+  initialBoard?: KanbanBoard;
+  onBoard?: (board: KanbanBoard) => void;
+}) => {
   const [value, setValue] = useState(initialBoard);
+  const update = (next: KanbanBoard) => {
+    setValue(next);
+    onBoard?.(next);
+  };
   return (
     <UIAppStateContext.Provider
       value={{
@@ -41,7 +68,13 @@ const Harness = ({ initialBoard = board }: { initialBoard?: KanbanBoard }) => {
         offsetTop: 0,
       }}
     >
-      <KanbanWorkspace board={value} onChange={setValue} />
+      <KanbanWorkspace
+        board={value}
+        onChange={update}
+        currentUserId="user-0001"
+        currentUserDisplayName="Adarsh"
+        canvases={[canvas]}
+      />
     </UIAppStateContext.Provider>
   );
 };
@@ -156,6 +189,57 @@ describe("KanbanWorkspace", () => {
     expect(screen.queryByLabelText("Back to canvas")).toBeNull();
     fireEvent.keyDown(window, { key: "Escape" });
     expect(screen.getByLabelText("Kanban board")).not.toBeNull();
+  });
+
+  it("assigns a real member and links a real canvas", () => {
+    const onBoard = vi.fn();
+    render(
+      <Harness
+        onBoard={onBoard}
+        initialBoard={{
+          ...board,
+          members: [
+            {
+              userId: "user-0001",
+              role: "owner",
+              membershipVersion: 1,
+              invitedBy: null,
+              joinedAt: 1,
+              updatedAt: 1,
+            },
+            {
+              userId: "user-0002",
+              role: "editor",
+              membershipVersion: 1,
+              invitedBy: "user-0001",
+              joinedAt: 1,
+              updatedAt: 1,
+            },
+          ],
+        }}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByDisplayValue("Refine comments").closest("article")!,
+    );
+    fireEvent.change(screen.getByLabelText("Assignee"), {
+      target: { value: "user-0002" },
+    });
+    fireEvent.change(screen.getByLabelText("Search canvases to link"), {
+      target: { value: "flow" },
+    });
+    fireEvent.click(screen.getByText("@Launch flow"));
+
+    const latest = onBoard.mock.calls.at(-1)?.[0] as KanbanBoard;
+    expect(latest.cards.card.assigneeIds).toEqual(["user-0002"]);
+    expect(latest.cards.card.canvasLinks).toEqual([
+      expect.objectContaining({
+        canvasId: "canvas-0001",
+        title: "Launch flow",
+        state: "available",
+      }),
+    ]);
   });
 
   it("persists the selected Excalidraw sloppiness level", () => {
@@ -302,10 +386,10 @@ describe("KanbanWorkspace", () => {
     fireEvent.change(screen.getByLabelText("Progress"), {
       target: { value: "60" },
     });
-    fireEvent.change(screen.getByLabelText("Add canvas link"), {
-      target: { value: "@canvas1" },
+    fireEvent.change(screen.getByLabelText("Search canvases to link"), {
+      target: { value: "flow" },
     });
-    fireEvent.keyDown(screen.getByLabelText("Add canvas link"), {
+    fireEvent.keyDown(screen.getByLabelText("Search canvases to link"), {
       key: "Enter",
     });
     fireEvent.change(screen.getByLabelText("Add checklist item"), {
@@ -315,7 +399,7 @@ describe("KanbanWorkspace", () => {
       screen.getByLabelText("Add checklist item").closest("form")!,
     );
 
-    expect(screen.getAllByText("@canvas1").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("@Launch flow").length).toBeGreaterThan(0);
     expect(screen.getByText("Review prototype")).not.toBeNull();
     expect(screen.getAllByText("60%").length).toBeGreaterThan(0);
     expect(screen.getByText("high")).not.toBeNull();
