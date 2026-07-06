@@ -88,16 +88,27 @@ import CustomStats from "./CustomStats";
 import { WorkspaceMenu } from "./components/WorkspaceMenu";
 import { WorkspaceTitle } from "./components/WorkspaceTitle";
 import { KanbanWorkspace } from "./components/KanbanWorkspace";
+import { KanbanShareDialog } from "./components/KanbanShareDialog";
 import {
   loadKanbanWorkspaceActive,
   loadKanbanBoard,
+  loadKanbanBoardAsync,
   saveKanbanBoard,
   saveKanbanWorkspaceActive,
+  setKanbanScope,
   type KanbanBoard,
 } from "./data/KanbanStore";
 import { useDrawsyAuth } from "./auth/useDrawsyAuth";
 import { WorkspaceApi } from "./data/WorkspaceApi";
 import { WorkspaceSync } from "./data/WorkspaceSync";
+import { KanbanApi } from "./data/KanbanApi";
+
+import {
+  KanbanBoardSelectionRequiredError,
+  KanbanSync,
+  remoteSnapshotToKanbanBoard,
+  type KanbanSyncStatus,
+} from "./data/KanbanSync";
 import {
   WORKSPACE_CLIENT_ID,
   WORKSPACE_SYNC_CHANNEL,
@@ -178,6 +189,7 @@ import { useCanvasComments } from "./comments/useCanvasComments";
 
 import type { CollabAPI } from "./collab/Collab";
 import type { CanvasComment } from "./comments/types";
+import type { RemoteKanbanRole } from "./data/KanbanApi";
 
 polyfill();
 
@@ -507,6 +519,10 @@ const ExcalidrawWrapper = () => {
         : null,
     [drawsyAuth.getIdToken, drawsyAuth.user],
   );
+  const kanbanApi = useMemo(
+    () => (drawsyAuth.user ? new KanbanApi(drawsyAuth.getIdToken) : null),
+    [drawsyAuth.getIdToken, drawsyAuth.user],
+  );
 
   const [errorMessage, setErrorMessage] = useState("");
   const [workspaceSyncStatus, setWorkspaceSyncStatus] = useState<
@@ -578,14 +594,161 @@ const ExcalidrawWrapper = () => {
   const [kanbanBoard, setKanbanBoard] = useState<KanbanBoard>(() =>
     loadKanbanBoard(),
   );
+  const kanbanBoardRef = useRef(kanbanBoard);
+  const kanbanSyncRef = useRef<KanbanSync | null>(null);
+  const [kanbanBoardReady, setKanbanBoardReady] = useState(false);
+  const [kanbanLoadedScope, setKanbanLoadedScope] = useState<string | null>(
+    null,
+  );
+  const [kanbanSyncStatus, setKanbanSyncStatus] =
+    useState<KanbanSyncStatus>("local");
+  const [kanbanRole, setKanbanRole] = useState<RemoteKanbanRole | null>(null);
+  const [kanbanShareOpen, setKanbanShareOpen] = useState(false);
+  const [kanbanSyncGeneration, setKanbanSyncGeneration] = useState(0);
+  const [kanbanInvitationToken, setKanbanInvitationToken] = useState(() => {
+    const match = window.location.hash.match(/(?:^#|&)kanban-invite=([^&]+)/);
+    return match?.[1] ? decodeURIComponent(match[1]) : null;
+  });
   const [kanbanOpen, setKanbanOpen] = useState(() =>
     loadKanbanWorkspaceActive(),
   );
 
+  useEffect(() => {
+    if (kanbanInvitationToken && drawsyAuth.status === "anonymous") {
+      setErrorMessage(
+        "Sign in with the invited email to join this Kanban board.",
+      );
+    }
+  }, [drawsyAuth.status, kanbanInvitationToken]);
+
   const updateKanbanBoard = useCallback((board: KanbanBoard) => {
+    kanbanBoardRef.current = board;
     setKanbanBoard(board);
-    saveKanbanBoard(board);
+    void saveKanbanBoard(board).catch(() => {
+      setKanbanSyncStatus("error");
+      setErrorMessage("Kanban changes couldn't be saved in this browser.");
+    });
+    kanbanSyncRef.current?.queue(board);
   }, []);
+
+  useEffect(() => {
+    if (drawsyAuth.status === "loading") {
+      setKanbanBoardReady(false);
+      setKanbanLoadedScope(null);
+      return;
+    }
+    let active = true;
+    setKanbanBoardReady(false);
+    const scopeUserId = drawsyAuth.user?.uid || null;
+    setKanbanLoadedScope(null);
+    setKanbanScope(scopeUserId);
+    void loadKanbanBoardAsync().then((board) => {
+      if (!active) {
+        return;
+      }
+      kanbanBoardRef.current = board;
+      setKanbanBoard(board);
+      setKanbanLoadedScope(scopeUserId || "guest");
+      setKanbanBoardReady(true);
+    });
+    return () => {
+      active = false;
+    };
+  }, [drawsyAuth.status, drawsyAuth.user?.uid]);
+
+  useEffect(() => {
+    if (
+      !kanbanBoardReady ||
+      !kanbanOpen ||
+      drawsyAuth.status !== "authenticated" ||
+      !drawsyAuth.user ||
+      !kanbanApi ||
+      kanbanLoadedScope !== drawsyAuth.user.uid
+    ) {
+      kanbanSyncRef.current?.stop();
+      kanbanSyncRef.current = null;
+      setKanbanSyncStatus("local");
+      setKanbanRole(null);
+      return;
+    }
+
+    let active = true;
+    const sync = new KanbanSync(
+      kanbanApi,
+      (board) => {
+        if (!active) {
+          return;
+        }
+        kanbanBoardRef.current = board;
+        setKanbanBoard(board);
+        void saveKanbanBoard(board).catch(() => {
+          setKanbanSyncStatus("error");
+          setErrorMessage("Kanban changes couldn't be saved in this browser.");
+        });
+      },
+      setKanbanSyncStatus,
+      setKanbanRole,
+    );
+    kanbanSyncRef.current = sync;
+    void sync
+      .initialize(drawsyAuth.user.uid, kanbanBoardRef.current)
+      .catch((error: unknown) => {
+        if (!active) {
+          return;
+        }
+        setKanbanSyncStatus("error");
+        setErrorMessage(
+          error instanceof KanbanBoardSelectionRequiredError
+            ? error.message
+            : "Couldn't sync the Kanban board. Local changes remain saved.",
+        );
+      });
+
+    return () => {
+      active = false;
+      sync.stop();
+      if (kanbanSyncRef.current === sync) {
+        kanbanSyncRef.current = null;
+      }
+    };
+  }, [
+    drawsyAuth.getIdToken,
+    drawsyAuth.status,
+    drawsyAuth.user,
+    kanbanApi,
+    kanbanBoardReady,
+    kanbanLoadedScope,
+    kanbanOpen,
+    kanbanSyncGeneration,
+  ]);
+
+  const clearKanbanInvitation = useCallback(() => {
+    setKanbanInvitationToken(null);
+    const url = new URL(window.location.href);
+    url.hash = "";
+    window.history.replaceState(null, "", url);
+  }, []);
+
+  const openAcceptedKanbanBoard = useCallback(
+    async (boardId: string) => {
+      if (!kanbanApi) {
+        return;
+      }
+      const snapshot = await kanbanApi.getSnapshot(boardId);
+      const board = remoteSnapshotToKanbanBoard(snapshot);
+      kanbanSyncRef.current?.stop();
+      kanbanBoardRef.current = board;
+      setKanbanBoard(board);
+      setKanbanRole(snapshot.board.role);
+      await saveKanbanBoard(board);
+      clearKanbanInvitation();
+      setKanbanOpen(true);
+      saveKanbanWorkspaceActive(true);
+      window.dispatchEvent(new CustomEvent("kanbanToggle", { detail: true }));
+      setKanbanSyncGeneration((value) => value + 1);
+    },
+    [clearKanbanInvitation, kanbanApi],
+  );
 
   const setKanbanWorkspaceActive = useCallback((active: boolean) => {
     setKanbanOpen(active);
@@ -2001,7 +2164,7 @@ const ExcalidrawWrapper = () => {
         theme={editorTheme}
         onThemeChange={setAppTheme}
         renderTopRightUI={(isMobile) => {
-          if (isMobile || !collabAPI || isCollabDisabled) {
+          if (isMobile || (!kanbanOpen && (!collabAPI || isCollabDisabled))) {
             return null;
           }
 
@@ -2016,7 +2179,23 @@ const ExcalidrawWrapper = () => {
                   onCommentSelect={beginCommentPlacement}
                   isPlacingComment={isPlacingComment}
                   isKanbanOpen={kanbanOpen}
-                  onCollabDialogOpen={onCollabDialogOpen}
+                  onCollabDialogOpen={() => {
+                    if (!kanbanOpen) {
+                      onCollabDialogOpen();
+                      return;
+                    }
+                    if (!drawsyAuth.user) {
+                      void drawsyAuth.signIn().catch(() => undefined);
+                      return;
+                    }
+                    if (kanbanRole !== "owner") {
+                      setErrorMessage(
+                        "Only the board owner can invite members.",
+                      );
+                      return;
+                    }
+                    setKanbanShareOpen(true);
+                  }}
                 />
               )}
             </div>
@@ -2084,10 +2263,11 @@ const ExcalidrawWrapper = () => {
           header={
             kanbanOpen ? (
               <WorkspaceTitle
-                canvasTitle={kanbanBoard.title}
+                canvasTitle={kanbanBoardReady ? kanbanBoard.title : "Kanban"}
                 projectTitle={null}
                 focusProjectTitle={false}
                 itemLabel="Kanban"
+                readOnly={!kanbanBoardReady || kanbanRole === "viewer"}
                 onCanvasTitleChange={(title) =>
                   updateKanbanBoard({ ...kanbanBoard, title })
                 }
@@ -2108,8 +2288,17 @@ const ExcalidrawWrapper = () => {
             ) : null
           }
         />
-        {kanbanOpen && (
-          <KanbanWorkspace board={kanbanBoard} onChange={updateKanbanBoard} />
+        {kanbanOpen && kanbanBoardReady && (
+          <KanbanWorkspace
+            board={
+              kanbanRole === "viewer"
+                ? { ...kanbanBoard, isLocked: true }
+                : kanbanBoard
+            }
+            onChange={updateKanbanBoard}
+            readOnly={kanbanRole === "viewer"}
+            syncStatus={kanbanSyncStatus}
+          />
         )}
         <DefaultSidebar.Trigger style={{ display: "none" }} />
         {!kanbanOpen && (
@@ -2178,6 +2367,24 @@ const ExcalidrawWrapper = () => {
             }
           }}
         />
+
+        {kanbanApi && kanbanInvitationToken && (
+          <KanbanShareDialog
+            mode="accept"
+            api={kanbanApi}
+            token={kanbanInvitationToken}
+            onAccepted={openAcceptedKanbanBoard}
+            onClose={clearKanbanInvitation}
+          />
+        )}
+        {kanbanApi && kanbanShareOpen && !kanbanInvitationToken && (
+          <KanbanShareDialog
+            mode="invite"
+            api={kanbanApi}
+            boardId={kanbanBoard.id}
+            onClose={() => setKanbanShareOpen(false)}
+          />
+        )}
 
         <AppSidebar
           authStatus={drawsyAuth.status}

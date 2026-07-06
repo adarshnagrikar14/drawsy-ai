@@ -8,6 +8,7 @@ type Props = {
   onProjectTitleChange: (title: string) => void;
   onProjectTitleFocused: () => void;
   itemLabel?: string;
+  readOnly?: boolean;
 };
 
 const EditableTitle = ({
@@ -16,12 +17,14 @@ const EditableTitle = ({
   autoFocus,
   onCommit,
   onFocused,
+  readOnly,
 }: {
   value: string;
   ariaLabel: string;
   autoFocus?: boolean;
   onCommit: (value: string) => void;
   onFocused?: () => void;
+  readOnly?: boolean;
 }) => {
   const [draft, setDraft] = useState(value);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -35,15 +38,24 @@ const EditableTitle = ({
     }
   }, [autoFocus, onFocused]);
 
-  const commit = () => onCommit(draft.trim() || value);
+  const commit = () => {
+    if (!readOnly) {
+      onCommit(draft.trim() || value);
+    }
+  };
 
   return (
     <input
       ref={inputRef}
       className="workspace-title-input"
       aria-label={ariaLabel}
+      readOnly={readOnly}
       value={draft}
-      onChange={(event) => setDraft(event.target.value)}
+      onChange={(event) => {
+        if (!readOnly) {
+          setDraft(event.target.value);
+        }
+      }}
       onBlur={commit}
       onKeyDown={(event) => {
         if (event.key === "Enter") {
@@ -64,6 +76,7 @@ export const WorkspaceTitle = ({
   onProjectTitleChange,
   onProjectTitleFocused,
   itemLabel = "Canvas",
+  readOnly = false,
 }: Props) => (
   <div className="workspace-title" data-testid="workspace-title">
     {projectTitle && (
@@ -74,6 +87,7 @@ export const WorkspaceTitle = ({
           autoFocus={focusProjectTitle}
           onCommit={onProjectTitleChange}
           onFocused={onProjectTitleFocused}
+          readOnly={readOnly}
         />
         <span className="workspace-title-separator">/</span>
       </>
@@ -82,6 +96,7 @@ export const WorkspaceTitle = ({
       value={canvasTitle}
       ariaLabel={`${itemLabel} title`}
       onCommit={onCanvasTitleChange}
+      readOnly={readOnly}
     />
   </div>
 );

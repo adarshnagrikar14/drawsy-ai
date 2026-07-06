@@ -1,27 +1,60 @@
 import {
   PlusIcon,
-  SloppinessArchitectIcon,
-  SloppinessArtistIcon,
-  SloppinessCartoonistIcon,
   TrashIcon,
   searchIcon,
 } from "@excalidraw/excalidraw/components/icons";
 import { THEME, applyDarkModeFilter } from "@excalidraw/excalidraw";
 import { randomId } from "@excalidraw/common";
 import { useUIAppState } from "@excalidraw/excalidraw/context/ui-appState";
-import React, { useState, useEffect, useRef } from "react";
+import React, { useCallback, useState, useEffect, useRef } from "react";
 
-import type { KanbanBoard } from "../data/KanbanStore";
-import type { KanbanCard } from "../data/KanbanStore";
+import type {
+  KanbanBoard,
+  KanbanCard,
+  KanbanColumn,
+} from "../data/KanbanStore";
+import type { KanbanSyncStatus } from "../data/KanbanSync";
 
 type Props = {
   board: KanbanBoard;
   onChange: (board: KanbanBoard) => void;
+  readOnly?: boolean;
+  syncStatus?: KanbanSyncStatus;
 };
 
 type DraggedCard = { cardId: string; columnId: string };
 
 const COLUMN_COLORS = ["neutral", "blue", "green", "violet"] as const;
+const getColumnColor = (title: string, index: number): string => {
+  switch (title) {
+    case "Not started":
+      return "neutral";
+    case "In progress":
+      return "blue";
+    case "In review":
+      return "violet";
+    case "Done":
+      return "green";
+    default:
+      return COLUMN_COLORS[index % COLUMN_COLORS.length];
+  }
+};
+const sortColumns = (columns: KanbanColumn[]): KanbanColumn[] => {
+  const ogOrder = ["Not started", "In progress", "Done", "In review"];
+  const ogColumns: KanbanColumn[] = [];
+  const customColumns: KanbanColumn[] = [];
+
+  for (const col of columns) {
+    if (ogOrder.includes(col.title)) {
+      ogColumns.push(col);
+    } else {
+      customColumns.push(col);
+    }
+  }
+
+  ogColumns.sort((a, b) => ogOrder.indexOf(a.title) - ogOrder.indexOf(b.title));
+  return [...ogColumns, ...customColumns];
+};
 const COLUMN_ANIMATION_MS = 240;
 type PriorityFilter = "all" | "none" | NonNullable<KanbanCard["priority"]>;
 type CardSort = "manual" | "updated" | "priority" | "progress";
@@ -52,20 +85,32 @@ const formatDueDate = (dueAt: string) => {
     days < 0
       ? `${Math.abs(days)}d overdue`
       : days === 0
-        ? "Today"
-        : days < 7
-          ? `${days}d`
-          : days < 42
-            ? `${Math.ceil(days / 7)}w`
-            : `${Math.ceil(days / 30)}m`;
+      ? "Today"
+      : days < 7
+      ? `${days}d`
+      : days < 42
+      ? `${Math.ceil(days / 7)}w`
+      : `${Math.ceil(days / 30)}m`;
 
   return {
     label: `${relative} · ${date}`,
-    tone: days < 0 ? "overdue" : days <= 2 ? "urgent" : days <= 7 ? "soon" : "default",
+    tone:
+      days < 0
+        ? "overdue"
+        : days <= 2
+        ? "urgent"
+        : days <= 7
+        ? "soon"
+        : "default",
   } as const;
 };
 
-export const KanbanWorkspace = ({ board, onChange }: Props) => {
+export const KanbanWorkspace = ({
+  board,
+  onChange,
+  readOnly = false,
+  syncStatus = "local",
+}: Props) => {
   const appState = useUIAppState();
   const [draftColumnId, setDraftColumnId] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState("");
@@ -81,6 +126,14 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
   const [cardSort, setCardSort] = useState<CardSort>("manual");
   const [checklistDraft, setChecklistDraft] = useState("");
   const boardContainerRef = useRef<HTMLDivElement>(null);
+  const commit = useCallback(
+    (next: KanbanBoard) => {
+      if (!readOnly) {
+        onChange({ ...next, updatedAt: Date.now() });
+      }
+    },
+    [onChange, readOnly],
+  );
 
   useEffect(() => {
     const handleRoughnessChange = (e: Event) => {
@@ -122,7 +175,7 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
       window.removeEventListener("kanbanLockChange", handleLockChange);
       window.removeEventListener("kanbanAddStatus", handleAddStatus);
     };
-  }, [board]);
+  }, [board, commit]);
 
   useEffect(() => {
     if (
@@ -176,9 +229,6 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
   useEffect(() => {
     setChecklistDraft("");
   }, [selectedCardId]);
-
-  const commit = (next: KanbanBoard) =>
-    onChange({ ...next, updatedAt: Date.now() });
 
   const beginCard = (columnId = board.columns[0]?.id) => {
     if (board.isLocked) {
@@ -275,21 +325,6 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
     setSelectedCardId((selected) => (selected === cardId ? null : selected));
   };
 
-  const addColumn = () => {
-    if (board.isLocked) {
-      return;
-    }
-    const newId = randomId();
-    setLastAddedColumnId(newId);
-    commit({
-      ...board,
-      columns: [
-        ...board.columns,
-        { id: newId, title: "New status", cardIds: [] },
-      ],
-    });
-  };
-
   const updateColumn = (columnId: string, title: string) => {
     if (board.isLocked) {
       return;
@@ -312,6 +347,11 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
     }
     const column = board.columns.find((item) => item.id === columnId);
     if (!column || column.cardIds.length || board.columns.length === 1) {
+      return;
+    }
+    if (
+      ["Not started", "In progress", "In review", "Done"].includes(column.title)
+    ) {
       return;
     }
     setDeletingColumnId(columnId);
@@ -469,6 +509,19 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
           <span className="kanban-project-count">
             {Object.keys(board.cards).length} projects
           </span>
+          <span className="kanban-sync-status" data-status={syncStatus}>
+            {syncStatus === "synced"
+              ? "Saved"
+              : syncStatus === "pending" || syncStatus === "syncing"
+              ? "Saving…"
+              : syncStatus === "offline"
+              ? "Offline · saved locally"
+              : syncStatus === "conflict"
+              ? "Needs review"
+              : syncStatus === "error"
+              ? "Sync paused"
+              : "Local"}
+          </span>
         </div>
         <div className="kanban-actions" aria-label="Board controls">
           <label className="kanban-search">
@@ -523,16 +576,17 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
         ref={boardContainerRef}
         onDragOver={autoScrollBoard}
       >
-        {board.columns.map((column, columnIndex) => {
+        {sortColumns(board.columns).map((column, columnIndex) => {
           const visibleCardIds = visibleCardIdsFor(column.cardIds);
           const isNew = column.id === lastAddedColumnId;
           const isDeleting = column.id === deletingColumnId;
           const isDropTarget = column.id === dragOverColumnId;
           return (
             <section
-              className={`kanban-column kanban-column--${
-                COLUMN_COLORS[columnIndex % COLUMN_COLORS.length]
-              } ${draggedCard ? "is-dragging" : ""} ${
+              className={`kanban-column kanban-column--${getColumnColor(
+                column.title,
+                columnIndex,
+              )} ${draggedCard ? "is-dragging" : ""} ${
                 isDropTarget ? "is-drop-target" : ""
               } ${isNew ? "kanban-column--new" : ""} ${
                 isDeleting ? "kanban-column--deleting" : ""
@@ -540,7 +594,9 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
               key={column.id}
               onDragOver={(event) => handleColumnDragOver(event, column.id)}
               onDrop={() => {
-                if (board.isLocked) return;
+                if (board.isLocked) {
+                  return;
+                }
                 moveCard(column.id);
               }}
             >
@@ -552,7 +608,15 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
                   <input
                     aria-label={`Rename ${column.title}`}
                     defaultValue={column.title}
-                    readOnly={board.isLocked}
+                    readOnly={
+                      board.isLocked ||
+                      [
+                        "Not started",
+                        "In progress",
+                        "In review",
+                        "Done",
+                      ].includes(column.title)
+                    }
                     onBlur={(event) =>
                       updateColumn(column.id, event.currentTarget.value)
                     }
@@ -565,7 +629,10 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
                 </div>
                 {column.cardIds.length === 0 &&
                   board.columns.length > 1 &&
-                  !board.isLocked && (
+                  !board.isLocked &&
+                  !["Not started", "In progress", "In review", "Done"].includes(
+                    column.title,
+                  ) && (
                     <button
                       type="button"
                       aria-label={`Delete ${column.title}`}
@@ -579,9 +646,7 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
               <div className="kanban-cards">
                 {visibleCardIds.map((cardId) => {
                   const card = board.cards[cardId];
-                  const dueDate = card.dueAt
-                    ? formatDueDate(card.dueAt)
-                    : null;
+                  const dueDate = card.dueAt ? formatDueDate(card.dueAt) : null;
                   const progress = Math.max(
                     0,
                     Math.min(100, card.progress || 0),
@@ -592,7 +657,9 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
                       key={card.id}
                       draggable={!board.isLocked}
                       onDragStart={() => {
-                        if (board.isLocked) return;
+                        if (board.isLocked) {
+                          return;
+                        }
                         setDraggedCard({
                           cardId: card.id,
                           columnId: column.id,
@@ -603,11 +670,15 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
                         setDragOverColumnId(null);
                       }}
                       onDragOver={(event) => {
-                        if (board.isLocked) return;
+                        if (board.isLocked) {
+                          return;
+                        }
                         event.preventDefault();
                       }}
                       onDrop={(event) => {
-                        if (board.isLocked) return;
+                        if (board.isLocked) {
+                          return;
+                        }
                         event.stopPropagation();
                         moveCard(column.id, card.id);
                       }}
@@ -649,7 +720,7 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
                       </div>
                       {(card.priority ||
                         card.dueAt ||
-                        card.canvasTags?.length) && (
+                        !!card.canvasTags?.length) && (
                         <div className="kanban-card-meta">
                           {card.priority && (
                             <span
@@ -872,13 +943,16 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
                     aria-label="Add canvas link"
                     placeholder="@canvas1 + Enter"
                     onKeyDown={(event) => {
-                      if (event.key !== "Enter") return;
+                      if (event.key !== "Enter") {
+                        return;
+                      }
                       event.preventDefault();
                       const tag = event.currentTarget.value
                         .trim()
                         .replace(/^@/, "");
-                      if (!tag || selectedCard.canvasTags?.includes(tag))
+                      if (!tag || selectedCard.canvasTags?.includes(tag)) {
                         return;
+                      }
                       patchCard(selectedCard.id, {
                         canvasTags: [...(selectedCard.canvasTags ?? []), tag],
                       });
@@ -941,7 +1015,9 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
                     onSubmit={(event) => {
                       event.preventDefault();
                       const title = checklistDraft.trim();
-                      if (!title) return;
+                      if (!title) {
+                        return;
+                      }
                       patchCard(selectedCard.id, {
                         checklist: [
                           ...(selectedCard.checklist ?? []),
@@ -959,7 +1035,9 @@ export const KanbanWorkspace = ({ board, onChange }: Props) => {
                       aria-label="Add checklist item"
                       placeholder="Add a step…"
                       value={checklistDraft}
-                      onChange={(event) => setChecklistDraft(event.target.value)}
+                      onChange={(event) =>
+                        setChecklistDraft(event.target.value)
+                      }
                     />
                   </form>
                 )}
