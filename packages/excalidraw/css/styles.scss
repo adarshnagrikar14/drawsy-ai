@@ -740,7 +740,7 @@ body.excalidraw-cursor-resize * {
       gap: 0.625rem;
       padding: 0;
       background: transparent;
-      box-shadow: none;
+      box-shadow: none !important;
       overflow: visible;
     }
 
