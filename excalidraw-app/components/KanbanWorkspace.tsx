@@ -909,9 +909,6 @@ export const KanbanWorkspace = ({
                         }
                       }}
                     />
-                    <button type="submit" disabled={!draftTitle.trim()}>
-                      Add
-                    </button>
                   </form>
                 ) : (
                   <button

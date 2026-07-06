@@ -116,7 +116,7 @@ describe("KanbanWorkspace", () => {
     fireEvent.change(screen.getByLabelText("Card title for Not started"), {
       target: { value: "Ship Kanban" },
     });
-    fireEvent.click(screen.getByText("Add"));
+    fireEvent.submit(screen.getByLabelText("Card title for Not started").closest("form")!);
     expect(screen.getByDisplayValue("Ship Kanban")).not.toBeNull();
 
     const title = screen.getByLabelText("Edit Ship Kanban");

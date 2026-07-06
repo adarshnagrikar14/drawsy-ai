@@ -2269,10 +2269,8 @@
 
   .kanban-card-composer {
     position: relative;
-    display: grid;
+    display: flex;
     flex: 0 0 auto;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 0.5rem;
     padding: 0.625rem;
     border: 1px solid color-mix(in srgb, var(--kanban-accent) 45%, transparent);
     border-radius: var(--kanban-card-radius, 0.8rem 0.68rem 0.86rem 0.72rem);
@@ -2285,12 +2283,21 @@
 
     input {
       min-width: 0;
+      flex: 1;
       padding: 0.45rem 0.35rem;
-      border: 0;
-      outline: 0;
-      background: transparent;
+      border: 0 !important;
+      outline: 0 !important;
+      box-shadow: none !important;
+      background: transparent !important;
       color: inherit;
       font: 600 0.875rem/1 var(--ui-font);
+
+      &:focus,
+      &:focus-visible {
+        border: 0 !important;
+        outline: 0 !important;
+        box-shadow: none !important;
+      }
     }
 
     button {
