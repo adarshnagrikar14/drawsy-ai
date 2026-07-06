@@ -20,17 +20,36 @@ export type KanbanCard = {
   id: string;
   title: string;
   assignee?: string;
+  assigneeIds?: string[];
   progress?: number;
   priority?: "low" | "medium" | "high" | null;
   description?: string;
   dueAt?: string | null;
   canvasTags?: string[];
+  canvasLinks?: KanbanCanvasLink[];
   checklist?: Array<{
     id: string;
     title: string;
     completed: boolean;
   }>;
   createdAt: number;
+  updatedAt: number;
+};
+
+export type KanbanCanvasLink = {
+  id: string;
+  canvasId: string;
+  title?: string;
+  state: "available" | "restricted";
+  createdAt: number;
+};
+
+export type KanbanMember = {
+  userId: string;
+  role: "owner" | "editor" | "viewer";
+  membershipVersion: number;
+  invitedBy: string | null;
+  joinedAt: number;
   updatedAt: number;
 };
 
@@ -49,6 +68,7 @@ export type KanbanBoard = {
   roughness: 0 | 1 | 2;
   cardRadius?: 0 | 1 | 2;
   isLocked?: boolean;
+  members?: KanbanMember[];
   createdAt: number;
   updatedAt: number;
 };
@@ -82,7 +102,9 @@ export const createKanbanBoard = (): KanbanBoard => {
 export const ensureOgColumns = (board: KanbanBoard): KanbanBoard => {
   const ogTitles = ["Not started", "In progress", "Done", "In review"];
   const existingTitles = board.columns.map((c) => c.title);
-  const missingTitles = ogTitles.filter((title) => !existingTitles.includes(title));
+  const missingTitles = ogTitles.filter(
+    (title) => !existingTitles.includes(title),
+  );
   if (missingTitles.length === 0) {
     return board;
   }

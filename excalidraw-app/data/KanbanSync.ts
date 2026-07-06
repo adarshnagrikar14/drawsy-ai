@@ -100,6 +100,11 @@ const cardPayload = (card: KanbanCard) => ({
   legacyCanvasTags: card.canvasTags || [],
 });
 
+const cardSyncPayload = (card: KanbanCard) => ({
+  ...cardPayload(card),
+  assigneeIds: card.assigneeIds || [],
+});
+
 const checklistFor = (snapshot: RemoteKanbanSnapshot, cardId: string) =>
   snapshot.checklistItems
     .filter((item) => item.cardId === cardId && item.deletedAt === null)
@@ -107,6 +112,14 @@ const checklistFor = (snapshot: RemoteKanbanSnapshot, cardId: string) =>
 
 const compareRanks = (first: string, second: string) =>
   first < second ? -1 : first > second ? 1 : 0;
+
+const canvasLinksFor = (snapshot: RemoteKanbanSnapshot, cardId: string) =>
+  snapshot.canvasLinks.filter(
+    (link) =>
+      link.cardId === cardId &&
+      typeof link.canvasId === "string" &&
+      typeof link.id === "string",
+  );
 
 export const remoteSnapshotToKanbanBoard = (
   snapshot: RemoteKanbanSnapshot,
@@ -122,6 +135,7 @@ export const remoteSnapshotToKanbanBoard = (
     roughness: snapshot.board.roughness,
     cardRadius: snapshot.board.cardRadius,
     isLocked: snapshot.board.isLocked,
+    members: snapshot.members,
     createdAt: snapshot.board.createdAt,
     updatedAt: snapshot.board.updatedAt,
     columns: activeColumns.map((column) => ({
@@ -139,11 +153,19 @@ export const remoteSnapshotToKanbanBoard = (
           id: card.id,
           title: card.title,
           assignee: card.legacyAssigneeText || undefined,
+          assigneeIds: card.assigneeIds,
           progress: card.progress,
           priority: card.priority,
           description: card.description,
           dueAt: card.dueDate,
           canvasTags: card.legacyCanvasTags,
+          canvasLinks: canvasLinksFor(snapshot, card.id).map((link) => ({
+            id: link.id,
+            canvasId: link.canvasId,
+            title: link.title,
+            state: link.state,
+            createdAt: link.createdAt,
+          })),
           checklist: checklistFor(snapshot, card.id).map((item) => ({
             id: item.id,
             title: item.title,
@@ -210,6 +232,11 @@ const reconcileMoves = (
 const same = (first: unknown, second: unknown) =>
   JSON.stringify(first) === JSON.stringify(second);
 
+const hasBoardLockedFailure = (results: KanbanCommandResult[]) =>
+  results.some(
+    (result) => result.status === "rejected" && result.code === "board_locked",
+  );
+
 export const createKanbanCommands = (
   snapshot: RemoteKanbanSnapshot,
   desired: KanbanBoard,
@@ -228,7 +255,7 @@ export const createKanbanCommands = (
     type,
     ...rest,
   });
-  const boardPayload = {
+  const desiredBoardPayload = {
     title: desired.title,
     roughness: desired.roughness,
     cardRadius: desired.cardRadius ?? 1,
@@ -240,8 +267,20 @@ export const createKanbanCommands = (
     cardRadius: snapshot.board.cardRadius,
     isLocked: snapshot.board.isLocked,
   };
-  if (!same(boardPayload, remoteBoardPayload)) {
+  const boardPayload = Object.fromEntries(
+    Object.entries(desiredBoardPayload).filter(
+      ([field, value]) =>
+        !same(
+          value,
+          remoteBoardPayload[field as keyof typeof remoteBoardPayload],
+        ),
+    ),
+  );
+  if (Object.keys(boardPayload).length > 0) {
     commands.push(command("updateBoard", { payload: boardPayload }));
+    if (snapshot.board.isLocked && boardPayload.isLocked === false) {
+      return commands;
+    }
   }
 
   const remoteColumns = new Map(
@@ -343,7 +382,7 @@ export const createKanbanCommands = (
           payload: {
             ...cardPayload(card),
             columnId: column.id,
-            assigneeIds: [],
+            assigneeIds: card.assigneeIds || [],
             ...resolveNeighbors(column.cardIds, index, existingCards),
           },
         }),
@@ -426,7 +465,7 @@ export const createKanbanCommands = (
       existingCards.add(id);
       continue;
     }
-    const payload = cardPayload(card);
+    const payload = cardSyncPayload(card);
     const fields = Object.keys(payload).filter(
       (field) =>
         !same(
@@ -555,6 +594,53 @@ export const createKanbanCommands = (
     }
   }
 
+  const remoteCanvasLinks = new Map(
+    snapshot.canvasLinks
+      .filter(
+        (link) =>
+          typeof link.id === "string" &&
+          typeof link.cardId === "string" &&
+          typeof link.canvasId === "string",
+      )
+      .map((link) => [link.id, link]),
+  );
+  const keptRemoteCanvasLinkIds = new Set<string>();
+  for (const card of Object.values(desired.cards)) {
+    for (const link of card.canvasLinks || []) {
+      if (remoteCanvasLinks.has(link.id)) {
+        keptRemoteCanvasLinkIds.add(link.id);
+        continue;
+      }
+      const duplicateRemote = [...remoteCanvasLinks.values()].find(
+        (remote) =>
+          remote.cardId === card.id && remote.canvasId === link.canvasId,
+      );
+      if (duplicateRemote) {
+        keptRemoteCanvasLinkIds.add(duplicateRemote.id);
+        continue;
+      }
+      commands.push(
+        command("createCanvasLink", {
+          entityId: link.id,
+          payload: { cardId: card.id, canvasId: link.canvasId },
+        }),
+      );
+    }
+  }
+  for (const remote of remoteCanvasLinks.values()) {
+    if (
+      !desired.cards[remote.cardId] ||
+      !keptRemoteCanvasLinkIds.has(remote.id)
+    ) {
+      commands.push(
+        command("deleteCanvasLink", {
+          entityId: remote.id,
+          payload: {},
+        }),
+      );
+    }
+  }
+
   for (const remote of activeRemoteColumns) {
     if (!desiredColumnIds.includes(remote.id)) {
       commands.push(
@@ -610,6 +696,7 @@ export class KanbanSync {
   private stopEvents: (() => void) | null = null;
   private stopped = false;
   private localDirty = false;
+  private recoveringBoardLocked = false;
   private operation: Promise<void> = Promise.resolve();
 
   constructor(
@@ -855,6 +942,10 @@ export class KanbanSync {
       await this.pullChanges();
       await this.persist();
       if (failures.length > 0) {
+        if (hasBoardLockedFailure(failures) && !this.recoveringBoardLocked) {
+          await this.recoverFromBoardLocked();
+          return;
+        }
         this.onStatus("conflict");
         throw new KanbanSyncConflictError(failures);
       }
@@ -886,6 +977,64 @@ export class KanbanSync {
       }
       this.schedulePushRetry();
       throw error;
+    }
+  }
+
+  private async recoverFromBoardLocked() {
+    if (!this.state || !this.desired) {
+      return;
+    }
+    this.recoveringBoardLocked = true;
+    try {
+      this.state.snapshot = await this.api.getSnapshot(
+        this.state.snapshot.board.id,
+      );
+      this.state.pendingBatch = null;
+      await this.persist();
+
+      if (this.state.snapshot.board.isLocked && !this.desired.isLocked) {
+        const unlock = {
+          ...this.nextIdentity(),
+          knownBoardRevision: this.state.snapshot.board.revision,
+          type: "updateBoard",
+          payload: { isLocked: false },
+        };
+        const unlockResults = await this.api.applyCommands(
+          this.state.snapshot.board.id,
+          this.state.clientId,
+          [unlock],
+        );
+        const unlockFailures = unlockResults.filter(
+          (result) =>
+            result.status === "conflict" || result.status === "rejected",
+        );
+        this.state.snapshot = await this.api.getSnapshot(
+          this.state.snapshot.board.id,
+        );
+        await this.persist();
+        if (unlockFailures.length > 0) {
+          const canonical = remoteSnapshotToKanbanBoard(this.state.snapshot);
+          this.desired = canonical;
+          this.onBoard(canonical);
+          this.localDirty = false;
+          this.onStatus("conflict");
+          throw new KanbanSyncConflictError(unlockFailures);
+        }
+      }
+
+      if (this.hasLocalDifferences()) {
+        this.localDirty = true;
+        await this.flush();
+        return;
+      }
+
+      const canonical = remoteSnapshotToKanbanBoard(this.state.snapshot);
+      this.desired = canonical;
+      this.onBoard(canonical);
+      this.localDirty = false;
+      this.onStatus("synced");
+    } finally {
+      this.recoveringBoardLocked = false;
     }
   }
 

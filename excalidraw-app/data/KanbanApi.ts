@@ -305,8 +305,10 @@ export class KanbanApi {
     const response = await fetch(
       `${this.baseUrl}/v1/kanban/boards/${encodeURIComponent(boardId)}/events`,
       {
+        cache: "no-store",
         headers: {
           Accept: "text/event-stream",
+          "Cache-Control": "no-cache",
           Authorization: `Bearer ${token}`,
         },
         signal,
@@ -364,8 +366,10 @@ export class KanbanApi {
     try {
       const response = await fetch(`${this.baseUrl}${path}`, {
         ...init,
+        cache: "no-store",
         headers: {
           Accept: "application/json",
+          "Cache-Control": "no-store",
           Authorization: `Bearer ${token}`,
           ...(init.body ? { "Content-Type": "application/json" } : {}),
           ...init.headers,
