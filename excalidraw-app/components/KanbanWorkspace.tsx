@@ -6,20 +6,33 @@ import {
 import { THEME, applyDarkModeFilter } from "@excalidraw/excalidraw";
 import { randomId } from "@excalidraw/common";
 import { useUIAppState } from "@excalidraw/excalidraw/context/ui-appState";
-import React, { useCallback, useState, useEffect, useRef } from "react";
+import React, {
+  useCallback,
+  useState,
+  useEffect,
+  useMemo,
+  useRef,
+} from "react";
 
 import type {
   KanbanBoard,
   KanbanCard,
+  KanbanCanvasLink,
   KanbanColumn,
+  KanbanMember,
 } from "../data/KanbanStore";
 import type { KanbanSyncStatus } from "../data/KanbanSync";
+import type { CanvasDocumentMetadata } from "../data/WorkspaceStore";
 
 type Props = {
   board: KanbanBoard;
   onChange: (board: KanbanBoard) => void;
   readOnly?: boolean;
   syncStatus?: KanbanSyncStatus;
+  currentUserId?: string | null;
+  currentUserDisplayName?: string;
+  canvases?: CanvasDocumentMetadata[];
+  onOpenCanvas?: (canvasId: string) => void;
 };
 
 type DraggedCard = { cardId: string; columnId: string };
@@ -105,11 +118,21 @@ const formatDueDate = (dueAt: string) => {
   } as const;
 };
 
+const memberFallbackLabel = (userId: string) =>
+  `Member ${userId.slice(0, 4)}…${userId.slice(-4)}`;
+
+const firstInitial = (label: string) =>
+  label.trim().charAt(0).toLocaleUpperCase() || "U";
+
 export const KanbanWorkspace = ({
   board,
   onChange,
   readOnly = false,
   syncStatus = "local",
+  currentUserId = null,
+  currentUserDisplayName = "You",
+  canvases = [],
+  onOpenCanvas,
 }: Props) => {
   const appState = useUIAppState();
   const [draftColumnId, setDraftColumnId] = useState<string | null>(null);
@@ -125,7 +148,47 @@ export const KanbanWorkspace = ({
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>("all");
   const [cardSort, setCardSort] = useState<CardSort>("manual");
   const [checklistDraft, setChecklistDraft] = useState("");
+  const [canvasQuery, setCanvasQuery] = useState("");
   const boardContainerRef = useRef<HTMLDivElement>(null);
+  const members = useMemo<KanbanMember[]>(() => {
+    const known = new Map(
+      (board.members || []).map((member) => [member.userId, member]),
+    );
+    if (currentUserId && !known.has(currentUserId)) {
+      known.set(currentUserId, {
+        userId: currentUserId,
+        role: "owner",
+        membershipVersion: 1,
+        invitedBy: null,
+        joinedAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    }
+    return [...known.values()];
+  }, [board.members, currentUserId]);
+  const memberById = useMemo(
+    () => new Map(members.map((member) => [member.userId, member])),
+    [members],
+  );
+  const memberLabel = useCallback(
+    (userId: string) =>
+      currentUserId && userId === currentUserId
+        ? currentUserDisplayName || "You"
+        : memberFallbackLabel(userId),
+    [currentUserDisplayName, currentUserId],
+  );
+  const assigneeLabelFor = useCallback(
+    (card: KanbanCard) => {
+      const primaryId = card.assigneeIds?.find((id) => memberById.has(id));
+      if (primaryId) {
+        const label = memberLabel(primaryId);
+        const extra = Math.max((card.assigneeIds?.length || 1) - 1, 0);
+        return extra > 0 ? `${label} +${extra}` : label;
+      }
+      return card.assignee || "Unassigned";
+    },
+    [memberById, memberLabel],
+  );
   const commit = useCallback(
     (next: KanbanBoard) => {
       if (!readOnly) {
@@ -228,6 +291,7 @@ export const KanbanWorkspace = ({
 
   useEffect(() => {
     setChecklistDraft("");
+    setCanvasQuery("");
   }, [selectedCardId]);
 
   const beginCard = (columnId = board.columns[0]?.id) => {
@@ -257,7 +321,7 @@ export const KanbanWorkspace = ({
         [id]: {
           id,
           title,
-          assignee: "You",
+          assigneeIds: currentUserId ? [currentUserId] : [],
           progress: 0,
           priority: null,
           createdAt: now,
@@ -450,8 +514,10 @@ export const KanbanWorkspace = ({
       const searchable = [
         card.title,
         card.assignee,
+        ...(card.assigneeIds || []).map((id) => memberLabel(id)),
         card.description,
         ...(card.canvasTags ?? []),
+        ...(card.canvasLinks ?? []).map((link) => link.title || link.canvasId),
       ]
         .filter(Boolean)
         .join(" ")
@@ -484,6 +550,40 @@ export const KanbanWorkspace = ({
   const checklistTotal = selectedCard?.checklist?.length ?? 0;
   const checklistCompleted =
     selectedCard?.checklist?.filter((item) => item.completed).length ?? 0;
+  const selectedCanvasIds = new Set(
+    selectedCard?.canvasLinks?.map((link) => link.canvasId) || [],
+  );
+  const normalizedCanvasQuery = canvasQuery
+    .trim()
+    .replace(/^@/, "")
+    .toLocaleLowerCase();
+  const canvasOptions = canvases
+    .filter((canvas) => !selectedCanvasIds.has(canvas.id))
+    .filter(
+      (canvas) =>
+        !normalizedCanvasQuery ||
+        canvas.title.toLocaleLowerCase().includes(normalizedCanvasQuery),
+    )
+    .sort((first, second) => second.lastOpenedAt - first.lastOpenedAt)
+    .slice(0, 6);
+  const addCanvasLink = (cardId: string, canvas: CanvasDocumentMetadata) => {
+    const card = board.cards[cardId];
+    if (
+      !card ||
+      card.canvasLinks?.some((link) => link.canvasId === canvas.id)
+    ) {
+      return;
+    }
+    const link: KanbanCanvasLink = {
+      id: randomId(),
+      canvasId: canvas.id,
+      title: canvas.title,
+      state: "available",
+      createdAt: Date.now(),
+    };
+    patchCard(cardId, { canvasLinks: [...(card.canvasLinks || []), link] });
+    setCanvasQuery("");
+  };
   const hasActiveQuery =
     !!normalizedSearch || priorityFilter !== "all" || cardSort !== "manual";
 
@@ -720,6 +820,7 @@ export const KanbanWorkspace = ({
                       </div>
                       {(card.priority ||
                         card.dueAt ||
+                        !!card.canvasLinks?.length ||
                         !!card.canvasTags?.length) && (
                         <div className="kanban-card-meta">
                           {card.priority && (
@@ -737,17 +838,38 @@ export const KanbanWorkspace = ({
                               {dueDate.label}
                             </span>
                           )}
-                          {(card.canvasTags ?? []).slice(0, 2).map((tag) => (
-                            <span className="kanban-canvas-tag" key={tag}>
-                              @{tag}
+                          {(card.canvasLinks ?? []).slice(0, 2).map((link) => (
+                            <span
+                              className={`kanban-canvas-tag ${
+                                link.state === "restricted"
+                                  ? "kanban-canvas-tag--restricted"
+                                  : ""
+                              }`}
+                              key={link.id}
+                              title={
+                                link.state === "restricted"
+                                  ? "Canvas unavailable for this account"
+                                  : link.title || link.canvasId
+                              }
+                            >
+                              @{link.title || "Restricted"}
                             </span>
                           ))}
+                          {!card.canvasLinks?.length &&
+                            (card.canvasTags ?? []).slice(0, 2).map((tag) => (
+                              <span
+                                className="kanban-canvas-tag kanban-canvas-tag--legacy"
+                                key={tag}
+                              >
+                                @{tag}
+                              </span>
+                            ))}
                         </div>
                       )}
                       <div className="kanban-card-footer">
                         <div className="kanban-card-person">
-                          <span>{(card.assignee || "You").charAt(0)}</span>
-                          <b>{card.assignee || "You"}</b>
+                          <span>{firstInitial(assigneeLabelFor(card))}</span>
+                          <b>{assigneeLabelFor(card)}</b>
                         </div>
                         <div className="kanban-card-progress">
                           <i>
@@ -834,14 +956,26 @@ export const KanbanWorkspace = ({
             <div className="kanban-detail-grid">
               <label>
                 <span>Assignee</span>
-                <input
-                  value={selectedCard.assignee ?? ""}
-                  placeholder="Unassigned"
-                  readOnly={board.isLocked}
+                <select
+                  value={selectedCard.assigneeIds?.[0] || ""}
+                  disabled={board.isLocked || members.length === 0}
                   onChange={(event) =>
-                    patchCard(selectedCard.id, { assignee: event.target.value })
+                    patchCard(selectedCard.id, {
+                      assigneeIds: event.target.value
+                        ? [event.target.value]
+                        : [],
+                      assignee: undefined,
+                    })
                   }
-                />
+                >
+                  <option value="">Unassigned</option>
+                  {members.map((member) => (
+                    <option key={member.userId} value={member.userId}>
+                      {memberLabel(member.userId)}
+                      {member.role === "owner" ? " · owner" : ""}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label>
                 <span>Priority</span>
@@ -916,49 +1050,121 @@ export const KanbanWorkspace = ({
               <div className="kanban-detail-section-title">
                 <div>
                   <strong>Canvas links</strong>
-                  <span>Use @name to connect project context</span>
+                  <span>Search your real canvases and attach context</span>
                 </div>
               </div>
               <div className="kanban-tag-editor">
+                {(selectedCard.canvasLinks ?? []).map((link) => (
+                  <span
+                    className={`kanban-linked-canvas ${
+                      link.state === "restricted"
+                        ? "kanban-linked-canvas--restricted"
+                        : ""
+                    }`}
+                    key={link.id}
+                  >
+                    <button
+                      type="button"
+                      className="kanban-linked-canvas-open"
+                      disabled={link.state !== "available" || !onOpenCanvas}
+                      title={
+                        link.state === "available"
+                          ? `Open ${link.title || "canvas"}`
+                          : "Canvas unavailable for this account"
+                      }
+                      onClick={() => onOpenCanvas?.(link.canvasId)}
+                    >
+                      <span className="kanban-tag-name">
+                        @{link.title || "Restricted canvas"}
+                      </span>
+                    </button>
+                    {!board.isLocked && (
+                      <button
+                        type="button"
+                        className="kanban-linked-canvas-remove"
+                        aria-label={`Remove canvas link ${
+                          link.title || link.canvasId
+                        }`}
+                        onClick={() =>
+                          patchCard(selectedCard.id, {
+                            canvasLinks: selectedCard.canvasLinks?.filter(
+                              (item) => item.id !== link.id,
+                            ),
+                          })
+                        }
+                      >
+                        ×
+                      </button>
+                    )}
+                  </span>
+                ))}
                 {(selectedCard.canvasTags ?? []).map((tag) => (
-                  <button
-                    type="button"
+                  <span
+                    className="kanban-linked-canvas kanban-linked-canvas--legacy"
                     key={tag}
-                    disabled={board.isLocked}
-                    title="Remove canvas link"
-                    onClick={() =>
-                      patchCard(selectedCard.id, {
-                        canvasTags: selectedCard.canvasTags?.filter(
-                          (item) => item !== tag,
-                        ),
-                      })
-                    }
                   >
                     <span className="kanban-tag-name">@{tag}</span>
-                    <span aria-hidden="true">×</span>
-                  </button>
+                    {!board.isLocked && (
+                      <button
+                        type="button"
+                        className="kanban-linked-canvas-remove"
+                        aria-label={`Remove legacy canvas tag ${tag}`}
+                        onClick={() =>
+                          patchCard(selectedCard.id, {
+                            canvasTags: selectedCard.canvasTags?.filter(
+                              (item) => item !== tag,
+                            ),
+                          })
+                        }
+                      >
+                        ×
+                      </button>
+                    )}
+                  </span>
                 ))}
                 {!board.isLocked && (
-                  <input
-                    aria-label="Add canvas link"
-                    placeholder="@canvas1 + Enter"
-                    onKeyDown={(event) => {
-                      if (event.key !== "Enter") {
-                        return;
+                  <div className="kanban-canvas-picker">
+                    <input
+                      aria-label="Search canvases to link"
+                      placeholder={
+                        canvases.length
+                          ? "@canvas name"
+                          : "No canvases in this workspace"
                       }
-                      event.preventDefault();
-                      const tag = event.currentTarget.value
-                        .trim()
-                        .replace(/^@/, "");
-                      if (!tag || selectedCard.canvasTags?.includes(tag)) {
-                        return;
-                      }
-                      patchCard(selectedCard.id, {
-                        canvasTags: [...(selectedCard.canvasTags ?? []), tag],
-                      });
-                      event.currentTarget.value = "";
-                    }}
-                  />
+                      value={canvasQuery}
+                      disabled={canvases.length === 0}
+                      onChange={(event) => setCanvasQuery(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter") {
+                          return;
+                        }
+                        event.preventDefault();
+                        const [first] = canvasOptions;
+                        if (first) {
+                          addCanvasLink(selectedCard.id, first);
+                        }
+                      }}
+                    />
+                    {canvasQuery.trim() && (
+                      <div className="kanban-canvas-options">
+                        {canvasOptions.length ? (
+                          canvasOptions.map((canvas) => (
+                            <button
+                              type="button"
+                              key={canvas.id}
+                              onClick={() =>
+                                addCanvasLink(selectedCard.id, canvas)
+                              }
+                            >
+                              <span>@{canvas.title}</span>
+                            </button>
+                          ))
+                        ) : (
+                          <span>No matching canvas</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             </section>
