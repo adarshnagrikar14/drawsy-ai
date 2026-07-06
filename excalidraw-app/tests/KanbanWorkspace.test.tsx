@@ -47,6 +47,35 @@ const Harness = ({ initialBoard = board }: { initialBoard?: KanbanBoard }) => {
 };
 
 describe("KanbanWorkspace", () => {
+  it("blocks every mutation when access is read-only", () => {
+    const onChange = vi.fn();
+    render(
+      <UIAppStateContext.Provider
+        value={{
+          ...getDefaultAppState(),
+          width: 1000,
+          height: 800,
+          offsetLeft: 0,
+          offsetTop: 0,
+        }}
+      >
+        <KanbanWorkspace board={board} onChange={onChange} readOnly />
+      </UIAppStateContext.Provider>,
+    );
+
+    fireEvent.change(screen.getByLabelText("Rename Not started"), {
+      target: { value: "Changed" },
+    });
+    fireEvent.blur(screen.getByLabelText("Rename Not started"));
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent("kanbanRoughnessChange", { detail: 2 }),
+      );
+    });
+
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
   it("adds, edits, and deletes cards without a network dependency", () => {
     render(<Harness />);
 
@@ -203,17 +232,26 @@ describe("KanbanWorkspace", () => {
 
   it("animates an empty status before deleting it", () => {
     vi.useFakeTimers();
-    const { container } = render(<Harness />);
+    const customBoard = {
+      ...board,
+      columns: [
+        ...board.columns,
+        { id: "to-delete", title: "To delete", cardIds: [] },
+      ],
+    };
+    const { container } = render(<Harness initialBoard={customBoard} />);
 
-    fireEvent.click(screen.getByLabelText("Delete Done"));
+    expect(container.querySelectorAll(".kanban-column").length).toBe(3);
+
+    fireEvent.click(screen.getByLabelText("Delete To delete"));
 
     expect(
-      screen.getByLabelText("Rename Done").closest(".kanban-column"),
+      screen.getByLabelText("Rename To delete").closest(".kanban-column"),
     ).toHaveClass("kanban-column--deleting");
-    expect(container.querySelectorAll(".kanban-column").length).toBe(2);
+    expect(container.querySelectorAll(".kanban-column").length).toBe(3);
 
     act(() => vi.advanceTimersByTime(240));
-    expect(container.querySelectorAll(".kanban-column").length).toBe(1);
+    expect(container.querySelectorAll(".kanban-column").length).toBe(2);
     vi.useRealTimers();
   });
 
@@ -273,7 +311,9 @@ describe("KanbanWorkspace", () => {
     fireEvent.change(screen.getByLabelText("Add checklist item"), {
       target: { value: "Review prototype" },
     });
-    fireEvent.submit(screen.getByLabelText("Add checklist item").closest("form")!);
+    fireEvent.submit(
+      screen.getByLabelText("Add checklist item").closest("form")!,
+    );
 
     expect(screen.getAllByText("@canvas1").length).toBeGreaterThan(0);
     expect(screen.getByText("Review prototype")).not.toBeNull();
