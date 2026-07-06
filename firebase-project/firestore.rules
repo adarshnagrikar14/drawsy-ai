@@ -13,5 +13,17 @@ service cloud.firestore {
     match /users/{userId}/{document=**} {
       allow read, write: if false;
     }
+
+    // Kanban state and access control are server-only. Clients use the
+    // authenticated Drawsy API and never read membership or ciphertext direct.
+    match /kanbanBoards/{boardId}/{document=**} {
+      allow read, write: if false;
+    }
+    match /kanbanInvitationTokens/{tokenDigest} {
+      allow read, write: if false;
+    }
+    match /kanbanRateLimits/{limitId} {
+      allow read, write: if false;
+    }
   }
 }
