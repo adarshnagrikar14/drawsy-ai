@@ -5,6 +5,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 
 import { MIME_TYPES, arrayToMap, nextAnimationFrame } from "@excalidraw/common";
 
@@ -50,7 +51,7 @@ import { useEditorInterface } from "./App";
 
 import { Button } from "./Button";
 import DropdownMenu from "./dropdownMenu/DropdownMenu";
-import { checkIcon, chevronLeftIcon, settingsIcon } from "./icons";
+import { checkIcon, chevronLeftIcon, settingsIcon, searchIcon } from "./icons";
 
 import type { ExcalidrawLibraryIds } from "../data/types";
 import type { DrawsyImportedLibraryPack } from "../data/drawsyLibraryPacks";
@@ -401,6 +402,10 @@ export default function LibraryMenuItems({
   const libraryContainerRef = useRef<HTMLDivElement>(null);
   const scrollPosition = useScrollPosition<HTMLDivElement>(libraryContainerRef);
   const { svgCache } = useLibraryCache();
+  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    setPortalTarget(document.getElementById("sidebar-header-portal-target"));
+  }, []);
   const [lastSelectedItem, setLastSelectedItem] = useState<
     LibraryItem["id"] | null
   >(null);
@@ -929,6 +934,7 @@ export default function LibraryMenuItems({
             <TextField
               ref={searchInputRef}
               type="search"
+              icon={searchIcon}
               className={clsx("library-menu-items-container__search", {
                 hideCancelButton: editorInterface.formFactor !== "phone",
               })}
@@ -936,11 +942,15 @@ export default function LibraryMenuItems({
               value={searchInputValue}
               onChange={(value) => setSearchInputValue(value)}
             />
-            <LibraryDropdownMenu
-              selectedItems={selectedItems}
-              onSelectItems={onSelectItems}
-              className="library-menu-dropdown-container--in-heading"
-            />
+            {portalTarget &&
+              createPortal(
+                <LibraryDropdownMenu
+                  selectedItems={selectedItems}
+                  onSelectItems={onSelectItems}
+                  className="library-menu-dropdown-container--in-heading"
+                />,
+                portalTarget,
+              )}
           </div>
 
           <Stack.Col
@@ -980,25 +990,7 @@ export default function LibraryMenuItems({
               </div>
             ) : null}
 
-            {!isLibraryEmpty ? (
-              <div className="library-menu-items-container__header">
-                {t("labels.personalLib")}
-              </div>
-            ) : null}
 
-            {filteredLooseItems.looseUnpublishedItems.length > 0 ? (
-              <LibraryMenuSectionGrid>
-                <LibraryMenuSection
-                  items={filteredLooseItems.looseUnpublishedItems}
-                  onItemSelectToggle={onItemSelectToggle}
-                  onItemDrag={onItemDrag}
-                  onClick={onItemClick}
-                  isItemSelected={isItemSelected}
-                  svgCache={svgCache}
-                  itemsRenderedPerBatch={itemsRenderedPerBatch}
-                />
-              </LibraryMenuSectionGrid>
-            ) : null}
 
             {filteredLooseItems.importedPackSections.length > 0 ||
             filteredLooseItems.loosePublishedItems.length > 0 ? (
@@ -1083,6 +1075,7 @@ export default function LibraryMenuItems({
           <div className="library-menu-items-header">
             <TextField
               type="search"
+              icon={searchIcon}
               className={clsx("library-menu-items-container__search", {
                 hideCancelButton: editorInterface.formFactor !== "phone",
               })}
@@ -1090,37 +1083,41 @@ export default function LibraryMenuItems({
               value={marketplaceQuery}
               onChange={setMarketplaceQuery}
             />
-            <div className="library-menu-dropdown-container library-menu-dropdown-container--in-heading">
-              <DropdownMenu open={isSortMenuOpen}>
-                <DropdownMenu.Trigger
-                  onToggle={() => setIsSortMenuOpen((v) => !v)}
-                >
-                  {settingsIcon}
-                </DropdownMenu.Trigger>
-                <DropdownMenu.Content
-                  onClickOutside={() => setIsSortMenuOpen(false)}
-                  onSelect={() => setIsSortMenuOpen(false)}
-                  className="library-menu"
-                >
-                  {(
-                    [
-                      ["popular", "Popular"],
-                      ["new", "Newest"],
-                      ["updated", "Recently Updated"],
-                      ["name", "A – Z"],
-                    ] as [MarketplaceSort, string][]
-                  ).map(([sort, label]) => (
-                    <DropdownMenu.Item
-                      key={sort}
-                      onSelect={() => setMarketplaceSort(sort)}
-                      icon={marketplaceSort === sort ? checkIcon : undefined}
+            {portalTarget &&
+              createPortal(
+                <div className="library-menu-dropdown-container library-menu-dropdown-container--in-heading">
+                  <DropdownMenu open={isSortMenuOpen}>
+                    <DropdownMenu.Trigger
+                      onToggle={() => setIsSortMenuOpen((v) => !v)}
                     >
-                      {label}
-                    </DropdownMenu.Item>
-                  ))}
-                </DropdownMenu.Content>
-              </DropdownMenu>
-            </div>
+                      {settingsIcon}
+                    </DropdownMenu.Trigger>
+                    <DropdownMenu.Content
+                      onClickOutside={() => setIsSortMenuOpen(false)}
+                      onSelect={() => setIsSortMenuOpen(false)}
+                      className="library-menu"
+                    >
+                      {(
+                        [
+                          ["popular", "Popular"],
+                          ["new", "Newest"],
+                          ["updated", "Recently Updated"],
+                          ["name", "A – Z"],
+                        ] as [MarketplaceSort, string][]
+                      ).map(([sort, label]) => (
+                        <DropdownMenu.Item
+                          key={sort}
+                          onSelect={() => setMarketplaceSort(sort)}
+                          icon={marketplaceSort === sort ? checkIcon : undefined}
+                        >
+                          {label}
+                        </DropdownMenu.Item>
+                      ))}
+                    </DropdownMenu.Content>
+                  </DropdownMenu>
+                </div>,
+                portalTarget,
+              )}
           </div>
 
           <Stack.Col className="library-menu-items-container__items" gap={1}>
