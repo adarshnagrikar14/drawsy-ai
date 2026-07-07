@@ -8,6 +8,7 @@ import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
 import { useStable } from "../../hooks/useStable";
 import { useEditorInterface } from "../App";
+import { useUIAppState } from "../../context/ui-appState";
 import { Island } from "../Island";
 import Stack from "../Stack";
 
@@ -34,6 +35,8 @@ const MenuContent = ({
   align?: "start" | "center" | "end";
 }) => {
   const editorInterface = useEditorInterface();
+  const appState = useUIAppState();
+  const theme = appState?.theme || "light";
   const menuRef = useRef<HTMLDivElement>(null);
 
   const callbacksRef = useStable({ onClickOutside });
@@ -42,12 +45,15 @@ const MenuContent = ({
     menuRef,
     useCallback(
       (event) => {
-        // prevents closing if clicking on the trigger button
-        if (
-          !menuRef.current
-            ?.closest(`.${CLASSES.DROPDOWN_MENU_EVENT_WRAPPER}`)
-            ?.contains(event.target)
-        ) {
+        // prevents closing if clicking on the trigger button or inside the menu content
+        const clickedTrigger = (event.target as HTMLElement).closest(
+          `.${CLASSES.DROPDOWN_MENU_EVENT_WRAPPER}`,
+        );
+        const clickedInsideMenu = menuRef.current?.contains(
+          event.target as Node,
+        );
+
+        if (!clickedInsideMenu && !clickedTrigger) {
           callbacksRef.onClickOutside?.();
         }
       },
@@ -78,31 +84,48 @@ const MenuContent = ({
     };
   }, [callbacksRef, open]);
 
-  const classNames = clsx(`dropdown-menu ${className}`, {
-    "dropdown-menu--mobile": editorInterface.formFactor === "phone",
-  }).trim();
+  const classNames = clsx(
+    "excalidraw",
+    `theme--${theme}`,
+    "dropdown-menu",
+    className,
+    {
+      "dropdown-menu--mobile": editorInterface.formFactor === "phone",
+    },
+  ).trim();
 
   return (
     <DropdownMenuContentPropsContext.Provider value={{ onSelect }}>
-      <DropdownMenuPrimitive.Content
-        ref={menuRef}
-        className={classNames}
-        style={style}
-        data-testid="dropdown-menu"
-        align={align}
-        sideOffset={8}
-        onCloseAutoFocus={(event: Event) => event.preventDefault()}
-      >
-        {/* the zIndex ensures this menu has higher stacking order,
-    see https://github.com/excalidraw/excalidraw/pull/1445 */}
-        {editorInterface.formFactor === "phone" ? (
-          <Stack.Col className="dropdown-menu-container">{children}</Stack.Col>
-        ) : (
-          <Island className="dropdown-menu-container" padding={2}>
-            {children}
-          </Island>
-        )}
-      </DropdownMenuPrimitive.Content>
+      <DropdownMenuPrimitive.Portal>
+        <DropdownMenuPrimitive.Content
+          ref={menuRef}
+          className={classNames}
+          style={style}
+          data-testid="dropdown-menu"
+          align={align}
+          sideOffset={8}
+          onCloseAutoFocus={(event: Event) => event.preventDefault()}
+        >
+          <div
+            style={{ display: "contents" }}
+            onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* the zIndex ensures this menu has higher stacking order,
+        see https://github.com/excalidraw/excalidraw/pull/1445 */}
+            {editorInterface.formFactor === "phone" ? (
+              <Stack.Col className="dropdown-menu-container">
+                {children}
+              </Stack.Col>
+            ) : (
+              <Island className="dropdown-menu-container" padding={2}>
+                {children}
+              </Island>
+            )}
+          </div>
+        </DropdownMenuPrimitive.Content>
+      </DropdownMenuPrimitive.Portal>
     </DropdownMenuContentPropsContext.Provider>
   );
 };
