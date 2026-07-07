@@ -1,13 +1,174 @@
 .excalidraw {
-  .default-sidebar .sidebar-triggers {
-    display: none;
+  .default-sidebar {
+    .sidebar-triggers {
+      display: none !important;
+    }
+
+    .sidebar__header {
+      padding: 0.35rem 0.75rem 0.65rem 0.75rem !important; // Add comfortable bottom padding below the divider line
+    }
   }
 
   .default-sidebar-tab-title {
-    font-size: 0.9375rem;
-    font-weight: 700;
+    font-size: 1.125rem;
+    font-weight: 800;
     color: var(--color-on-surface);
-    letter-spacing: -0.01em;
+    letter-spacing: -0.025em;
+    padding-left: 0.25rem;
+  }
+
+  // Universal Search Styling matching Comments Search
+  .default-sidebar {
+    .layer-ui__search-header,
+    .library-menu-items-header {
+      padding: 0.65rem 0.75rem 0.25rem 0.75rem !important; // Add top padding above the search bar
+    }
+
+    .layer-ui__search {
+      padding-top: 0 !important; // Remove default top padding
+    }
+
+    // Completely remove borders/outlines from TextField and its inputs
+    .layer-ui__search-header .ExcTextField,
+    .library-menu-items-header .ExcTextField,
+    .layer-ui__search-header .ExcTextField__input,
+    .library-menu-items-header .ExcTextField__input {
+      border: 0 !important;
+      border-color: transparent !important;
+      outline: 0 !important;
+      box-shadow: none !important;
+    }
+
+    // Target the ExcTextField wrapper
+    .layer-ui__search-header .ExcTextField,
+    .library-menu-items-header .ExcTextField {
+      position: relative;
+      display: flex;
+      min-width: 0;
+      flex: 1;
+      align-items: center;
+      height: 2.75rem;
+      border-radius: 0.75rem;
+      background: var(--color-surface-high) !important;
+      transition: border-color 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
+
+      &:focus-within {
+        background: var(--input-bg-color) !important;
+        border: 1px solid var(--color-primary) !important;
+        box-shadow: 0 0 0 1px var(--color-primary) !important;
+      }
+
+      svg {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        left: 0.8rem;
+        width: 1.1rem;
+        height: 1.1rem;
+        color: var(--color-muted-darker);
+        margin: 0;
+        z-index: 2;
+      }
+    }
+
+    .layer-ui__search-header .ExcTextField__input,
+    .library-menu-items-header .ExcTextField__input {
+      width: 100%;
+      height: 100% !important;
+      background: transparent !important;
+      padding: 0 0.8rem 0 2.45rem !important; // space for absolute searchIcon
+
+      input {
+        width: 100%;
+        min-width: 0;
+        padding: 0;
+        appearance: none;
+        color: var(--text-primary-color);
+        background: transparent !important;
+        outline: 0 !important;
+        font: inherit;
+        font-weight: 500;
+
+        &::placeholder {
+          color: var(--color-muted-darker);
+          font-size: 0.875rem;
+        }
+      }
+    }
+
+    // Section headers design system
+    .library-menu-items-container__header {
+      margin-top: 0.15rem !important;
+      margin-bottom: 0.25rem !important;
+    }
+  }
+
+  // Sidebar Header Buttons Portal Styling (menu -> pin -> close)
+  .sidebar__header__buttons {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+
+    #sidebar-header-portal-target {
+      display: inline-flex;
+      align-items: center;
+    }
+
+    .library-menu-dropdown-container {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+
+      .dropdown-menu-button,
+      button {
+        background: transparent !important;
+        border: 0 !important;
+        outline: 0 !important;
+        box-shadow: none !important;
+        cursor: pointer;
+        display: grid;
+        place-items: center;
+        width: var(--lg-button-size);
+        height: var(--lg-button-size);
+        border-radius: 0.375rem;
+
+        svg {
+          width: var(--lg-icon-size);
+          height: var(--lg-icon-size);
+          color: var(--color-on-surface);
+        }
+
+        &:hover {
+          background: var(--color-surface-high) !important;
+        }
+      }
+
+      // Ensure the dropdown menu content has correct width, letting Radix handle coordinates/placement
+      .dropdown-menu-container {
+        width: 196px !important;
+        min-width: 196px !important;
+      }
+    }
+
+    .library-actions-counter {
+      background-color: var(--color-primary);
+      color: white;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      width: 1rem;
+      height: 1rem;
+      position: absolute;
+      top: -0.125rem;
+      right: -0.125rem;
+      font-size: 0.625rem;
+      pointer-events: none;
+      z-index: 10;
+      border: 1.5px solid var(--sidebar-bg-color);
+    }
   }
 
   .app-sidebar-promo-container {
@@ -707,3 +868,13 @@
     }
   }
 }
+
+.dropdown-menu.library-menu {
+  z-index: 999999 !important;
+
+  .dropdown-menu-container {
+    width: 196px !important;
+    min-width: 196px !important;
+  }
+}
+
