@@ -381,6 +381,16 @@ export const WorkspaceMenu = ({
         </span>
       </div>
 
+      <div className="workspace-create-card add-menu-card workspace-presentation-card">
+        <span className="workspace-create-action">Presentation</span>
+        <span className="workspace-presentation-preview" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none">
+            <rect x="4" y="5" width="16" height="11" rx="2" />
+            <path d="M8 20h8M12 16v4M8 9h8M8 12h5" />
+          </svg>
+        </span>
+      </div>
+
       {Array.from({ length: 2 }, (_, index) => (
         <div
           className="add-menu-card workspace-create-placeholder"
