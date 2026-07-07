@@ -2252,7 +2252,9 @@ const ExcalidrawWrapper = () => {
                 setCommentPlacement(false);
                 setCommentDraftAnchor(null);
                 setCommentsSidebarOpen(false);
-                excalidrawAPI?.updateScene({ appState: { openSidebar: null } });
+                excalidrawAPI?.updateScene({
+                  appState: { openSidebar: null, openMenu: null },
+                });
                 setKanbanWorkspaceActive(true);
               }}
               onCreateProjectCanvas={(projectId) => {
