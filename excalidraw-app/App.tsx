@@ -48,10 +48,15 @@ import {
   exportToPlus,
   share,
   messageCircleIcon,
+  presentationIcon,
   youtubeIcon,
 } from "@excalidraw/excalidraw/components/icons";
 import { Button } from "@excalidraw/excalidraw/components/Button";
-import { isElementLink } from "@excalidraw/element";
+import {
+  getNonDeletedElements,
+  isElementLink,
+  isInvisiblySmallElement,
+} from "@excalidraw/element";
 import {
   bumpElementVersions,
   restoreAppState,
@@ -258,14 +263,18 @@ const shareableLinkConfirmDialog = {
 const TopRightToolbar = ({
   onShareSelect,
   onCommentSelect,
+  onPresentationSelect,
   isPlacingComment,
   isKanbanOpen,
+  isPresentationOpen,
   onCollabDialogOpen,
 }: {
   onShareSelect: () => void;
   onCommentSelect: () => void;
+  onPresentationSelect: () => void;
   isPlacingComment: boolean;
   isKanbanOpen: boolean;
+  isPresentationOpen: boolean;
   onCollabDialogOpen: () => void;
 }) => {
   if (isKanbanOpen) {
@@ -278,6 +287,22 @@ const TopRightToolbar = ({
           onSelect={onCollabDialogOpen}
         >
           {usersIcon}
+        </Button>
+        <ExcalidrawPlusPromoBanner isSignedIn={isExcalidrawPlusSignedUser} />
+      </>
+    );
+  }
+
+  if (isPresentationOpen) {
+    return (
+      <>
+        <Button
+          className="sidebar-trigger default-sidebar-trigger active presentation-sidebar-trigger"
+          title="Presentation"
+          aria-label="Presentation"
+          onSelect={onPresentationSelect}
+        >
+          {presentationIcon}
         </Button>
         <ExcalidrawPlusPromoBanner isSignedIn={isExcalidrawPlusSignedUser} />
       </>
@@ -308,6 +333,13 @@ const TopRightToolbar = ({
     </>
   );
 };
+
+const isSceneEmptyForPresentation = (
+  elements: readonly ExcalidrawElement[] | null | undefined,
+) =>
+  getNonDeletedElements(elements || []).every((element) =>
+    isInvisiblySmallElement(element),
+  );
 
 const initializeScene = async (opts: {
   collabAPI: CollabAPI | null;
@@ -616,9 +648,11 @@ const ExcalidrawWrapper = () => {
   const [presentationCanvasOpen, setPresentationCanvasOpen] = useState(() =>
     PresentationStore.loadActive(),
   );
+  const [presentationCanvasEmpty, setPresentationCanvasEmpty] = useState(true);
   const presentationCanvasOpenRef = useRef(presentationCanvasOpen);
   const presentationLoadingWorkspaceRef = useRef(false);
   const presentationSceneRef = useRef<CanvasScene | null>(null);
+  const presentationCanvasEmptyRef = useRef(presentationCanvasEmpty);
 
   useEffect(() => {
     if (kanbanInvitationToken && drawsyAuth.status === "anonymous") {
@@ -768,6 +802,17 @@ const ExcalidrawWrapper = () => {
     PresentationStore.saveActive(active);
     setPresentationCanvasOpen(active);
   }, []);
+
+  const updatePresentationCanvasEmpty = useCallback(
+    (elements: readonly ExcalidrawElement[] | null | undefined) => {
+      const nextEmpty = isSceneEmptyForPresentation(elements);
+      if (presentationCanvasEmptyRef.current !== nextEmpty) {
+        presentationCanvasEmptyRef.current = nextEmpty;
+        setPresentationCanvasEmpty(nextEmpty);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     const disabledSurfaces = document.querySelectorAll<HTMLElement>(
@@ -1012,6 +1057,7 @@ const ExcalidrawWrapper = () => {
             files: {},
           };
           presentationSceneRef.current = presentationScene;
+          updatePresentationCanvasEmpty(presentationScene.elements);
           data.scene = presentationScene;
         } else {
           data.scene = workspace.document.scene;
@@ -1067,9 +1113,17 @@ const ExcalidrawWrapper = () => {
               files: {},
             }
           : fallback.document.scene;
+        if (presentationCanvasOpenRef.current) {
+          updatePresentationCanvasEmpty(data.scene.elements || []);
+        }
       }
     },
-    [commitWorkspaceIndex, drawsyAuth.user, workspaceSync],
+    [
+      commitWorkspaceIndex,
+      drawsyAuth.user,
+      updatePresentationCanvasEmpty,
+      workspaceSync,
+    ],
   );
 
   useEffect(() => {
@@ -1274,6 +1328,7 @@ const ExcalidrawWrapper = () => {
     files: BinaryFiles,
   ) => {
     if (presentationCanvasOpenRef.current) {
+      updatePresentationCanvasEmpty(elements);
       if (!presentationLoadingWorkspaceRef.current) {
         const scene = {
           elements,
@@ -1408,6 +1463,7 @@ const ExcalidrawWrapper = () => {
         },
       };
     presentationSceneRef.current = scene;
+    updatePresentationCanvasEmpty(scene.elements);
     PresentationStore.saveScene(scene);
 
     setPresentationCanvasActive(true);
@@ -1438,6 +1494,7 @@ const ExcalidrawWrapper = () => {
     excalidrawAPI,
     saveWorkspaceCanvas,
     setPresentationCanvasActive,
+    updatePresentationCanvasEmpty,
   ]);
 
   const applyWorkspaceDocument = useCallback(
@@ -2386,8 +2443,20 @@ const ExcalidrawWrapper = () => {
                     setShareDialogState({ isOpen: true, type: "share" })
                   }
                   onCommentSelect={beginCommentPlacement}
+                  onPresentationSelect={() => {
+                    excalidrawAPI.updateScene({
+                      appState: {
+                        openSidebar: {
+                          name: DEFAULT_SIDEBAR.name,
+                          tab: "presentation",
+                        },
+                      },
+                      captureUpdate: CaptureUpdateAction.NEVER,
+                    });
+                  }}
                   isPlacingComment={isPlacingComment}
                   isKanbanOpen={kanbanOpen}
+                  isPresentationOpen={presentationCanvasOpen}
                   onCollabDialogOpen={() => {
                     if (!kanbanOpen) {
                       onCollabDialogOpen();
@@ -2536,12 +2605,14 @@ const ExcalidrawWrapper = () => {
           />
         )}
         <DefaultSidebar.Trigger style={{ display: "none" }} />
-        {!kanbanOpen && (
-          <AppWelcomeScreen
-            onCollabDialogOpen={onCollabDialogOpen}
-            isCollabEnabled={!isCollabDisabled}
-          />
-        )}
+        {!kanbanOpen &&
+          (!presentationCanvasOpen || presentationCanvasEmpty) && (
+            <AppWelcomeScreen
+              onCollabDialogOpen={onCollabDialogOpen}
+              isCollabEnabled={!isCollabDisabled}
+              isPresentationMode={presentationCanvasOpen}
+            />
+          )}
         <OverwriteConfirmDialog>
           <OverwriteConfirmDialog.Actions.ExportToImage />
           <OverwriteConfirmDialog.Actions.SaveToDisk />
