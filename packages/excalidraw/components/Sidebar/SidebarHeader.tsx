@@ -30,6 +30,7 @@ export const SidebarHeader = ({
     >
       {children}
       <div className="sidebar__header__buttons">
+        <div id="sidebar-header-portal-target" />
         {renderDockButton && (
           <Tooltip label={t("labels.sidebarLock")}>
             <Button
