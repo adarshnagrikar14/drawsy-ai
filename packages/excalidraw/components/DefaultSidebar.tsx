@@ -23,6 +23,13 @@ import { LibraryIcon, searchIcon } from "./icons";
 
 import type { SidebarProps, SidebarTriggerProps } from "./Sidebar/common";
 
+const TAB_TITLES: Record<string, string> = {
+  [CANVAS_SEARCH_TAB]: "Search",
+  [LIBRARY_SIDEBAR_TAB]: "Library",
+  comments: "Comments",
+  presentation: "Presentation",
+};
+
 const DefaultSidebarTrigger = withInternalFallback(
   "DefaultSidebarTrigger",
   (
@@ -74,7 +81,9 @@ export const DefaultSidebar = Object.assign(
 
       const { DefaultSidebarTabTriggersTunnel } = useTunnels();
 
-      const isForceDocked = appState.openSidebar?.tab === CANVAS_SEARCH_TAB;
+      const isForceDocked = appState?.openSidebar?.tab === CANVAS_SEARCH_TAB;
+      const activeTab = appState?.openSidebar?.tab ?? "";
+      const tabTitle = TAB_TITLES[activeTab] ?? "";
 
       return (
         <Sidebar
@@ -86,18 +95,18 @@ export const DefaultSidebar = Object.assign(
             isForceDocked || (docked ?? appState.defaultSidebarDockedPreference)
           }
           onDock={
-            // `onDock=false` disables docking.
-            // if `docked` passed, but no onDock passed, disable manual docking.
             isForceDocked || onDock === false || (!onDock && docked != null)
               ? undefined
-              : // compose to allow the host app to listen on default behavior
-                composeEventHandlers(onDock, (docked) => {
+              : composeEventHandlers(onDock, (docked) => {
                   setAppState({ defaultSidebarDockedPreference: docked });
                 })
           }
         >
           <Sidebar.Tabs>
             <Sidebar.Header>
+              {tabTitle && (
+                <span className="default-sidebar-tab-title">{tabTitle}</span>
+              )}
               <Sidebar.TabTriggers>
                 <Sidebar.TabTrigger tab={CANVAS_SEARCH_TAB}>
                   {searchIcon}
