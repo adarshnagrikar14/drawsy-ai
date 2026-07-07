@@ -81,7 +81,6 @@ export const DefaultSidebar = Object.assign(
 
       const { DefaultSidebarTabTriggersTunnel } = useTunnels();
 
-      const isForceDocked = appState?.openSidebar?.tab === CANVAS_SEARCH_TAB;
       const activeTab = appState?.openSidebar?.tab ?? "";
       const tabTitle = TAB_TITLES[activeTab] ?? "";
 
@@ -92,10 +91,10 @@ export const DefaultSidebar = Object.assign(
           key="default"
           className={clsx("default-sidebar", className)}
           docked={
-            isForceDocked || (docked ?? appState.defaultSidebarDockedPreference)
+            docked ?? appState?.defaultSidebarDockedPreference
           }
           onDock={
-            isForceDocked || onDock === false || (!onDock && docked != null)
+            onDock === false
               ? undefined
               : composeEventHandlers(onDock, (docked) => {
                   setAppState({ defaultSidebarDockedPreference: docked });
