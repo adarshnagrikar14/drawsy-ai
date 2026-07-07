@@ -26,6 +26,7 @@ type Props = {
   onCreateCanvas: () => void;
   onCreateProject: () => void;
   onOpenKanban: () => void;
+  onOpenPresentation?: () => void;
   onCreateProjectCanvas: (projectId: string) => void;
   onOpenCanvas: (canvasId: string) => void;
   onDeleteCanvas: (canvasId: string) => Promise<boolean>;
@@ -211,6 +212,7 @@ export const WorkspaceMenu = ({
   onCreateCanvas,
   onCreateProject,
   onOpenKanban,
+  onOpenPresentation,
   onCreateProjectCanvas,
   onOpenCanvas,
   onDeleteCanvas,
@@ -382,7 +384,14 @@ export const WorkspaceMenu = ({
       </div>
 
       <div className="workspace-create-card add-menu-card workspace-presentation-card">
-        <span className="workspace-create-action">Presentation</span>
+        <button
+          type="button"
+          className="workspace-create-action"
+          onClick={onOpenPresentation}
+          disabled={interactionDisabled || !onOpenPresentation}
+        >
+          Presentation
+        </button>
         <span className="workspace-presentation-preview" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none">
             <rect x="4" y="5" width="16" height="11" rx="2" />

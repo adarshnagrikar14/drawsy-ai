@@ -884,7 +884,9 @@
   .selected-shape-actions-container {
     display: none;
   }
+}
 
+.excalidraw-app.is-kanban-open .excalidraw {
   .kanban-workspace {
     --kanban-rough-offset-x: 0px;
     --kanban-rough-offset-y: 0px;

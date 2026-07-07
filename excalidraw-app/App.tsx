@@ -102,6 +102,7 @@ import { useDrawsyAuth } from "./auth/useDrawsyAuth";
 import { WorkspaceApi } from "./data/WorkspaceApi";
 import { WorkspaceSync } from "./data/WorkspaceSync";
 import { KanbanApi } from "./data/KanbanApi";
+import { PresentationStore } from "./data/PresentationStore";
 
 import {
   KanbanBoardSelectionRequiredError,
@@ -612,6 +613,12 @@ const ExcalidrawWrapper = () => {
   const [kanbanOpen, setKanbanOpen] = useState(() =>
     loadKanbanWorkspaceActive(),
   );
+  const [presentationCanvasOpen, setPresentationCanvasOpen] = useState(() =>
+    PresentationStore.loadActive(),
+  );
+  const presentationCanvasOpenRef = useRef(presentationCanvasOpen);
+  const presentationLoadingWorkspaceRef = useRef(false);
+  const presentationSceneRef = useRef<CanvasScene | null>(null);
 
   useEffect(() => {
     if (kanbanInvitationToken && drawsyAuth.status === "anonymous") {
@@ -756,6 +763,12 @@ const ExcalidrawWrapper = () => {
     window.dispatchEvent(new CustomEvent("kanbanToggle", { detail: active }));
   }, []);
 
+  const setPresentationCanvasActive = useCallback((active: boolean) => {
+    presentationCanvasOpenRef.current = active;
+    PresentationStore.saveActive(active);
+    setPresentationCanvasOpen(active);
+  }, []);
+
   useEffect(() => {
     const disabledSurfaces = document.querySelectorAll<HTMLElement>(
       ".layer-ui__wrapper__footer",
@@ -795,6 +808,10 @@ const ExcalidrawWrapper = () => {
       appState: AppState,
       files: BinaryFiles,
     ) => {
+      if (presentationCanvasOpenRef.current) {
+        return;
+      }
+
       const fingerprint = getWorkspaceSceneFingerprint(
         elements,
         appState,
@@ -956,10 +973,28 @@ const ExcalidrawWrapper = () => {
       try {
         WorkspaceStore.setScope(drawsyAuth.user?.uid || null);
         workspaceScopeRef.current = drawsyAuth.user?.uid || null;
+        const isPresentationRefresh = presentationCanvasOpenRef.current;
+        const workspaceInitialScene: CanvasScene = isPresentationRefresh
+          ? {
+              elements: [],
+              appState: {
+                ...getDefaultAppState(),
+                name: "Untitled",
+              },
+              files: {},
+            }
+          : data.scene;
         let workspace = workspaceSync
-          ? await workspaceSync.initialize(drawsyAuth.user!.uid, data.scene)
-          : await WorkspaceStore.initialize(data.scene);
-        if (data.shouldImportToWorkspace && !workspace.isNewWorkspace) {
+          ? await workspaceSync.initialize(
+              drawsyAuth.user!.uid,
+              workspaceInitialScene,
+            )
+          : await WorkspaceStore.initialize(workspaceInitialScene);
+        if (
+          !isPresentationRefresh &&
+          data.shouldImportToWorkspace &&
+          !workspace.isNewWorkspace
+        ) {
           workspace = {
             ...(await WorkspaceStore.importCanvas(data.scene)),
             isNewWorkspace: false,
@@ -967,7 +1002,20 @@ const ExcalidrawWrapper = () => {
         }
         commitWorkspaceIndex(workspace.index);
         setWorkspaceSyncStatus(workspaceSync ? "synced" : "local");
-        data.scene = workspace.document.scene;
+        if (isPresentationRefresh) {
+          const presentationScene = (await PresentationStore.loadScene()) || {
+            elements: [],
+            appState: {
+              ...getDefaultAppState(),
+              name: "Presentation",
+            },
+            files: {},
+          };
+          presentationSceneRef.current = presentationScene;
+          data.scene = presentationScene;
+        } else {
+          data.scene = workspace.document.scene;
+        }
 
         const restoredElements = restoreElements(
           workspace.document.scene.elements,
@@ -996,10 +1044,29 @@ const ExcalidrawWrapper = () => {
         if (drawsyAuth.user && !(await WorkspaceStore.hasWorkspace())) {
           await WorkspaceStore.seedFromGuest();
         }
-        const fallback = await WorkspaceStore.initialize(data.scene);
+        const fallbackScene: CanvasScene = presentationCanvasOpenRef.current
+          ? {
+              elements: [],
+              appState: {
+                ...getDefaultAppState(),
+                name: "Untitled",
+              },
+              files: {},
+            }
+          : data.scene;
+        const fallback = await WorkspaceStore.initialize(fallbackScene);
         workspaceScopeRef.current = drawsyAuth.user?.uid || null;
         commitWorkspaceIndex(fallback.index);
-        data.scene = fallback.document.scene;
+        data.scene = presentationCanvasOpenRef.current
+          ? (await PresentationStore.loadScene()) || {
+              elements: [],
+              appState: {
+                ...getDefaultAppState(),
+                name: "Presentation",
+              },
+              files: {},
+            }
+          : fallback.document.scene;
       }
     },
     [commitWorkspaceIndex, drawsyAuth.user, workspaceSync],
@@ -1068,7 +1135,10 @@ const ExcalidrawWrapper = () => {
         ((collabAPI && !collabAPI.isCollaborating()) || isCollabDisabled)
       ) {
         // don't sync if local state is newer or identical to browser state
-        if (isBrowserStorageStateNewer(STORAGE_KEYS.VERSION_DATA_STATE)) {
+        if (
+          !presentationCanvasOpenRef.current &&
+          isBrowserStorageStateNewer(STORAGE_KEYS.VERSION_DATA_STATE)
+        ) {
           const localDataState = importFromLocalStorage();
           const username = importUsernameFromLocalStorage();
           setLangCode(getPreferredLanguage());
@@ -1119,12 +1189,20 @@ const ExcalidrawWrapper = () => {
     }, SYNC_BROWSER_TABS_TIMEOUT);
 
     const onUnload = () => {
+      if (presentationCanvasOpenRef.current) {
+        void PresentationStore.flushSave(presentationSceneRef.current);
+        return;
+      }
       LocalData.flushSave();
     };
 
     const visibilityChange = (event: FocusEvent | Event) => {
       if (event.type === EVENT.BLUR || document.hidden) {
-        LocalData.flushSave();
+        if (presentationCanvasOpenRef.current) {
+          void PresentationStore.flushSave(presentationSceneRef.current);
+        } else {
+          LocalData.flushSave();
+        }
       }
       if (
         event.type === EVENT.VISIBILITY_CHANGE ||
@@ -1163,7 +1241,11 @@ const ExcalidrawWrapper = () => {
 
   useEffect(() => {
     const unloadHandler = (event: BeforeUnloadEvent) => {
-      LocalData.flushSave();
+      if (presentationCanvasOpenRef.current) {
+        void PresentationStore.flushSave(presentationSceneRef.current);
+      } else {
+        LocalData.flushSave();
+      }
 
       if (
         excalidrawAPI &&
@@ -1191,6 +1273,19 @@ const ExcalidrawWrapper = () => {
     appState: AppState,
     files: BinaryFiles,
   ) => {
+    if (presentationCanvasOpenRef.current) {
+      if (!presentationLoadingWorkspaceRef.current) {
+        const scene = {
+          elements,
+          appState,
+          files,
+        };
+        presentationSceneRef.current = scene;
+        PresentationStore.saveScene(scene);
+      }
+      return;
+    }
+
     if (collabAPI?.isCollaborating()) {
       collabAPI.syncElements(elements);
     }
@@ -1276,6 +1371,75 @@ const ExcalidrawWrapper = () => {
     };
   }, [excalidrawAPI]);
 
+  const openPresentationCanvas = useCallback(async () => {
+    if (!excalidrawAPI) {
+      return;
+    }
+
+    const activeCanvasId = workspaceIndexRef.current?.activeCanvasId;
+    if (activeCanvasId && !collabAPI?.isCollaborating()) {
+      if (workspaceSaveTimerRef.current !== null) {
+        window.clearTimeout(workspaceSaveTimerRef.current);
+        workspaceSaveTimerRef.current = null;
+      }
+      try {
+        LocalData.flushSave();
+        await saveWorkspaceCanvas(
+          activeCanvasId,
+          excalidrawAPI.getSceneElementsIncludingDeleted(),
+          excalidrawAPI.getAppState(),
+          excalidrawAPI.getFiles(),
+        );
+      } catch {
+        setErrorMessage(
+          "Couldn't save the current canvas before presentation.",
+        );
+        return;
+      }
+    }
+
+    const blankScene = createBlankScene();
+    const scene = presentationSceneRef.current ||
+      (await PresentationStore.loadScene()) || {
+        ...blankScene,
+        appState: {
+          ...blankScene.appState,
+          name: "Presentation",
+        },
+      };
+    presentationSceneRef.current = scene;
+    PresentationStore.saveScene(scene);
+
+    setPresentationCanvasActive(true);
+    LocalData.pauseSave("workspace-switch");
+    try {
+      excalidrawAPI.resetScene({ resetLoadingState: true });
+      excalidrawAPI.updateScene({
+        elements: restoreElements(scene.elements, null, {
+          repairBindings: true,
+        }),
+        appState: {
+          ...restoreAppState(scene.appState, null),
+          name: "Presentation",
+          isLoading: false,
+          openMenu: null,
+          openSidebar: null,
+        },
+        captureUpdate: CaptureUpdateAction.NEVER,
+      });
+      excalidrawAPI.replaceFiles(scene.files || {});
+      excalidrawAPI.history.clear();
+    } finally {
+      LocalData.resumeSave("workspace-switch");
+    }
+  }, [
+    collabAPI,
+    createBlankScene,
+    excalidrawAPI,
+    saveWorkspaceCanvas,
+    setPresentationCanvasActive,
+  ]);
+
   const applyWorkspaceDocument = useCallback(
     (document: CanvasDocument) => {
       if (!excalidrawAPI || !document) {
@@ -1342,6 +1506,8 @@ const ExcalidrawWrapper = () => {
         workspaceSaveTimerRef.current = null;
       }
 
+      const wasPresentationCanvasOpen = presentationCanvasOpenRef.current;
+      presentationLoadingWorkspaceRef.current = wasPresentationCanvasOpen;
       try {
         return await queueWorkspaceOperation(async () => {
           let index = workspaceIndexRef.current;
@@ -1349,30 +1515,32 @@ const ExcalidrawWrapper = () => {
             return null;
           }
 
-          LocalData.flushSave();
-          const activeCanvasId = index.activeCanvasId;
-          const elements = excalidrawAPI.getSceneElementsIncludingDeleted();
-          const appState = excalidrawAPI.getAppState();
-          const files = excalidrawAPI.getFiles();
-          const fingerprint = getWorkspaceSceneFingerprint(
-            elements,
-            appState,
-            files,
-          );
-
-          if (
-            workspaceSceneFingerprintsRef.current.get(activeCanvasId) !==
-            fingerprint
-          ) {
-            index = await WorkspaceStore.saveCanvas(index, activeCanvasId, {
+          if (!presentationCanvasOpenRef.current) {
+            LocalData.flushSave();
+            const activeCanvasId = index.activeCanvasId;
+            const elements = excalidrawAPI.getSceneElementsIncludingDeleted();
+            const appState = excalidrawAPI.getAppState();
+            const files = excalidrawAPI.getFiles();
+            const fingerprint = getWorkspaceSceneFingerprint(
               elements,
               appState,
               files,
-            });
-            workspaceSceneFingerprintsRef.current.set(
-              activeCanvasId,
-              fingerprint,
             );
+
+            if (
+              workspaceSceneFingerprintsRef.current.get(activeCanvasId) !==
+              fingerprint
+            ) {
+              index = await WorkspaceStore.saveCanvas(index, activeCanvasId, {
+                elements,
+                appState,
+                files,
+              });
+              workspaceSceneFingerprintsRef.current.set(
+                activeCanvasId,
+                fingerprint,
+              );
+            }
           }
 
           const result = await operation(index);
@@ -1393,6 +1561,8 @@ const ExcalidrawWrapper = () => {
             "Couldn't complete that action. Your current canvas is safe.",
         });
         return null;
+      } finally {
+        presentationLoadingWorkspaceRef.current = false;
       }
     },
     [
@@ -1420,7 +1590,7 @@ const ExcalidrawWrapper = () => {
     void queueWorkspaceOperation(async () => {
       await workspaceSyncInFlightRef.current;
       const currentIndex = workspaceIndexRef.current;
-      if (currentIndex) {
+      if (currentIndex && !presentationCanvasOpenRef.current) {
         await WorkspaceStore.saveCanvas(
           currentIndex,
           currentIndex.activeCanvasId,
@@ -1433,9 +1603,18 @@ const ExcalidrawWrapper = () => {
       }
 
       const currentScene: CanvasScene = {
-        elements: excalidrawAPI.getSceneElementsIncludingDeleted(),
-        appState: excalidrawAPI.getAppState(),
-        files: excalidrawAPI.getFiles(),
+        elements: presentationCanvasOpenRef.current
+          ? []
+          : excalidrawAPI.getSceneElementsIncludingDeleted(),
+        appState: presentationCanvasOpenRef.current
+          ? {
+              ...getDefaultAppState(),
+              name: "Untitled",
+            }
+          : excalidrawAPI.getAppState(),
+        files: presentationCanvasOpenRef.current
+          ? {}
+          : excalidrawAPI.getFiles(),
       };
       setWorkspaceSyncStatus(workspaceSync ? "syncing" : "local");
       WorkspaceStore.setScope(nextScope);
@@ -1476,7 +1655,7 @@ const ExcalidrawWrapper = () => {
       ) {
         return;
       }
-      if (flushEditor && excalidrawAPI) {
+      if (flushEditor && excalidrawAPI && !presentationCanvasOpenRef.current) {
         LocalData.flushSave();
         const canvasId = workspaceIndexRef.current?.activeCanvasId;
         if (canvasId) {
@@ -1710,36 +1889,50 @@ const ExcalidrawWrapper = () => {
   const createWorkspaceCanvas = useCallback(() => {
     void runWorkspaceSwitch((index) =>
       WorkspaceStore.createCanvas(index, createBlankScene()),
-    );
-  }, [createBlankScene, runWorkspaceSwitch]);
+    ).then((result) => {
+      if (result) {
+        setPresentationCanvasActive(false);
+      }
+    });
+  }, [createBlankScene, runWorkspaceSwitch, setPresentationCanvasActive]);
 
   const createWorkspaceProject = useCallback(() => {
     void runWorkspaceSwitch((index) =>
       WorkspaceStore.createProject(index, createBlankScene()),
     ).then((result) => {
+      if (result) {
+        setPresentationCanvasActive(false);
+      }
       if (result?.document?.projectId) {
         setProjectTitleToFocus(result.document.projectId);
       }
     });
-  }, [createBlankScene, runWorkspaceSwitch]);
+  }, [createBlankScene, runWorkspaceSwitch, setPresentationCanvasActive]);
 
   const createWorkspaceProjectCanvas = useCallback(
     (projectId: string) => {
       void runWorkspaceSwitch((index) =>
         WorkspaceStore.createCanvas(index, createBlankScene(), projectId),
-      );
+      ).then((result) => {
+        if (result) {
+          setPresentationCanvasActive(false);
+        }
+      });
     },
-    [createBlankScene, runWorkspaceSwitch],
+    [createBlankScene, runWorkspaceSwitch, setPresentationCanvasActive],
   );
 
   const openWorkspaceCanvas = useCallback(
     (canvasId: string) => {
-      if (
-        canvasId === workspaceIndexRef.current?.activeCanvasId ||
-        workspaceSwitchingRef.current
-      ) {
+      if (workspaceSwitchingRef.current) {
         excalidrawAPI?.updateScene({ appState: { openMenu: null } });
         return;
+      }
+      if (canvasId === workspaceIndexRef.current?.activeCanvasId) {
+        if (!presentationCanvasOpenRef.current) {
+          excalidrawAPI?.updateScene({ appState: { openMenu: null } });
+          return;
+        }
       }
       workspaceSwitchingRef.current = true;
       setLoadingCanvasId(canvasId);
@@ -1750,6 +1943,9 @@ const ExcalidrawWrapper = () => {
           : WorkspaceStore.openCanvas(index, canvasId),
       )
         .then((result) => {
+          if (result) {
+            setPresentationCanvasActive(false);
+          }
           if (result?.usedCachedScene) {
             excalidrawAPI?.setToast({
               message:
@@ -1763,7 +1959,12 @@ const ExcalidrawWrapper = () => {
           excalidrawAPI?.updateScene({ appState: { isLoading: false } });
         });
     },
-    [excalidrawAPI, runWorkspaceSwitch, workspaceSync],
+    [
+      excalidrawAPI,
+      runWorkspaceSwitch,
+      setPresentationCanvasActive,
+      workspaceSync,
+    ],
   );
 
   const openKanbanCanvasLink = useCallback(
@@ -1857,8 +2058,8 @@ const ExcalidrawWrapper = () => {
   );
   const comments = useCanvasComments({
     auth: drawsyAuth,
-    canvasId: activeCanvas?.id || null,
-    enabled: !!activeCanvas && !isCollaborating,
+    canvasId: presentationCanvasOpen ? null : activeCanvas?.id || null,
+    enabled: !!activeCanvas && !isCollaborating && !presentationCanvasOpen,
     sidebarOpen: commentsSidebarOpen,
   });
   const {
@@ -2257,6 +2458,13 @@ const ExcalidrawWrapper = () => {
                 });
                 setKanbanWorkspaceActive(true);
               }}
+              onOpenPresentation={() => {
+                setCommentPlacement(false);
+                setCommentDraftAnchor(null);
+                setCommentsSidebarOpen(false);
+                setKanbanWorkspaceActive(false);
+                void openPresentationCanvas();
+              }}
               onCreateProjectCanvas={(projectId) => {
                 setKanbanWorkspaceActive(false);
                 createWorkspaceProjectCanvas(projectId);
@@ -2281,6 +2489,17 @@ const ExcalidrawWrapper = () => {
                 onCanvasTitleChange={(title) =>
                   updateKanbanBoard({ ...kanbanBoard, title })
                 }
+                onProjectTitleChange={() => undefined}
+                onProjectTitleFocused={() => undefined}
+              />
+            ) : presentationCanvasOpen ? (
+              <WorkspaceTitle
+                canvasTitle="Presentation"
+                projectTitle={null}
+                focusProjectTitle={false}
+                itemLabel="Presentation"
+                readOnly
+                onCanvasTitleChange={() => undefined}
                 onProjectTitleChange={() => undefined}
                 onProjectTitleFocused={() => undefined}
               />
@@ -2407,17 +2626,30 @@ const ExcalidrawWrapper = () => {
           displayName={
             drawsyAuth.user?.displayName || drawsyAuth.user?.email || "You"
           }
-          canvasTitle={activeCanvas?.title || "Canvas"}
+          canvasTitle={
+            kanbanOpen
+              ? kanbanBoardReady
+                ? kanbanBoard.title
+                : "Kanban"
+              : presentationCanvasOpen
+              ? "Presentation"
+              : activeCanvas?.title || "Canvas"
+          }
           isCollaborating={isCollaborating}
           comments={comments}
           onSignIn={() => void drawsyAuth.signIn().catch(() => undefined)}
-          onStartPlacement={beginCommentPlacement}
+          onStartPlacement={
+            presentationCanvasOpen || kanbanOpen
+              ? () => undefined
+              : beginCommentPlacement
+          }
           onGoToComment={goToComment}
           onCommentsOpenChange={setCommentsSidebarOpen}
         />
         {drawsyAuth.status === "authenticated" &&
           !isCollaborating &&
-          !kanbanOpen && (
+          !kanbanOpen &&
+          !presentationCanvasOpen && (
             <CommentPins
               comments={comments.comments}
               selectedId={comments.selectedId}
@@ -2427,6 +2659,7 @@ const ExcalidrawWrapper = () => {
         {drawsyAuth.status === "authenticated" &&
           !isCollaborating &&
           !kanbanOpen &&
+          !presentationCanvasOpen &&
           (comments.placing || comments.draftAnchor) && (
             <CommentDraftBubble
               anchor={comments.draftAnchor}

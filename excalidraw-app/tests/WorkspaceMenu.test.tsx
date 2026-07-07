@@ -408,4 +408,25 @@ describe("WorkspaceMenu", () => {
     fireEvent.click(screen.getByText("Kanban"));
     expect(onOpenKanban).toHaveBeenCalledTimes(1);
   });
+
+  it("opens Presentation from the card below Kanban", () => {
+    const onOpenPresentation = vi.fn();
+    render(
+      <WorkspaceMenu
+        index={index}
+        disabled={false}
+        onCreateCanvas={vi.fn()}
+        onCreateProject={vi.fn()}
+        onOpenKanban={vi.fn()}
+        onOpenPresentation={onOpenPresentation}
+        onCreateProjectCanvas={vi.fn()}
+        onOpenCanvas={vi.fn()}
+        onDeleteCanvas={vi.fn()}
+        onDeleteProject={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Presentation"));
+    expect(onOpenPresentation).toHaveBeenCalledTimes(1);
+  });
 });
