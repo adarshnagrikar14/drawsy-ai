@@ -116,8 +116,7 @@
     height: var(--default-button-size);
   }
 
-  .layer-ui__library .dropdown-menu,
-  &.dropdown-menu.library-menu {
+  .layer-ui__library .dropdown-menu {
     width: auto;
     top: initial;
     right: 0;
