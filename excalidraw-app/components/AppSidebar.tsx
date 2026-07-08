@@ -20,7 +20,13 @@ import {
   getNonDeletedElements,
   isFrameLikeElement,
 } from "@excalidraw/element";
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
+
+import type { AppState, BinaryFiles } from "@excalidraw/excalidraw/types";
+import type {
+  ExcalidrawFrameLikeElement,
+  OrderedExcalidrawElement,
+} from "@excalidraw/element/types";
 
 import { CommentsSidebar } from "../comments/CommentsSidebar";
 
@@ -28,12 +34,6 @@ import "./AppSidebar.scss";
 
 import type { CanvasComment } from "../comments/types";
 import type { CanvasCommentsController } from "../comments/useCanvasComments";
-import type {
-  ExcalidrawFrameLikeElement,
-  OrderedExcalidrawElement,
-} from "@excalidraw/element/types";
-import type { AppState, BinaryFiles } from "@excalidraw/excalidraw/types";
-import type { ReactNode } from "react";
 
 type PresentationPanelTab =
   | "slides"
@@ -47,6 +47,19 @@ export type PresentationLayout =
   | "vertical"
   | "grid"
   | "freeform";
+export type PresentationTemplateId =
+  | "intro-orbit"
+  | "intro-blocks"
+  | "intro-claim"
+  | "intro-signal"
+  | "outro-closing"
+  | "outro-next"
+  | "outro-qa"
+  | "outro-contact"
+  | "content-beats"
+  | "content-data"
+  | "content-flow"
+  | "content-compare";
 type PresentationExportAppState = Partial<
   Omit<AppState, "offsetTop" | "offsetLeft">
 >;
@@ -61,6 +74,43 @@ const PRESENTATION_TABS: {
   { id: "animation", label: "Animation", icon: MagicIcon },
   { id: "resources", label: "Resources", icon: ImageIcon },
   { id: "layout", label: "Layout", icon: extraToolsIcon },
+];
+
+const PRESENTATION_TEMPLATE_SECTIONS: {
+  title: string;
+  items: {
+    id: PresentationTemplateId;
+    label: string;
+    tone: string;
+  }[];
+}[] = [
+  {
+    title: "Intro templates",
+    items: [
+      { id: "intro-orbit", label: "Orbit launch", tone: "violet" },
+      { id: "intro-blocks", label: "Color blocks", tone: "coral" },
+      { id: "intro-claim", label: "Big claim", tone: "blue" },
+      { id: "intro-signal", label: "Signal line", tone: "green" },
+    ],
+  },
+  {
+    title: "Outro templates",
+    items: [
+      { id: "outro-closing", label: "Closing note", tone: "blue" },
+      { id: "outro-next", label: "Next steps", tone: "green" },
+      { id: "outro-qa", label: "Q and A", tone: "violet" },
+      { id: "outro-contact", label: "Contact card", tone: "coral" },
+    ],
+  },
+  {
+    title: "Content templates",
+    items: [
+      { id: "content-beats", label: "Three beats", tone: "green" },
+      { id: "content-data", label: "Data story", tone: "blue" },
+      { id: "content-flow", label: "Process flow", tone: "coral" },
+      { id: "content-compare", label: "Compare", tone: "violet" },
+    ],
+  },
 ];
 
 const sortFramesForSlides = (frames: readonly ExcalidrawFrameLikeElement[]) => {
@@ -137,6 +187,7 @@ const PresentationPanel = ({
   onFocusSlide,
   onStartPresentation,
   onLayoutChange,
+  onTemplateInsert,
 }: {
   elements: readonly OrderedExcalidrawElement[];
   appState: PresentationExportAppState;
@@ -144,6 +195,10 @@ const PresentationPanel = ({
   onFocusSlide: (frameId: string) => void;
   onStartPresentation: () => void;
   onLayoutChange: (layout: PresentationLayout) => void;
+  onTemplateInsert: (
+    templateId: PresentationTemplateId,
+    layout: PresentationLayout,
+  ) => void;
 }) => {
   const [activeTab, setActiveTab] = useState<PresentationPanelTab>("slides");
   const [activeLayout, setActiveLayout] =
@@ -227,12 +282,36 @@ const PresentationPanel = ({
   };
 
   const renderTemplates = () => (
-    <div className="presentation-card-grid">
-      {["Title", "Two column", "Process", "Image focus"].map((label) => (
-        <div className="presentation-template-card" key={label}>
-          <span />
-          <strong>{label}</strong>
-        </div>
+    <div className="presentation-template-sections">
+      {PRESENTATION_TEMPLATE_SECTIONS.map((section) => (
+        <section className="presentation-template-section" key={section.title}>
+          <div className="presentation-panel-section-heading">
+            <span>{section.title}</span>
+          </div>
+          <div className="presentation-card-grid">
+            {section.items.map((item) => (
+              <button
+                type="button"
+                className="presentation-template-card"
+                data-template={item.id}
+                data-tone={item.tone}
+                key={item.id}
+                onClick={() => onTemplateInsert(item.id, activeLayout)}
+              >
+                <span
+                  className="presentation-template-card__thumbnail"
+                  aria-hidden="true"
+                >
+                  <i />
+                  <b />
+                  <em />
+                  <small />
+                </span>
+                <strong>{item.label}</strong>
+              </button>
+            ))}
+          </div>
+        </section>
       ))}
     </div>
   );
@@ -307,12 +386,14 @@ const PresentationPanel = ({
         ))}
       </div>
 
-      <div className="presentation-panel-content">
-        {activeTab === "slides" && renderSlides()}
-        {activeTab === "templates" && renderTemplates()}
-        {activeTab === "animation" && renderAnimation()}
-        {activeTab === "resources" && renderResources()}
-        {activeTab === "layout" && renderLayout()}
+      <div className="presentation-panel-content-shell">
+        <div className="presentation-panel-content">
+          {activeTab === "slides" && renderSlides()}
+          {activeTab === "templates" && renderTemplates()}
+          {activeTab === "animation" && renderAnimation()}
+          {activeTab === "resources" && renderResources()}
+          {activeTab === "layout" && renderLayout()}
+        </div>
       </div>
 
       <div className="presentation-panel-footer">
@@ -342,6 +423,7 @@ export const AppSidebar = ({
   onPresentationSlideFocus,
   onPresentationStart,
   onPresentationLayoutChange,
+  onPresentationTemplateInsert,
   onSignIn,
   onStartPlacement,
   onGoToComment,
@@ -358,6 +440,10 @@ export const AppSidebar = ({
   onPresentationSlideFocus: (frameId: string) => void;
   onPresentationStart: () => void;
   onPresentationLayoutChange: (layout: PresentationLayout) => void;
+  onPresentationTemplateInsert: (
+    templateId: PresentationTemplateId,
+    layout: PresentationLayout,
+  ) => void;
   onSignIn: () => void;
   onStartPlacement: () => void;
   onGoToComment: (comment: CanvasComment) => void;
@@ -402,6 +488,7 @@ export const AppSidebar = ({
           onFocusSlide={onPresentationSlideFocus}
           onStartPresentation={onPresentationStart}
           onLayoutChange={onPresentationLayoutChange}
+          onTemplateInsert={onPresentationTemplateInsert}
         />
       </Sidebar.Tab>
     </DefaultSidebar>

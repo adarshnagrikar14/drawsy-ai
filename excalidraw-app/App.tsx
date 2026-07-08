@@ -34,7 +34,9 @@ import {
   isDevEnv,
   DEFAULT_SIDEBAR,
   THEME,
+  FONT_FAMILY,
   sceneCoordsToViewportCoords,
+  viewportCoordsToSceneCoords,
 } from "@excalidraw/common";
 import polyfill from "@excalidraw/excalidraw/polyfill";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -61,9 +63,13 @@ import {
 import { Button } from "@excalidraw/excalidraw/components/Button";
 import {
   getNonDeletedElements,
+  getCommonBounds,
   isElementLink,
   isFrameLikeElement,
   isInvisiblySmallElement,
+  newElement,
+  newFrameElement,
+  newTextElement,
 } from "@excalidraw/element";
 import {
   bumpElementVersions,
@@ -197,7 +203,11 @@ import { ExcalidrawPlusIframeExport } from "./ExcalidrawPlusIframeExport";
 import "./index.scss";
 
 import { ExcalidrawPlusPromoBanner } from "./components/ExcalidrawPlusPromoBanner";
-import { AppSidebar, type PresentationLayout } from "./components/AppSidebar";
+import {
+  AppSidebar,
+  type PresentationLayout,
+  type PresentationTemplateId,
+} from "./components/AppSidebar";
 import { CommentDraftBubble } from "./comments/CommentDraftBubble";
 import { CommentPins } from "./comments/CommentPins";
 import { useCanvasComments } from "./comments/useCanvasComments";
@@ -350,9 +360,7 @@ const isSceneEmptyForPresentation = (
     isInvisiblySmallElement(element),
   );
 
-const getPresentationFrames = (
-  elements: readonly OrderedExcalidrawElement[],
-) => {
+const getPresentationFrames = (elements: readonly ExcalidrawElement[]) => {
   return getNonDeletedElements(elements)
     .filter(isFrameLikeElement)
     .sort((a, b) => {
@@ -362,6 +370,375 @@ const getPresentationFrames = (
       }
       return a.x - b.x;
     }) as ExcalidrawFrameLikeElement[];
+};
+
+const PRESENTATION_TEMPLATE_SIZE = {
+  width: 960,
+  height: 540,
+};
+
+const getPresentationTemplateOrigin = (
+  frames: readonly ExcalidrawFrameLikeElement[],
+  layout: PresentationLayout,
+  appState: AppState,
+) => {
+  const gap = 160;
+
+  if (frames.length) {
+    const [minX, minY, maxX, maxY] = getCommonBounds(frames);
+
+    if (layout === "horizontal" || layout === "grid") {
+      return {
+        x: maxX + gap,
+        y: minY,
+      };
+    }
+
+    if (layout === "vertical") {
+      return {
+        x: minX,
+        y: maxY + gap,
+      };
+    }
+  }
+
+  const center = viewportCoordsToSceneCoords(
+    {
+      clientX: appState.offsetLeft + appState.width / 2,
+      clientY: appState.offsetTop + appState.height / 2,
+    },
+    appState,
+  );
+  const freeformOffset = layout === "freeform" ? (frames.length % 5) * 56 : 0;
+
+  return {
+    x: center.x - PRESENTATION_TEMPLATE_SIZE.width / 2 + freeformOffset,
+    y: center.y - PRESENTATION_TEMPLATE_SIZE.height / 2 + freeformOffset,
+  };
+};
+
+const getArrangedPresentationElements = (
+  elements: readonly ExcalidrawElement[],
+  layout: PresentationLayout,
+) => {
+  if (layout === "freeform") {
+    return null;
+  }
+
+  const frames = getPresentationFrames(elements);
+
+  if (frames.length < 2) {
+    return null;
+  }
+
+  const gap = 160;
+  const originX = Math.min(...frames.map((frame) => frame.x));
+  const originY = Math.min(...frames.map((frame) => frame.y));
+  const maxWidth = Math.max(...frames.map((frame) => frame.width));
+  const maxHeight = Math.max(...frames.map((frame) => frame.height));
+  const columns =
+    layout === "grid" ? Math.max(1, Math.ceil(Math.sqrt(frames.length))) : 1;
+  const frameOffsets = new Map<string, { dx: number; dy: number }>();
+
+  let cursorX = originX;
+  let cursorY = originY;
+
+  frames.forEach((frame, index) => {
+    let nextX = frame.x;
+    let nextY = frame.y;
+
+    if (layout === "horizontal") {
+      nextX = cursorX;
+      nextY = originY;
+      cursorX += frame.width + gap;
+    } else if (layout === "vertical") {
+      nextX = originX;
+      nextY = cursorY;
+      cursorY += frame.height + gap;
+    } else if (layout === "grid") {
+      nextX = originX + (index % columns) * (maxWidth + gap);
+      nextY = originY + Math.floor(index / columns) * (maxHeight + gap);
+    }
+
+    frameOffsets.set(frame.id, {
+      dx: nextX - frame.x,
+      dy: nextY - frame.y,
+    });
+  });
+
+  return elements.map((element) => {
+    const offset = isFrameLikeElement(element)
+      ? frameOffsets.get(element.id)
+      : element.frameId
+      ? frameOffsets.get(element.frameId)
+      : null;
+
+    if (!offset || (!offset.dx && !offset.dy)) {
+      return element;
+    }
+
+    return newElementWith(element, {
+      x: element.x + offset.dx,
+      y: element.y + offset.dy,
+    });
+  });
+};
+
+const createPresentationTemplateElements = (
+  templateId: PresentationTemplateId,
+  origin: { x: number; y: number },
+) => {
+  const { width, height } = PRESENTATION_TEMPLATE_SIZE;
+  const frame = newFrameElement({
+    x: origin.x,
+    y: origin.y,
+    width,
+    height,
+    name: "Slide",
+    strokeColor: "#868e96",
+    backgroundColor: "transparent",
+    fillStyle: "solid",
+    strokeWidth: 2,
+    roughness: 0,
+  });
+  const x = (value: number) => origin.x + value;
+  const y = (value: number) => origin.y + value;
+  const frameId = frame.id;
+  const rect = (
+    x1: number,
+    y1: number,
+    w: number,
+    h: number,
+    backgroundColor: string,
+    strokeColor = "transparent",
+    roughness = 0,
+    opacity = 100,
+  ) =>
+    newElement({
+      type: "rectangle",
+      x: x(x1),
+      y: y(y1),
+      width: w,
+      height: h,
+      strokeColor,
+      backgroundColor,
+      fillStyle: "solid",
+      strokeWidth: 2,
+      roughness,
+      opacity,
+      frameId,
+    });
+  const ellipse = (
+    x1: number,
+    y1: number,
+    w: number,
+    h: number,
+    backgroundColor: string,
+    strokeColor = "transparent",
+    roughness = 0,
+    opacity = 100,
+  ) =>
+    newElement({
+      type: "ellipse",
+      x: x(x1),
+      y: y(y1),
+      width: w,
+      height: h,
+      strokeColor,
+      backgroundColor,
+      fillStyle: "solid",
+      strokeWidth: 2,
+      roughness,
+      opacity,
+      frameId,
+    });
+  const text = (
+    value: string,
+    x1: number,
+    y1: number,
+    fontSize: number,
+    strokeColor: string,
+    fontFamily = FONT_FAMILY["Comic Shanns"],
+  ) =>
+    newTextElement({
+      text: value,
+      x: x(x1),
+      y: y(y1),
+      fontSize,
+      fontFamily,
+      strokeColor,
+      backgroundColor: "transparent",
+      frameId,
+    });
+
+  const title = (value: string, subtitle: string, color = "#ffffff") => [
+    text(value, 86, 204, 54, color),
+    text(subtitle, 92, 292, 22, color, FONT_FAMILY.Excalifont),
+  ];
+
+  const templates: Record<PresentationTemplateId, ExcalidrawElement[]> = {
+    "intro-orbit": [
+      frame,
+      rect(0, 0, width, height, "#161620"),
+      ellipse(560, -105, 330, 330, "transparent", "#b197fc", 2),
+      ellipse(614, -50, 220, 220, "transparent", "#4dabf7", 1.5),
+      rect(72, 78, 166, 18, "#b197fc"),
+      rect(72, 108, 92, 18, "#4dabf7"),
+      ...title("Launch the idea", "A clean opening for the story ahead."),
+      ellipse(728, 332, 118, 118, "#b197fc", "transparent", 0, 68),
+    ],
+    "intro-blocks": [
+      frame,
+      rect(0, 0, 350, 265, "#4dabf7"),
+      rect(0, 275, 350, 265, "#da77f2"),
+      rect(360, 0, 600, 540, "#ff8787"),
+      ellipse(208, 205, 132, 132, "#f8f9fa"),
+      text("WELCOME TO DRAWSY", 440, 224, 42, "#101113"),
+      text(
+        "Build the canvas into a guided presentation.",
+        394,
+        454,
+        21,
+        "#101113",
+      ),
+    ],
+    "intro-claim": [
+      frame,
+      rect(0, 0, width, height, "#f8f9fa"),
+      rect(58, 58, 844, 424, "#ffffff", "#212529", 2),
+      rect(86, 86, 170, 20, "#ffd43b"),
+      text("One canvas.", 108, 178, 56, "#212529"),
+      text("Many moments.", 108, 250, 56, "#212529"),
+      rect(598, 172, 220, 168, "#4dabf7", "#212529", 1.2),
+      ellipse(682, 226, 70, 70, "#ff8787", "#212529", 1.2),
+    ],
+    "intro-signal": [
+      frame,
+      rect(0, 0, width, height, "#0b1110"),
+      rect(86, 388, 760, 4, "#69db7c"),
+      rect(132, 344, 170, 4, "#69db7c"),
+      rect(358, 294, 198, 4, "#4dabf7"),
+      rect(622, 222, 178, 4, "#ffd43b"),
+      ellipse(110, 326, 76, 76, "#69db7c", "#0b1110", 0, 88),
+      ellipse(348, 264, 92, 92, "#4dabf7", "#0b1110", 0, 78),
+      ellipse(632, 174, 124, 124, "#ffd43b", "#0b1110", 0, 82),
+      text("Follow the signal", 86, 108, 56, "#f8f9fa"),
+      text("Set direction before details take over.", 92, 198, 23, "#ced4da"),
+      rect(92, 248, 196, 12, "#69db7c"),
+    ],
+    "outro-closing": [
+      frame,
+      rect(0, 0, width, height, "#111827"),
+      rect(70, 68, 820, 404, "#1f2030", "#91a7ff", 1.4, 82),
+      rect(112, 112, 186, 16, "#91a7ff"),
+      rect(112, 144, 118, 12, "#ff8787"),
+      text("Thank you", 116, 206, 68, "#f8f9fa"),
+      text("Keep the next move visible.", 122, 316, 25, "#d0bfff"),
+      rect(650, 128, 150, 150, "transparent", "#bac8ff", 1.2),
+      ellipse(704, 182, 42, 42, "#91a7ff"),
+      rect(642, 340, 198, 12, "#ff8787"),
+      rect(704, 370, 136, 10, "#bac8ff"),
+    ],
+    "outro-next": [
+      frame,
+      rect(0, 0, width, height, "#f1f3f5"),
+      text("Next steps", 76, 72, 52, "#212529"),
+      ...[0, 1, 2].flatMap((index) => [
+        ellipse(96, 176 + index * 94, 36, 36, "#69db7c", "#212529", 1.2),
+        rect(160, 184 + index * 94, 570 - index * 76, 18, "#212529"),
+        rect(160, 214 + index * 94, 410 - index * 46, 10, "#868e96"),
+      ]),
+      rect(726, 78, 130, 330, "#b197fc", "#212529", 1.2, 72),
+    ],
+    "outro-qa": [
+      frame,
+      rect(0, 0, width, height, "#1e1e1e"),
+      ellipse(96, 88, 250, 250, "#b197fc", "transparent", 0, 70),
+      ellipse(560, 196, 270, 270, "#4dabf7", "transparent", 0, 52),
+      text("Questions?", 292, 204, 70, "#ffffff"),
+      text("Open discussion", 374, 318, 26, "#ced4da"),
+    ],
+    "outro-contact": [
+      frame,
+      rect(0, 0, width, height, "#fff4e6"),
+      rect(90, 88, 780, 360, "#ffffff", "#212529", 1.5),
+      rect(120, 122, 238, 250, "#ff8787", "#212529", 1.2),
+      text("Stay connected", 420, 148, 46, "#212529"),
+      text("name@drawsy.ai", 424, 246, 24, "#495057"),
+      text("drawsy.ai", 424, 294, 24, "#495057"),
+      ellipse(186, 178, 106, 106, "#fff4e6", "#212529", 1.2),
+    ],
+    "content-beats": [
+      frame,
+      rect(0, 0, width, height, "#101113"),
+      text("Three beats", 72, 58, 46, "#ffffff"),
+      ...[0, 1, 2].flatMap((index) => [
+        rect(72 + index * 292, 158, 238, 260, "#25262b", "#868e96", 1.4),
+        rect(
+          102 + index * 292,
+          198,
+          98,
+          18,
+          ["#4dabf7", "#69db7c", "#ff8787"][index],
+        ),
+        text(`0${index + 1}`, 102 + index * 292, 252, 44, "#f8f9fa"),
+        rect(102 + index * 292, 334, 150, 12, "#868e96"),
+      ]),
+    ],
+    "content-data": [
+      frame,
+      rect(0, 0, width, height, "#f8f9fa"),
+      text("Data story", 76, 62, 46, "#212529"),
+      rect(94, 392, 720, 3, "#212529"),
+      ...[0, 1, 2, 3, 4].map((index) =>
+        rect(
+          138 + index * 118,
+          190 + index * 18,
+          58,
+          202 - index * 18,
+          "#4dabf7",
+          "#212529",
+          0.8,
+        ),
+      ),
+      text("+42%", 690, 114, 58, "#e03131"),
+      text("momentum", 700, 184, 22, "#495057"),
+    ],
+    "content-flow": [
+      frame,
+      rect(0, 0, width, height, "#111827"),
+      text("From idea to pitch", 72, 68, 44, "#f8f9fa"),
+      ...[0, 1, 2, 3].flatMap((index) => [
+        ellipse(
+          106 + index * 196,
+          238,
+          108,
+          108,
+          ["#4dabf7", "#69db7c", "#ffd43b", "#ff8787"][index],
+          "transparent",
+          0,
+          86,
+        ),
+        text(`${index + 1}`, 145 + index * 196, 270, 34, "#111827"),
+        ...(index < 3 ? [rect(230 + index * 196, 290, 78, 10, "#ced4da")] : []),
+      ]),
+      text("Capture. Shape. Sequence. Present.", 178, 406, 25, "#ced4da"),
+    ],
+    "content-compare": [
+      frame,
+      rect(0, 0, width, height, "#f8f0fc"),
+      rect(70, 90, 390, 350, "#ffffff", "#212529", 1.2),
+      rect(500, 90, 390, 350, "#212529", "#212529", 1.2),
+      text("Before", 118, 138, 40, "#212529"),
+      text("After", 548, 138, 40, "#ffffff"),
+      rect(118, 238, 246, 18, "#868e96"),
+      rect(118, 286, 166, 18, "#adb5bd"),
+      rect(548, 238, 246, 18, "#b197fc"),
+      rect(548, 286, 292, 18, "#69db7c"),
+    ],
+  };
+
+  return templates[templateId];
 };
 
 const initializeScene = async (opts: {
@@ -2298,9 +2675,9 @@ const ExcalidrawWrapper = () => {
       }
       const frame = excalidrawAPI
         .getSceneElements()
-        .find((element) => element.id === frameId && isFrameLikeElement(element)) as
-        | ExcalidrawFrameLikeElement
-        | undefined;
+        .find(
+          (element) => element.id === frameId && isFrameLikeElement(element),
+        ) as ExcalidrawFrameLikeElement | undefined;
       if (!frame) {
         setPresentationFrameRect(null);
         return;
@@ -2333,9 +2710,9 @@ const ExcalidrawWrapper = () => {
       }
       const frame = excalidrawAPI
         .getSceneElements()
-        .find((element) => element.id === frameId && isFrameLikeElement(element)) as
-        | ExcalidrawFrameLikeElement
-        | undefined;
+        .find(
+          (element) => element.id === frameId && isFrameLikeElement(element),
+        ) as ExcalidrawFrameLikeElement | undefined;
 
       if (!frame) {
         setPresentationFrameRect(null);
@@ -2363,65 +2740,14 @@ const ExcalidrawWrapper = () => {
       }
 
       const currentElements = excalidrawAPI.getSceneElementsIncludingDeleted();
-      const frames = getPresentationFrames(excalidrawAPI.getSceneElements());
+      const nextElements = getArrangedPresentationElements(
+        currentElements,
+        layout,
+      );
 
-      if (frames.length < 2) {
+      if (!nextElements) {
         return;
       }
-
-      const gap = 160;
-      const originX = Math.min(...frames.map((frame) => frame.x));
-      const originY = Math.min(...frames.map((frame) => frame.y));
-      const maxWidth = Math.max(...frames.map((frame) => frame.width));
-      const maxHeight = Math.max(...frames.map((frame) => frame.height));
-      const columns =
-        layout === "grid"
-          ? Math.max(1, Math.ceil(Math.sqrt(frames.length)))
-          : 1;
-      const frameOffsets = new Map<string, { dx: number; dy: number }>();
-
-      let cursorX = originX;
-      let cursorY = originY;
-
-      frames.forEach((frame, index) => {
-        let nextX = frame.x;
-        let nextY = frame.y;
-
-        if (layout === "horizontal") {
-          nextX = cursorX;
-          nextY = originY;
-          cursorX += frame.width + gap;
-        } else if (layout === "vertical") {
-          nextX = originX;
-          nextY = cursorY;
-          cursorY += frame.height + gap;
-        } else if (layout === "grid") {
-          nextX = originX + (index % columns) * (maxWidth + gap);
-          nextY = originY + Math.floor(index / columns) * (maxHeight + gap);
-        }
-
-        frameOffsets.set(frame.id, {
-          dx: nextX - frame.x,
-          dy: nextY - frame.y,
-        });
-      });
-
-      const nextElements = currentElements.map((element) => {
-        const offset = isFrameLikeElement(element)
-          ? frameOffsets.get(element.id)
-          : element.frameId
-          ? frameOffsets.get(element.frameId)
-          : null;
-
-        if (!offset || (!offset.dx && !offset.dy)) {
-          return element;
-        }
-
-        return newElementWith(element, {
-          x: element.x + offset.dx,
-          y: element.y + offset.dy,
-        });
-      });
 
       excalidrawAPI.updateScene({
         elements: nextElements,
@@ -2430,6 +2756,39 @@ const ExcalidrawWrapper = () => {
       setPresentationElements(excalidrawAPI.getSceneElements());
     },
     [excalidrawAPI],
+  );
+
+  const insertPresentationTemplate = useCallback(
+    (templateId: PresentationTemplateId, layout: PresentationLayout) => {
+      if (!excalidrawAPI) {
+        return;
+      }
+
+      const currentElements = excalidrawAPI.getSceneElementsIncludingDeleted();
+      const appState = excalidrawAPI.getAppState();
+      const frames = getPresentationFrames(excalidrawAPI.getSceneElements());
+      const origin = getPresentationTemplateOrigin(frames, layout, appState);
+      const templateElements = createPresentationTemplateElements(
+        templateId,
+        origin,
+      );
+      const insertedFrame = templateElements.find(isFrameLikeElement);
+      const elementsWithTemplate = [...currentElements, ...templateElements];
+      const nextElements =
+        getArrangedPresentationElements(elementsWithTemplate, layout) ||
+        elementsWithTemplate;
+
+      excalidrawAPI.updateScene({
+        elements: nextElements,
+        captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+      });
+
+      if (insertedFrame) {
+        requestAnimationFrame(() => focusPresentationSlide(insertedFrame.id));
+      }
+      setPresentationElements(excalidrawAPI.getSceneElements());
+    },
+    [excalidrawAPI, focusPresentationSlide],
   );
 
   const endFramePresentation = useCallback(() => {
@@ -2495,7 +2854,8 @@ const ExcalidrawWrapper = () => {
       },
       captureUpdate: CaptureUpdateAction.NEVER,
     });
-    const focusFirstFrame = () => focusPresentationSlide(frames[0].id, false, 1);
+    const focusFirstFrame = () =>
+      focusPresentationSlide(frames[0].id, false, 1);
     focusFirstFrame();
     const fullscreenRequest = document.documentElement.requestFullscreen?.();
     if (fullscreenRequest) {
@@ -3128,6 +3488,7 @@ const ExcalidrawWrapper = () => {
             onPresentationSlideFocus={focusPresentationSlide}
             onPresentationStart={startFramePresentation}
             onPresentationLayoutChange={arrangePresentationFrames}
+            onPresentationTemplateInsert={insertPresentationTemplate}
             onSignIn={() => void drawsyAuth.signIn().catch(() => undefined)}
             onStartPlacement={
               presentationCanvasOpen || kanbanOpen
