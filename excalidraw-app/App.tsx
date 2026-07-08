@@ -33,6 +33,8 @@ import {
   isRunningInIframe,
   isDevEnv,
   DEFAULT_SIDEBAR,
+  THEME,
+  sceneCoordsToViewportCoords,
 } from "@excalidraw/common";
 import polyfill from "@excalidraw/excalidraw/polyfill";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -50,11 +52,17 @@ import {
   messageCircleIcon,
   presentationIcon,
   youtubeIcon,
+  ArrowRightIcon,
+  CloseIcon,
+  MoonIcon,
+  SunIcon,
+  laserPointerToolIcon,
 } from "@excalidraw/excalidraw/components/icons";
 import { Button } from "@excalidraw/excalidraw/components/Button";
 import {
   getNonDeletedElements,
   isElementLink,
+  isFrameLikeElement,
   isInvisiblySmallElement,
 } from "@excalidraw/element";
 import {
@@ -75,6 +83,7 @@ import type { RestoredDataState } from "@excalidraw/excalidraw/data/restore";
 import type {
   FileId,
   ExcalidrawElement,
+  ExcalidrawFrameLikeElement,
   NonDeletedExcalidrawElement,
   OrderedExcalidrawElement,
 } from "@excalidraw/element/types";
@@ -188,7 +197,7 @@ import { ExcalidrawPlusIframeExport } from "./ExcalidrawPlusIframeExport";
 import "./index.scss";
 
 import { ExcalidrawPlusPromoBanner } from "./components/ExcalidrawPlusPromoBanner";
-import { AppSidebar } from "./components/AppSidebar";
+import { AppSidebar, type PresentationLayout } from "./components/AppSidebar";
 import { CommentDraftBubble } from "./comments/CommentDraftBubble";
 import { CommentPins } from "./comments/CommentPins";
 import { useCanvasComments } from "./comments/useCanvasComments";
@@ -340,6 +349,20 @@ const isSceneEmptyForPresentation = (
   getNonDeletedElements(elements || []).every((element) =>
     isInvisiblySmallElement(element),
   );
+
+const getPresentationFrames = (
+  elements: readonly OrderedExcalidrawElement[],
+) => {
+  return getNonDeletedElements(elements)
+    .filter(isFrameLikeElement)
+    .sort((a, b) => {
+      const rowTolerance = Math.max(80, Math.min(a.height, b.height) * 0.2);
+      if (Math.abs(a.y - b.y) > rowTolerance) {
+        return a.y - b.y;
+      }
+      return a.x - b.x;
+    }) as ExcalidrawFrameLikeElement[];
+};
 
 const initializeScene = async (opts: {
   collabAPI: CollabAPI | null;
@@ -649,6 +672,35 @@ const ExcalidrawWrapper = () => {
     PresentationStore.loadActive(),
   );
   const [presentationCanvasEmpty, setPresentationCanvasEmpty] = useState(true);
+  const [presentationElements, setPresentationElements] = useState<
+    readonly OrderedExcalidrawElement[]
+  >([]);
+  const [presentationAppState, setPresentationAppState] = useState<
+    Partial<Omit<AppState, "offsetTop" | "offsetLeft">>
+  >(() => getDefaultAppState());
+  const [presentationFiles, setPresentationFiles] = useState<BinaryFiles>({});
+  const [framePresenter, setFramePresenter] = useState<{
+    frameIds: string[];
+    index: number;
+    previousView: Pick<
+      AppState,
+      | "scrollX"
+      | "scrollY"
+      | "zoom"
+      | "openSidebar"
+      | "openMenu"
+      | "viewModeEnabled"
+      | "activeTool"
+      | "frameRendering"
+    >;
+  } | null>(null);
+  const [presentationLaserActive, setPresentationLaserActive] = useState(false);
+  const [presentationFrameRect, setPresentationFrameRect] = useState<{
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  } | null>(null);
   const presentationCanvasOpenRef = useRef(presentationCanvasOpen);
   const presentationLoadingWorkspaceRef = useRef(false);
   const presentationSceneRef = useRef<CanvasScene | null>(null);
@@ -1327,6 +1379,15 @@ const ExcalidrawWrapper = () => {
     appState: AppState,
     files: BinaryFiles,
   ) => {
+    if (
+      presentationCanvasOpenRef.current ||
+      appState.openSidebar?.tab === "presentation"
+    ) {
+      setPresentationElements(elements);
+      setPresentationAppState(appState);
+      setPresentationFiles(files);
+    }
+
     if (presentationCanvasOpenRef.current) {
       updatePresentationCanvasEmpty(elements);
       if (!presentationLoadingWorkspaceRef.current) {
@@ -2214,6 +2275,11 @@ const ExcalidrawWrapper = () => {
   ]);
 
   const openPresentationPanel = useCallback(() => {
+    setPresentationElements(excalidrawAPI?.getSceneElements() || []);
+    setPresentationAppState(
+      excalidrawAPI?.getAppState() || getDefaultAppState(),
+    );
+    setPresentationFiles(excalidrawAPI?.getFiles() || {});
     excalidrawAPI?.updateScene({
       appState: {
         openSidebar: {
@@ -2224,6 +2290,341 @@ const ExcalidrawWrapper = () => {
       captureUpdate: CaptureUpdateAction.NEVER,
     });
   }, [excalidrawAPI]);
+
+  const updatePresentationFrameMask = useCallback(
+    (frameId: string) => {
+      if (!excalidrawAPI) {
+        return;
+      }
+      const frame = excalidrawAPI
+        .getSceneElements()
+        .find((element) => element.id === frameId && isFrameLikeElement(element)) as
+        | ExcalidrawFrameLikeElement
+        | undefined;
+      if (!frame) {
+        setPresentationFrameRect(null);
+        return;
+      }
+
+      const appState = excalidrawAPI.getAppState();
+      const topLeft = sceneCoordsToViewportCoords(
+        { sceneX: frame.x, sceneY: frame.y },
+        appState,
+      );
+      const bottomRight = sceneCoordsToViewportCoords(
+        { sceneX: frame.x + frame.width, sceneY: frame.y + frame.height },
+        appState,
+      );
+
+      setPresentationFrameRect({
+        left: topLeft.x,
+        top: topLeft.y,
+        width: bottomRight.x - topLeft.x,
+        height: bottomRight.y - topLeft.y,
+      });
+    },
+    [excalidrawAPI],
+  );
+
+  const focusPresentationSlide = useCallback(
+    (frameId: string, animate = true, viewportZoomFactor = 0.82) => {
+      if (!excalidrawAPI) {
+        return;
+      }
+      const frame = excalidrawAPI
+        .getSceneElements()
+        .find((element) => element.id === frameId && isFrameLikeElement(element)) as
+        | ExcalidrawFrameLikeElement
+        | undefined;
+
+      if (!frame) {
+        setPresentationFrameRect(null);
+        return;
+      }
+
+      excalidrawAPI.scrollToContent(frame, {
+        fitToViewport: true,
+        viewportZoomFactor,
+        animate,
+      });
+      requestAnimationFrame(() => updatePresentationFrameMask(frameId));
+      window.setTimeout(
+        () => updatePresentationFrameMask(frameId),
+        animate ? 260 : 0,
+      );
+    },
+    [excalidrawAPI, updatePresentationFrameMask],
+  );
+
+  const arrangePresentationFrames = useCallback(
+    (layout: PresentationLayout) => {
+      if (!excalidrawAPI || layout === "freeform") {
+        return;
+      }
+
+      const currentElements = excalidrawAPI.getSceneElementsIncludingDeleted();
+      const frames = getPresentationFrames(excalidrawAPI.getSceneElements());
+
+      if (frames.length < 2) {
+        return;
+      }
+
+      const gap = 160;
+      const originX = Math.min(...frames.map((frame) => frame.x));
+      const originY = Math.min(...frames.map((frame) => frame.y));
+      const maxWidth = Math.max(...frames.map((frame) => frame.width));
+      const maxHeight = Math.max(...frames.map((frame) => frame.height));
+      const columns =
+        layout === "grid"
+          ? Math.max(1, Math.ceil(Math.sqrt(frames.length)))
+          : 1;
+      const frameOffsets = new Map<string, { dx: number; dy: number }>();
+
+      let cursorX = originX;
+      let cursorY = originY;
+
+      frames.forEach((frame, index) => {
+        let nextX = frame.x;
+        let nextY = frame.y;
+
+        if (layout === "horizontal") {
+          nextX = cursorX;
+          nextY = originY;
+          cursorX += frame.width + gap;
+        } else if (layout === "vertical") {
+          nextX = originX;
+          nextY = cursorY;
+          cursorY += frame.height + gap;
+        } else if (layout === "grid") {
+          nextX = originX + (index % columns) * (maxWidth + gap);
+          nextY = originY + Math.floor(index / columns) * (maxHeight + gap);
+        }
+
+        frameOffsets.set(frame.id, {
+          dx: nextX - frame.x,
+          dy: nextY - frame.y,
+        });
+      });
+
+      const nextElements = currentElements.map((element) => {
+        const offset = isFrameLikeElement(element)
+          ? frameOffsets.get(element.id)
+          : element.frameId
+          ? frameOffsets.get(element.frameId)
+          : null;
+
+        if (!offset || (!offset.dx && !offset.dy)) {
+          return element;
+        }
+
+        return newElementWith(element, {
+          x: element.x + offset.dx,
+          y: element.y + offset.dy,
+        });
+      });
+
+      excalidrawAPI.updateScene({
+        elements: nextElements,
+        captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+      });
+      setPresentationElements(excalidrawAPI.getSceneElements());
+    },
+    [excalidrawAPI],
+  );
+
+  const endFramePresentation = useCallback(() => {
+    setFramePresenter((currentPresenter) => {
+      if (currentPresenter && excalidrawAPI) {
+        excalidrawAPI.updateFrameRendering(
+          currentPresenter.previousView.frameRendering,
+        );
+        excalidrawAPI.updateScene({
+          appState: currentPresenter.previousView,
+          captureUpdate: CaptureUpdateAction.NEVER,
+        });
+      }
+      return null;
+    });
+    setPresentationLaserActive(false);
+    setPresentationFrameRect(null);
+
+    if (document.fullscreenElement) {
+      void document.exitFullscreen().catch(() => undefined);
+    }
+  }, [excalidrawAPI]);
+
+  const startFramePresentation = useCallback(() => {
+    if (!excalidrawAPI) {
+      return;
+    }
+
+    const frames = getPresentationFrames(excalidrawAPI.getSceneElements());
+    if (!frames.length) {
+      excalidrawAPI.setToast({
+        message: "Add a frame around canvas content to create the first slide.",
+      });
+      return;
+    }
+
+    const appState = excalidrawAPI.getAppState();
+    setFramePresenter({
+      frameIds: frames.map((frame) => frame.id),
+      index: 0,
+      previousView: {
+        scrollX: appState.scrollX,
+        scrollY: appState.scrollY,
+        zoom: appState.zoom,
+        openSidebar: appState.openSidebar,
+        openMenu: appState.openMenu,
+        viewModeEnabled: appState.viewModeEnabled,
+        activeTool: appState.activeTool,
+        frameRendering: appState.frameRendering,
+      },
+    });
+    excalidrawAPI.updateFrameRendering({
+      enabled: true,
+      clip: true,
+      name: false,
+      outline: false,
+    });
+    excalidrawAPI.updateScene({
+      appState: {
+        openSidebar: null,
+        openMenu: null,
+        viewModeEnabled: true,
+      },
+      captureUpdate: CaptureUpdateAction.NEVER,
+    });
+    const focusFirstFrame = () => focusPresentationSlide(frames[0].id, false, 1);
+    focusFirstFrame();
+    const fullscreenRequest = document.documentElement.requestFullscreen?.();
+    if (fullscreenRequest) {
+      void fullscreenRequest
+        .then(() => requestAnimationFrame(focusFirstFrame))
+        .catch(() => undefined);
+    }
+  }, [excalidrawAPI, focusPresentationSlide]);
+
+  const goToPresentationStep = useCallback(
+    (direction: -1 | 1) => {
+      setFramePresenter((currentPresenter) => {
+        if (!currentPresenter) {
+          return currentPresenter;
+        }
+
+        const nextIndex = Math.min(
+          Math.max(currentPresenter.index + direction, 0),
+          currentPresenter.frameIds.length - 1,
+        );
+
+        if (nextIndex === currentPresenter.index) {
+          return currentPresenter;
+        }
+
+        focusPresentationSlide(currentPresenter.frameIds[nextIndex], true, 1);
+        return {
+          ...currentPresenter,
+          index: nextIndex,
+        };
+      });
+    },
+    [focusPresentationSlide],
+  );
+
+  const togglePresentationTheme = useCallback(() => {
+    const frameId = framePresenter?.frameIds[framePresenter.index];
+    setAppTheme(editorTheme === THEME.DARK ? THEME.LIGHT : THEME.DARK);
+    if (frameId) {
+      requestAnimationFrame(() => focusPresentationSlide(frameId, false, 1));
+    }
+  }, [editorTheme, focusPresentationSlide, framePresenter, setAppTheme]);
+
+  const activatePresentationLaser = useCallback(() => {
+    setPresentationLaserActive((currentValue) => {
+      const nextValue = !currentValue;
+      excalidrawAPI?.setActiveTool({
+        type: nextValue ? "laser" : "selection",
+      });
+      if (!nextValue) {
+        const frameId = framePresenter?.frameIds[framePresenter.index];
+        if (frameId) {
+          requestAnimationFrame(() =>
+            focusPresentationSlide(frameId, false, 1),
+          );
+        }
+      }
+      return nextValue;
+    });
+  }, [excalidrawAPI, focusPresentationSlide, framePresenter]);
+
+  useEffect(() => {
+    if (!framePresenter) {
+      return;
+    }
+
+    const frameId = framePresenter.frameIds[framePresenter.index];
+    updatePresentationFrameMask(frameId);
+
+    const onResize = () => {
+      requestAnimationFrame(() => updatePresentationFrameMask(frameId));
+    };
+
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [
+    framePresenter,
+    presentationAppState.height,
+    presentationAppState.scrollX,
+    presentationAppState.scrollY,
+    presentationAppState.width,
+    presentationAppState.zoom,
+    updatePresentationFrameMask,
+  ]);
+
+  useEffect(() => {
+    if (!framePresenter) {
+      return;
+    }
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        endFramePresentation();
+      } else if (
+        event.key === "ArrowRight" ||
+        event.key === "PageDown" ||
+        event.key === " "
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        goToPresentationStep(1);
+      } else if (event.key === "ArrowLeft" || event.key === "PageUp") {
+        event.preventDefault();
+        event.stopPropagation();
+        goToPresentationStep(-1);
+      } else {
+        event.stopPropagation();
+        if (!event.metaKey && !event.ctrlKey && !event.altKey) {
+          event.preventDefault();
+        }
+      }
+    };
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+    };
+
+    window.addEventListener("keydown", onKeyDown, true);
+    window.addEventListener("wheel", onWheel, {
+      capture: true,
+      passive: false,
+    });
+    return () => {
+      window.removeEventListener("keydown", onKeyDown, true);
+      window.removeEventListener("wheel", onWheel, true);
+    };
+  }, [endFramePresentation, framePresenter, goToPresentationStep]);
 
   const renameActiveCanvas = useCallback(
     (title: string) => {
@@ -2394,6 +2795,7 @@ const ExcalidrawWrapper = () => {
       className={clsx("excalidraw-app", {
         "is-collaborating": isCollaborating,
         "is-kanban-open": kanbanOpen,
+        "is-frame-presenter-open": !!framePresenter,
       })}
     >
       <Excalidraw
@@ -2442,7 +2844,11 @@ const ExcalidrawWrapper = () => {
         theme={editorTheme}
         onThemeChange={setAppTheme}
         renderTopRightUI={(isMobile) => {
-          if (isMobile || (!kanbanOpen && (!collabAPI || isCollabDisabled))) {
+          if (
+            framePresenter ||
+            isMobile ||
+            (!kanbanOpen && (!collabAPI || isCollabDisabled))
+          ) {
             return null;
           }
 
@@ -2488,106 +2894,108 @@ const ExcalidrawWrapper = () => {
           }
         }}
       >
-        <AppMainMenu
-          onCollabDialogOpen={onCollabDialogOpen}
-          isCollaborating={isCollaborating}
-          isCollabEnabled={!isCollabDisabled}
-          theme={appTheme}
-          onThemeChange={setAppTheme}
-          language={langCode}
-          onLanguageChange={setLangCode}
-          auth={{
-            status: drawsyAuth.status,
-            displayName:
-              drawsyAuth.user?.displayName || drawsyAuth.user?.email || null,
-            isBusy: drawsyAuth.isBusy,
-            syncStatus: workspaceSyncStatus,
-            onSync: () => void syncWorkspaceNow(true, true),
-            onSignIn: () => {
-              void drawsyAuth.signIn().catch(() => undefined);
-            },
-          }}
-          addMenu={
-            <WorkspaceMenu
-              index={workspaceIndex}
-              kanbanActive={kanbanOpen}
-              disabled={!workspaceIndex || isCollaborating}
-              onCreateCanvas={() => {
-                setKanbanWorkspaceActive(false);
-                createWorkspaceCanvas();
-              }}
-              onCreateProject={() => {
-                setKanbanWorkspaceActive(false);
-                createWorkspaceProject();
-              }}
-              onOpenKanban={() => {
-                setCommentPlacement(false);
-                setCommentDraftAnchor(null);
-                setCommentsSidebarOpen(false);
-                excalidrawAPI?.updateScene({
-                  appState: { openSidebar: null, openMenu: null },
-                });
-                setKanbanWorkspaceActive(true);
-              }}
-              onOpenPresentation={() => {
-                setCommentPlacement(false);
-                setCommentDraftAnchor(null);
-                setCommentsSidebarOpen(false);
-                setKanbanWorkspaceActive(false);
-                void openPresentationCanvas();
-              }}
-              onCreateProjectCanvas={(projectId) => {
-                setKanbanWorkspaceActive(false);
-                createWorkspaceProjectCanvas(projectId);
-              }}
-              onOpenCanvas={(canvasId) => {
-                setKanbanWorkspaceActive(false);
-                openWorkspaceCanvas(canvasId);
-              }}
-              onDeleteCanvas={deleteWorkspaceCanvas}
-              onDeleteProject={deleteWorkspaceProject}
-              loadingCanvasId={loadingCanvasId}
-            />
-          }
-          header={
-            kanbanOpen ? (
-              <WorkspaceTitle
-                canvasTitle={kanbanBoardReady ? kanbanBoard.title : "Kanban"}
-                projectTitle={null}
-                focusProjectTitle={false}
-                itemLabel="Kanban"
-                readOnly={!kanbanBoardReady || kanbanRole === "viewer"}
-                onCanvasTitleChange={(title) =>
-                  updateKanbanBoard({ ...kanbanBoard, title })
-                }
-                onProjectTitleChange={() => undefined}
-                onProjectTitleFocused={() => undefined}
+        {!framePresenter && (
+          <AppMainMenu
+            onCollabDialogOpen={onCollabDialogOpen}
+            isCollaborating={isCollaborating}
+            isCollabEnabled={!isCollabDisabled}
+            theme={appTheme}
+            onThemeChange={setAppTheme}
+            language={langCode}
+            onLanguageChange={setLangCode}
+            auth={{
+              status: drawsyAuth.status,
+              displayName:
+                drawsyAuth.user?.displayName || drawsyAuth.user?.email || null,
+              isBusy: drawsyAuth.isBusy,
+              syncStatus: workspaceSyncStatus,
+              onSync: () => void syncWorkspaceNow(true, true),
+              onSignIn: () => {
+                void drawsyAuth.signIn().catch(() => undefined);
+              },
+            }}
+            addMenu={
+              <WorkspaceMenu
+                index={workspaceIndex}
+                kanbanActive={kanbanOpen}
+                disabled={!workspaceIndex || isCollaborating}
+                onCreateCanvas={() => {
+                  setKanbanWorkspaceActive(false);
+                  createWorkspaceCanvas();
+                }}
+                onCreateProject={() => {
+                  setKanbanWorkspaceActive(false);
+                  createWorkspaceProject();
+                }}
+                onOpenKanban={() => {
+                  setCommentPlacement(false);
+                  setCommentDraftAnchor(null);
+                  setCommentsSidebarOpen(false);
+                  excalidrawAPI?.updateScene({
+                    appState: { openSidebar: null, openMenu: null },
+                  });
+                  setKanbanWorkspaceActive(true);
+                }}
+                onOpenPresentation={() => {
+                  setCommentPlacement(false);
+                  setCommentDraftAnchor(null);
+                  setCommentsSidebarOpen(false);
+                  setKanbanWorkspaceActive(false);
+                  void openPresentationCanvas();
+                }}
+                onCreateProjectCanvas={(projectId) => {
+                  setKanbanWorkspaceActive(false);
+                  createWorkspaceProjectCanvas(projectId);
+                }}
+                onOpenCanvas={(canvasId) => {
+                  setKanbanWorkspaceActive(false);
+                  openWorkspaceCanvas(canvasId);
+                }}
+                onDeleteCanvas={deleteWorkspaceCanvas}
+                onDeleteProject={deleteWorkspaceProject}
+                loadingCanvasId={loadingCanvasId}
               />
-            ) : presentationCanvasOpen ? (
-              <WorkspaceTitle
-                canvasTitle="Presentation"
-                projectTitle={null}
-                focusProjectTitle={false}
-                itemLabel="Presentation"
-                readOnly
-                onCanvasTitleChange={() => undefined}
-                onProjectTitleChange={() => undefined}
-                onProjectTitleFocused={() => undefined}
-              />
-            ) : activeCanvas ? (
-              <WorkspaceTitle
-                canvasTitle={activeCanvas.title}
-                projectTitle={activeProject?.title || null}
-                focusProjectTitle={
-                  !!activeProject && projectTitleToFocus === activeProject.id
-                }
-                onCanvasTitleChange={renameActiveCanvas}
-                onProjectTitleChange={renameActiveProject}
-                onProjectTitleFocused={clearProjectTitleFocus}
-              />
-            ) : null
-          }
-        />
+            }
+            header={
+              kanbanOpen ? (
+                <WorkspaceTitle
+                  canvasTitle={kanbanBoardReady ? kanbanBoard.title : "Kanban"}
+                  projectTitle={null}
+                  focusProjectTitle={false}
+                  itemLabel="Kanban"
+                  readOnly={!kanbanBoardReady || kanbanRole === "viewer"}
+                  onCanvasTitleChange={(title) =>
+                    updateKanbanBoard({ ...kanbanBoard, title })
+                  }
+                  onProjectTitleChange={() => undefined}
+                  onProjectTitleFocused={() => undefined}
+                />
+              ) : presentationCanvasOpen ? (
+                <WorkspaceTitle
+                  canvasTitle="Presentation"
+                  projectTitle={null}
+                  focusProjectTitle={false}
+                  itemLabel="Presentation"
+                  readOnly
+                  onCanvasTitleChange={() => undefined}
+                  onProjectTitleChange={() => undefined}
+                  onProjectTitleFocused={() => undefined}
+                />
+              ) : activeCanvas ? (
+                <WorkspaceTitle
+                  canvasTitle={activeCanvas.title}
+                  projectTitle={activeProject?.title || null}
+                  focusProjectTitle={
+                    !!activeProject && projectTitleToFocus === activeProject.id
+                  }
+                  onCanvasTitleChange={renameActiveCanvas}
+                  onProjectTitleChange={renameActiveProject}
+                  onProjectTitleFocused={clearProjectTitleFocus}
+                />
+              ) : null
+            }
+          />
+        )}
         {kanbanOpen && kanbanBoardReady && (
           <KanbanWorkspace
             board={
@@ -2636,9 +3044,11 @@ const ExcalidrawWrapper = () => {
             </OverwriteConfirmDialog.Action>
           )}
         </OverwriteConfirmDialog>
-        {excalidrawAPI && <AIComponents excalidrawAPI={excalidrawAPI} />}
+        {excalidrawAPI && !framePresenter && (
+          <AIComponents excalidrawAPI={excalidrawAPI} />
+        )}
 
-        <TTDDialogTrigger />
+        {!framePresenter && <TTDDialogTrigger />}
         {isCollaborating && isOffline && (
           <div className="alertalert--warning">
             {t("alerts.collabOfflineWarning")}
@@ -2695,31 +3105,168 @@ const ExcalidrawWrapper = () => {
           />
         )}
 
-        <AppSidebar
-          authStatus={drawsyAuth.status}
-          displayName={
-            drawsyAuth.user?.displayName || drawsyAuth.user?.email || "You"
-          }
-          canvasTitle={
-            kanbanOpen
-              ? kanbanBoardReady
-                ? kanbanBoard.title
-                : "Kanban"
-              : presentationCanvasOpen
-              ? "Presentation"
-              : activeCanvas?.title || "Canvas"
-          }
-          isCollaborating={isCollaborating}
-          comments={comments}
-          onSignIn={() => void drawsyAuth.signIn().catch(() => undefined)}
-          onStartPlacement={
-            presentationCanvasOpen || kanbanOpen
-              ? () => undefined
-              : beginCommentPlacement
-          }
-          onGoToComment={goToComment}
-          onCommentsOpenChange={setCommentsSidebarOpen}
-        />
+        {!framePresenter && (
+          <AppSidebar
+            authStatus={drawsyAuth.status}
+            displayName={
+              drawsyAuth.user?.displayName || drawsyAuth.user?.email || "You"
+            }
+            canvasTitle={
+              kanbanOpen
+                ? kanbanBoardReady
+                  ? kanbanBoard.title
+                  : "Kanban"
+                : presentationCanvasOpen
+                ? "Presentation"
+                : activeCanvas?.title || "Canvas"
+            }
+            isCollaborating={isCollaborating}
+            comments={comments}
+            presentationElements={presentationElements}
+            presentationAppState={presentationAppState}
+            presentationFiles={presentationFiles}
+            onPresentationSlideFocus={focusPresentationSlide}
+            onPresentationStart={startFramePresentation}
+            onPresentationLayoutChange={arrangePresentationFrames}
+            onSignIn={() => void drawsyAuth.signIn().catch(() => undefined)}
+            onStartPlacement={
+              presentationCanvasOpen || kanbanOpen
+                ? () => undefined
+                : beginCommentPlacement
+            }
+            onGoToComment={goToComment}
+            onCommentsOpenChange={setCommentsSidebarOpen}
+          />
+        )}
+        {framePresenter && presentationFrameRect && (
+          <div
+            className="frame-presenter-mask"
+            aria-hidden="true"
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+            onContextMenu={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+            onDoubleClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+            onPointerDown={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+            onPointerMove={(event) => {
+              event.stopPropagation();
+            }}
+            onPointerUp={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+            onWheel={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+          >
+            <div
+              style={{
+                left: 0,
+                top: 0,
+                right: 0,
+                height: Math.max(0, presentationFrameRect.top),
+              }}
+            />
+            <div
+              style={{
+                left: 0,
+                top: presentationFrameRect.top + presentationFrameRect.height,
+                right: 0,
+                bottom: 0,
+              }}
+            />
+            <div
+              style={{
+                left: 0,
+                top: presentationFrameRect.top,
+                width: Math.max(0, presentationFrameRect.left),
+                height: Math.max(0, presentationFrameRect.height),
+              }}
+            />
+            <div
+              style={{
+                left: presentationFrameRect.left + presentationFrameRect.width,
+                top: presentationFrameRect.top,
+                right: 0,
+                height: Math.max(0, presentationFrameRect.height),
+              }}
+            />
+            {!presentationLaserActive && (
+              <div
+                className="frame-presenter-interaction-shield"
+                style={{
+                  left: presentationFrameRect.left,
+                  top: presentationFrameRect.top,
+                  width: Math.max(0, presentationFrameRect.width),
+                  height: Math.max(0, presentationFrameRect.height),
+                }}
+              />
+            )}
+          </div>
+        )}
+        {framePresenter && (
+          <div className="frame-presenter-controls" role="toolbar">
+            <button
+              className="frame-presenter-controls__button"
+              type="button"
+              onClick={togglePresentationTheme}
+              aria-label="Toggle theme"
+            >
+              {editorTheme === THEME.DARK ? SunIcon : MoonIcon}
+            </button>
+            <button
+              className="frame-presenter-controls__button"
+              data-active={presentationLaserActive}
+              type="button"
+              onClick={activatePresentationLaser}
+              aria-label="Laser pointer"
+            >
+              {laserPointerToolIcon}
+            </button>
+            <button
+              className="frame-presenter-controls__button frame-presenter-controls__button--previous"
+              type="button"
+              onClick={() => goToPresentationStep(-1)}
+              disabled={framePresenter.index === 0}
+              aria-label="Previous slide"
+            >
+              {ArrowRightIcon}
+            </button>
+            <span className="frame-presenter-controls__count">
+              {framePresenter.index + 1}/{framePresenter.frameIds.length} Slides
+            </span>
+            <button
+              className="frame-presenter-controls__button"
+              type="button"
+              onClick={() => goToPresentationStep(1)}
+              disabled={
+                framePresenter.index === framePresenter.frameIds.length - 1
+              }
+              aria-label="Next slide"
+            >
+              {ArrowRightIcon}
+            </button>
+            <button
+              className="frame-presenter-controls__button frame-presenter-controls__button--exit"
+              type="button"
+              onClick={endFramePresentation}
+              aria-label="End presentation"
+            >
+              {CloseIcon}
+            </button>
+          </div>
+        )}
         {drawsyAuth.status === "authenticated" &&
           !isCollaborating &&
           !kanbanOpen &&

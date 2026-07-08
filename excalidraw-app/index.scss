@@ -98,6 +98,127 @@
     }
   }
 
+  @at-root .excalidraw-app.is-frame-presenter-open & {
+    .default-sidebar,
+    .App-menu,
+    .App-toolbar-container,
+    .excalidraw-ui-top-left,
+    .excalidraw-ui-top-right,
+    .layer-ui__wrapper,
+    .layer-ui__wrapper__top-right,
+    .layer-ui__wrapper__footer,
+    .layer-ui__wrapper__footer-left,
+    .layer-ui__wrapper__footer-right,
+    .zoom-actions {
+      display: none !important;
+    }
+  }
+
+  .frame-presenter-mask {
+    div {
+      pointer-events: auto;
+      position: fixed;
+      z-index: 18;
+      background: var(--default-bg-color);
+    }
+
+    .frame-presenter-interaction-shield {
+      z-index: 19;
+      background: transparent;
+    }
+  }
+
+  .frame-presenter-controls {
+    position: fixed;
+    left: 50%;
+    bottom: 1.25rem;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    color: var(--color-on-surface);
+    transform: translateX(-50%);
+
+    &__button {
+      display: grid;
+      width: 2.35rem;
+      height: 2.35rem;
+      place-items: center;
+      padding: 0;
+      border: 1px solid
+        color-mix(in srgb, var(--color-border-outline-variant) 42%, transparent);
+      border-radius: 50%;
+      background: color-mix(in srgb, var(--island-bg-color) 86%, transparent);
+      box-shadow: 0 0.65rem 1.8rem rgba(0, 0, 0, 0.18);
+      color: var(--color-on-surface);
+      font: 700 0.82rem/1 var(--ui-font);
+      cursor: pointer;
+      backdrop-filter: blur(10px);
+
+      svg {
+        width: 1.1rem;
+        height: 1.1rem;
+      }
+
+      &:hover:not(:disabled) {
+        background: color-mix(
+          in srgb,
+          var(--color-primary) 18%,
+          var(--island-bg-color)
+        );
+      }
+
+      &[data-active="true"] {
+        border-color: color-mix(in srgb, var(--color-primary) 68%, transparent);
+        background: color-mix(
+          in srgb,
+          var(--color-primary) 28%,
+          var(--island-bg-color)
+        );
+        color: var(--color-primary);
+      }
+
+      &:disabled {
+        color: var(--color-muted-darker);
+        cursor: default;
+      }
+
+      &--previous {
+        svg {
+          transform: rotate(180deg);
+        }
+      }
+
+      &--exit {
+        color: var(--color-danger);
+
+        &:hover {
+          background: color-mix(
+            in srgb,
+            var(--color-danger) 14%,
+            transparent
+          );
+        }
+      }
+    }
+
+    &__count {
+      display: grid;
+      min-width: 5.7rem;
+      min-height: 2.35rem;
+      place-items: center;
+      padding: 0 0.75rem;
+      border: 1px solid
+        color-mix(in srgb, var(--color-border-outline-variant) 42%, transparent);
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--island-bg-color) 86%, transparent);
+      box-shadow: 0 0.65rem 1.8rem rgba(0, 0, 0, 0.18);
+      color: var(--color-muted-darker);
+      white-space: nowrap;
+      backdrop-filter: blur(10px);
+    }
+  }
+
   .presentation-welcome-screen {
     pointer-events: none;
     position: absolute;

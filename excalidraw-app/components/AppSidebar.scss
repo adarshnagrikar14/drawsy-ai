@@ -203,6 +203,382 @@
     margin: 0 auto;
   }
 
+  .presentation-panel {
+    display: flex;
+    min-height: 0;
+    height: 100%;
+    flex-direction: column;
+    color: var(--color-on-surface);
+  }
+
+  .presentation-panel-tabs {
+    display: flex;
+    gap: 0.35rem;
+    overflow-x: auto;
+    padding: 0.8rem 0.75rem 0.65rem;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+
+  .presentation-panel-tab {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 0.35rem;
+    min-height: 2.05rem;
+    padding: 0 0.65rem;
+    border: 1px solid transparent;
+    border-radius: 0.5rem;
+    background: transparent;
+    color: var(--color-muted-darker);
+    font: 650 0.75rem/1 var(--ui-font);
+    cursor: pointer;
+
+    svg {
+      width: 1rem;
+      height: 1rem;
+      flex: 0 0 auto;
+    }
+
+    &[data-active="true"] {
+      border-color: color-mix(in srgb, var(--color-primary) 48%, transparent);
+      background: repeating-linear-gradient(
+          -28deg,
+          color-mix(in srgb, var(--color-primary) 22%, transparent) 0 1px,
+          transparent 1px 8px
+        ),
+        color-mix(in srgb, var(--color-primary) 10%, var(--color-surface-high));
+      color: var(--color-on-surface);
+    }
+
+    &:hover {
+      color: var(--color-on-surface);
+      background: var(--button-hover-bg);
+    }
+  }
+
+  .presentation-panel-content {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+    overflow-y: auto;
+    padding: 0.1rem 0.75rem 0.75rem;
+  }
+
+  .presentation-panel-section-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.15rem 0.15rem 0.55rem;
+    color: var(--color-on-surface);
+    font: 700 0.78rem/1 var(--ui-font);
+
+    small {
+      color: var(--color-muted-darker);
+      font-weight: 650;
+    }
+  }
+
+  .presentation-slide-list,
+  .presentation-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+
+  .presentation-slide-card,
+  .presentation-option-row {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    gap: 0.7rem;
+    border: 1px solid
+      color-mix(in srgb, var(--color-border-outline-variant) 55%, transparent);
+    border-radius: 0.5rem;
+    background: var(--color-surface-high);
+  }
+
+  .presentation-slide-card {
+    padding: 0.55rem;
+    width: 100%;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+
+    &:hover {
+      border-color: color-mix(
+        in srgb,
+        var(--color-primary) 55%,
+        var(--color-border-outline-variant)
+      );
+      background: color-mix(
+        in srgb,
+        var(--color-primary) 8%,
+        var(--color-surface-high)
+      );
+    }
+  }
+
+  .presentation-slide-card__preview {
+    display: grid;
+    width: 4.6rem;
+    height: 2.6rem;
+    overflow: hidden;
+    flex: 0 0 auto;
+    place-items: center;
+    border: 1px dashed
+      color-mix(in srgb, var(--color-primary) 48%, var(--color-gray-60));
+    border-radius: 0.4rem;
+    background: repeating-linear-gradient(
+        -28deg,
+        color-mix(in srgb, var(--color-primary) 20%, transparent) 0 1px,
+        transparent 1px 7px
+      ),
+      color-mix(in srgb, var(--color-surface-low) 55%, transparent);
+    color: #ffffff;
+    font: 800 0.85rem/1 var(--ui-font);
+
+    img {
+      width: 100%;
+      height: 100%;
+      max-width: 100%;
+      max-height: 100%;
+      display: block;
+      border-radius: 0.32rem;
+      object-fit: contain;
+      background: var(--color-surface-lowest);
+    }
+  }
+
+  .presentation-slide-card__body {
+    display: flex;
+    min-width: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 0.28rem;
+
+    strong,
+    span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    strong {
+      color: var(--color-on-surface);
+      font: 750 0.88rem/1.1 var(--ui-font);
+    }
+
+    span {
+      color: var(--color-muted-darker);
+      font: 600 0.72rem/1.1 var(--ui-font);
+    }
+  }
+
+  .presentation-panel-empty {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 18rem;
+    padding: 1.5rem 1rem;
+    text-align: center;
+    color: var(--color-muted-darker);
+
+    p {
+      max-width: 17rem;
+      margin: 0.45rem 0 0;
+      font: 600 0.86rem/1.35 var(--ui-font);
+    }
+  }
+
+  .presentation-panel-empty__art {
+    position: relative;
+    width: 8rem;
+    height: 5rem;
+    margin-bottom: 1rem;
+
+    div {
+      position: absolute;
+      inset: 0.5rem 0.35rem 0.65rem;
+      border: 2px dashed
+        color-mix(in srgb, var(--color-primary) 56%, var(--color-gray-60));
+      border-radius: 0.45rem;
+      transform: rotate(-2deg);
+    }
+
+    span {
+      position: absolute;
+      right: 0.45rem;
+      bottom: 0.25rem;
+      width: 2.2rem;
+      height: 1.2rem;
+      border-radius: 999px;
+      background: repeating-linear-gradient(
+          -28deg,
+          color-mix(in srgb, var(--color-primary) 40%, transparent) 0 1px,
+          transparent 1px 6px
+        ),
+        var(--color-surface-high);
+    }
+  }
+
+  .presentation-panel-empty__title {
+    color: var(--color-on-surface);
+    font: 750 1rem/1.15 var(--ui-font);
+  }
+
+  .presentation-card-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.55rem;
+  }
+
+  .presentation-template-card,
+  .presentation-resource-card {
+    display: flex;
+    min-height: 5.7rem;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 0.65rem;
+    padding: 0.7rem;
+    border: 1px solid
+      color-mix(in srgb, var(--color-border-outline-variant) 55%, transparent);
+    border-radius: 0.5rem;
+    background: var(--color-surface-high);
+    color: var(--color-on-surface);
+    font: 750 0.82rem/1.1 var(--ui-font);
+  }
+
+  .presentation-template-card span,
+  .presentation-resource-card span {
+    display: block;
+    width: 100%;
+    height: 2.25rem;
+    border-radius: 0.35rem;
+    background: repeating-linear-gradient(
+        -28deg,
+        color-mix(in srgb, var(--color-primary) 22%, transparent) 0 1px,
+        transparent 1px 7px
+      ),
+      color-mix(in srgb, var(--color-surface-low) 70%, transparent);
+  }
+
+  .presentation-option-row {
+    justify-content: space-between;
+    padding: 0.8rem 0.75rem;
+
+    span {
+      color: var(--color-on-surface);
+      font: 720 0.85rem/1.1 var(--ui-font);
+    }
+
+    small {
+      color: var(--color-muted-darker);
+      font: 650 0.72rem/1 var(--ui-font);
+    }
+  }
+
+  .presentation-layout-options {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    padding: 0;
+    border: 0;
+    margin: 0;
+
+    legend {
+      padding: 0.15rem 0.15rem 0.55rem;
+      color: var(--color-on-surface);
+      font: 700 0.78rem/1 var(--ui-font);
+    }
+  }
+
+  .presentation-layout-option {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.8rem 0.75rem;
+    border: 1px solid
+      color-mix(in srgb, var(--color-border-outline-variant) 55%, transparent);
+    border-radius: 0.5rem;
+    background: var(--color-surface-high);
+    cursor: pointer;
+
+    input {
+      width: 1rem;
+      height: 1rem;
+      accent-color: var(--color-primary);
+      cursor: pointer;
+    }
+
+    span {
+      color: var(--color-on-surface);
+      font: 720 0.85rem/1.1 var(--ui-font);
+    }
+
+    &:has(input:checked) {
+      border-color: color-mix(
+        in srgb,
+        var(--color-primary) 55%,
+        var(--color-border-outline-variant)
+      );
+      background: repeating-linear-gradient(
+          -28deg,
+          color-mix(in srgb, var(--color-primary) 18%, transparent) 0 1px,
+          transparent 1px 8px
+        ),
+        color-mix(in srgb, var(--color-primary) 9%, var(--color-surface-high));
+    }
+  }
+
+  .presentation-panel-footer {
+    padding: 0.75rem;
+    border-top: 1px solid var(--sidebar-border-color);
+  }
+
+  .presentation-present-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.55rem;
+    width: 100%;
+    min-height: 2.65rem;
+    border: 1px solid var(--color-primary);
+    border-radius: 0.55rem;
+    background: var(--color-primary);
+    color: #ffffff;
+    font: 800 0.9rem/1 var(--ui-font);
+    cursor: pointer;
+
+    svg {
+      width: 1rem;
+      height: 1rem;
+    }
+
+    &:hover {
+      background: var(--color-primary-darker);
+    }
+
+    &:disabled {
+      border-color: color-mix(
+        in srgb,
+        var(--color-border-outline-variant) 65%,
+        transparent
+      );
+      background: var(--color-surface-high);
+      color: var(--color-muted-darker);
+      cursor: default;
+    }
+  }
+
   .comments-panel,
   .comments-placeholder {
     height: 100%;
