@@ -1,7 +1,4 @@
-import {
-  loginIcon,
-  presentationIcon,
-} from "@excalidraw/excalidraw/components/icons";
+import { loginIcon } from "@excalidraw/excalidraw/components/icons";
 import { POINTER_EVENTS } from "@excalidraw/common";
 import { useI18n } from "@excalidraw/excalidraw/i18n";
 import { WelcomeScreen } from "@excalidraw/excalidraw/index";
@@ -13,6 +10,7 @@ export const AppWelcomeScreen: React.FC<{
   onCollabDialogOpen: () => any;
   isCollabEnabled: boolean;
   isPresentationMode?: boolean;
+  onOpenPresentationPanel?: () => void;
 }> = React.memo((props) => {
   const { t } = useI18n();
   let headingContent;
@@ -20,7 +18,7 @@ export const AppWelcomeScreen: React.FC<{
   if (props.isPresentationMode) {
     return (
       <WelcomeScreen>
-        <div className="presentation-welcome-screen excalifont welcome-screen-decor">
+        <div className="presentation-welcome-screen excalifont">
           <div
             className="presentation-welcome-screen__sketch"
             aria-hidden="true"
@@ -61,12 +59,6 @@ export const AppWelcomeScreen: React.FC<{
             </div>
           </div>
           <div className="presentation-welcome-screen__panel">
-            <div
-              className="presentation-welcome-screen__icon"
-              aria-hidden="true"
-            >
-              {presentationIcon}
-            </div>
             <div className="presentation-welcome-screen__title">
               Shape the story on canvas
             </div>
@@ -77,6 +69,16 @@ export const AppWelcomeScreen: React.FC<{
             <div className="presentation-welcome-screen__note">
               Start with a frame. Add title, visuals, and the next beat.
             </div>
+            <button
+              type="button"
+              className="presentation-welcome-screen__start"
+              onClick={() => props.onOpenPresentationPanel?.()}
+            >
+              <span className="presentation-welcome-screen__start-icon">
+                |&gt;
+              </span>
+              <span>Start Presenting</span>
+            </button>
           </div>
           <div className="presentation-welcome-screen__hint">
             <span>Presentation panel</span>

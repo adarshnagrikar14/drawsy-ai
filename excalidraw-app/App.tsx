@@ -2213,6 +2213,18 @@ const ExcalidrawWrapper = () => {
     setSelectedCommentId,
   ]);
 
+  const openPresentationPanel = useCallback(() => {
+    excalidrawAPI?.updateScene({
+      appState: {
+        openSidebar: {
+          name: DEFAULT_SIDEBAR.name,
+          tab: "presentation",
+        },
+      },
+      captureUpdate: CaptureUpdateAction.NEVER,
+    });
+  }, [excalidrawAPI]);
+
   const renameActiveCanvas = useCallback(
     (title: string) => {
       if (!excalidrawAPI || !activeCanvas) {
@@ -2443,17 +2455,7 @@ const ExcalidrawWrapper = () => {
                     setShareDialogState({ isOpen: true, type: "share" })
                   }
                   onCommentSelect={beginCommentPlacement}
-                  onPresentationSelect={() => {
-                    excalidrawAPI.updateScene({
-                      appState: {
-                        openSidebar: {
-                          name: DEFAULT_SIDEBAR.name,
-                          tab: "presentation",
-                        },
-                      },
-                      captureUpdate: CaptureUpdateAction.NEVER,
-                    });
-                  }}
+                  onPresentationSelect={openPresentationPanel}
                   isPlacingComment={isPlacingComment}
                   isKanbanOpen={kanbanOpen}
                   isPresentationOpen={presentationCanvasOpen}
@@ -2611,6 +2613,7 @@ const ExcalidrawWrapper = () => {
               onCollabDialogOpen={onCollabDialogOpen}
               isCollabEnabled={!isCollabDisabled}
               isPresentationMode={presentationCanvasOpen}
+              onOpenPresentationPanel={openPresentationPanel}
             />
           )}
         <OverwriteConfirmDialog>

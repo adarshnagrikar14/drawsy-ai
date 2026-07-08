@@ -102,13 +102,13 @@
     pointer-events: none;
     position: absolute;
     inset: 0;
-    z-index: 2;
+    z-index: 8;
   }
 
   .presentation-welcome-screen__sketch {
     position: absolute;
     left: 50%;
-    top: 46%;
+    top: 39%;
     width: min(48rem, calc(100vw - 8rem));
     height: 17rem;
     color: color-mix(in srgb, var(--color-primary) 52%, var(--color-gray-50));
@@ -178,9 +178,10 @@
   }
 
   .presentation-welcome-screen__panel {
+    pointer-events: none;
     position: absolute;
     left: 50%;
-    top: 59%;
+    top: 62%;
     transform: translate(-50%, -50%);
     width: min(32rem, calc(100vw - 3rem));
     display: flex;
@@ -190,25 +191,9 @@
     text-align: center;
   }
 
-  .presentation-welcome-screen__icon {
-    display: grid;
-    place-items: center;
-    width: 3.4rem;
-    height: 3.4rem;
-    color: var(--color-primary);
-    border: 1px solid var(--color-surface-high);
-    border-radius: var(--border-radius-md);
-    background: var(--island-bg-color);
-
-    svg {
-      width: 1.5rem;
-      height: 1.5rem;
-    }
-  }
-
   .presentation-welcome-screen__title {
-    color: var(--color-gray-100);
-    font-size: 1.6rem;
+    color: #ffffff;
+    font-size: 1.75rem;
     line-height: 1.2;
   }
 
@@ -220,8 +205,62 @@
   }
 
   .presentation-welcome-screen__note {
-    color: var(--color-gray-50);
+    color: color-mix(in srgb, var(--color-primary) 42%, var(--color-gray-70));
     font-size: 0.95rem;
+  }
+
+  .presentation-welcome-screen__start {
+    pointer-events: all;
+    position: relative;
+    z-index: 2;
+    display: inline-grid;
+    grid-template-columns: auto auto;
+    align-items: center;
+    gap: 1.05rem;
+    min-width: 18rem;
+    margin-top: 1.35rem;
+    padding: 0.9rem 1.25rem;
+    color: var(--color-gray-100);
+    font-family: "Excalifont", "Xiaolai";
+    font-size: 1.1rem;
+    border: 1.5px dashed
+      color-mix(in srgb, var(--color-primary) 72%, var(--color-gray-100));
+    border-radius: 0.75rem;
+    background: repeating-linear-gradient(
+        -28deg,
+        color-mix(in srgb, var(--color-primary) 28%, transparent) 0 1.5px,
+        transparent 1.5px 10px
+      ),
+      color-mix(in srgb, var(--color-surface-high) 48%, transparent);
+    cursor: pointer;
+
+    span {
+      color: #ffffff;
+    }
+
+    &:hover,
+    &:focus-visible {
+      color: #ffffff;
+      border-color: var(--color-primary);
+      background: repeating-linear-gradient(
+          -28deg,
+          color-mix(in srgb, var(--color-primary) 42%, transparent) 0 1.5px,
+          transparent 1.5px 8px
+        ),
+        color-mix(in srgb, var(--color-primary) 12%, var(--color-surface-high));
+      outline: none;
+    }
+  }
+
+  .presentation-welcome-screen__start-icon {
+    display: grid;
+    place-items: center;
+    width: 3rem;
+    height: 1.75rem;
+    border: 1.5px dashed color-mix(in srgb, #ffffff 70%, transparent);
+    border-radius: 0.45rem;
+    font-size: 0.95rem;
+    line-height: 1;
   }
 
   .presentation-welcome-screen__hint {
