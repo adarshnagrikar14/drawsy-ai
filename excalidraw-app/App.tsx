@@ -2791,6 +2791,120 @@ const ExcalidrawWrapper = () => {
     [excalidrawAPI, focusPresentationSlide],
   );
 
+  const renamePresentationSlide = useCallback(
+    (frameId: string, name: string) => {
+      if (!excalidrawAPI) {
+        return;
+      }
+
+      const currentElements = excalidrawAPI.getSceneElementsIncludingDeleted();
+      const nextElements = currentElements.map((element) => {
+        if (element.id !== frameId || !isFrameLikeElement(element)) {
+          return element;
+        }
+
+        return newElementWith(element, { name });
+      });
+
+      excalidrawAPI.updateScene({
+        elements: nextElements,
+        captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+      });
+      setPresentationElements(excalidrawAPI.getSceneElements());
+    },
+    [excalidrawAPI],
+  );
+
+  const deletePresentationSlide = useCallback(
+    (frameId: string, layout: PresentationLayout) => {
+      if (!excalidrawAPI) {
+        return;
+      }
+
+      const currentElements = excalidrawAPI.getSceneElementsIncludingDeleted();
+      const deletedElements = currentElements.map((element) => {
+        if (element.id === frameId || element.frameId === frameId) {
+          return newElementWith(element, { isDeleted: true });
+        }
+
+        return element;
+      });
+      const nextElements =
+        layout === "freeform"
+          ? deletedElements
+          : getArrangedPresentationElements(deletedElements, layout) ||
+            deletedElements;
+
+      excalidrawAPI.updateScene({
+        elements: nextElements,
+        captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+      });
+      setPresentationElements(excalidrawAPI.getSceneElements());
+    },
+    [excalidrawAPI],
+  );
+
+  const reorderPresentationSlide = useCallback(
+    (frameId: string, targetFrameId: string, layout: PresentationLayout) => {
+      if (!excalidrawAPI) {
+        return;
+      }
+
+      const currentElements = excalidrawAPI.getSceneElementsIncludingDeleted();
+      const frames = getPresentationFrames(excalidrawAPI.getSceneElements());
+      const frameIndex = frames.findIndex((frame) => frame.id === frameId);
+      const targetIndex = frames.findIndex(
+        (frame) => frame.id === targetFrameId,
+      );
+
+      if (frameIndex < 0 || targetIndex < 0 || frameIndex === targetIndex) {
+        return;
+      }
+
+      const reorderedFrames = [...frames];
+      const [movedFrame] = reorderedFrames.splice(frameIndex, 1);
+      reorderedFrames.splice(targetIndex, 0, movedFrame);
+      const frameOffsets = new Map<string, { dx: number; dy: number }>();
+
+      reorderedFrames.forEach((frame, index) => {
+        const targetPosition = frames[index];
+        frameOffsets.set(frame.id, {
+          dx: targetPosition.x - frame.x,
+          dy: targetPosition.y - frame.y,
+        });
+      });
+
+      const reorderedElements = currentElements.map((element) => {
+        const offset = isFrameLikeElement(element)
+          ? frameOffsets.get(element.id)
+          : element.frameId
+          ? frameOffsets.get(element.frameId)
+          : null;
+
+        if (!offset || (!offset.dx && !offset.dy)) {
+          return element;
+        }
+
+        return newElementWith(element, {
+          x: element.x + offset.dx,
+          y: element.y + offset.dy,
+        });
+      });
+      const nextElements =
+        layout === "freeform"
+          ? reorderedElements
+          : getArrangedPresentationElements(reorderedElements, layout) ||
+            reorderedElements;
+
+      excalidrawAPI.updateScene({
+        elements: nextElements,
+        captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+      });
+      setPresentationElements(excalidrawAPI.getSceneElements());
+    },
+    [excalidrawAPI],
+  );
+
   const endFramePresentation = useCallback(() => {
     setFramePresenter((currentPresenter) => {
       if (currentPresenter && excalidrawAPI) {
@@ -3489,6 +3603,9 @@ const ExcalidrawWrapper = () => {
             onPresentationStart={startFramePresentation}
             onPresentationLayoutChange={arrangePresentationFrames}
             onPresentationTemplateInsert={insertPresentationTemplate}
+            onPresentationSlideRename={renamePresentationSlide}
+            onPresentationSlideDelete={deletePresentationSlide}
+            onPresentationSlideReorder={reorderPresentationSlide}
             onSignIn={() => void drawsyAuth.signIn().catch(() => undefined)}
             onStartPlacement={
               presentationCanvasOpen || kanbanOpen

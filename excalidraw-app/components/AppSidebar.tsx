@@ -13,6 +13,7 @@ import {
   palette,
   presentationIcon,
   start,
+  TrashIcon,
 } from "@excalidraw/excalidraw/components/icons";
 import { useUIAppState } from "@excalidraw/excalidraw/context/ui-appState";
 import {
@@ -21,6 +22,7 @@ import {
   isFrameLikeElement,
 } from "@excalidraw/element";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 
 import type { AppState, BinaryFiles } from "@excalidraw/excalidraw/types";
 import type {
@@ -188,6 +190,9 @@ const PresentationPanel = ({
   onStartPresentation,
   onLayoutChange,
   onTemplateInsert,
+  onRenameSlide,
+  onDeleteSlide,
+  onReorderSlide,
 }: {
   elements: readonly OrderedExcalidrawElement[];
   appState: PresentationExportAppState;
@@ -199,10 +204,56 @@ const PresentationPanel = ({
     templateId: PresentationTemplateId,
     layout: PresentationLayout,
   ) => void;
+  onRenameSlide: (frameId: string, name: string) => void;
+  onDeleteSlide: (frameId: string, layout: PresentationLayout) => void;
+  onReorderSlide: (
+    frameId: string,
+    targetFrameId: string,
+    layout: PresentationLayout,
+  ) => void;
 }) => {
   const [activeTab, setActiveTab] = useState<PresentationPanelTab>("slides");
   const [activeLayout, setActiveLayout] =
     useState<PresentationLayout>("freeform");
+  const [editingFrameId, setEditingFrameId] = useState<string | null>(null);
+  const [editingSlideName, setEditingSlideName] = useState("");
+  const [draggedFrameId, setDraggedFrameId] = useState<string | null>(null);
+  const [dropFrameId, setDropFrameId] = useState<string | null>(null);
+  const [dragPreview, setDragPreview] = useState<{
+    x: number;
+    y: number;
+    title: string;
+    meta: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!draggedFrameId) {
+      return;
+    }
+
+    const clearDragState = () => {
+      setDraggedFrameId(null);
+      setDropFrameId(null);
+      setDragPreview(null);
+    };
+    const updateDragPreview = (event: PointerEvent) => {
+      setDragPreview((currentPreview) =>
+        currentPreview
+          ? { ...currentPreview, x: event.clientX, y: event.clientY }
+          : null,
+      );
+    };
+
+    window.addEventListener("pointermove", updateDragPreview);
+    window.addEventListener("pointerup", clearDragState);
+    window.addEventListener("blur", clearDragState);
+
+    return () => {
+      window.removeEventListener("pointermove", updateDragPreview);
+      window.removeEventListener("pointerup", clearDragState);
+      window.removeEventListener("blur", clearDragState);
+    };
+  }, [draggedFrameId]);
 
   const { frames, childCountByFrameId } = useMemo(() => {
     const nonDeletedElements = getNonDeletedElements(elements);
@@ -252,31 +303,161 @@ const PresentationPanel = ({
         {frames.map((frame, index) => {
           const title = frame.name?.trim() || `Slide ${index + 1}`;
           const childCount = childCountByFrameId.get(frame.id) || 0;
+          const isEditing = editingFrameId === frame.id;
+          const finishRename = () => {
+            const nextName = editingSlideName.trim();
+            setEditingFrameId(null);
+
+            if (nextName && nextName !== title) {
+              onRenameSlide(frame.id, nextName);
+            }
+          };
 
           return (
-            <button
-              type="button"
-              className="presentation-slide-card"
+            <article
+              className={`presentation-slide-card${
+                dropFrameId === frame.id && draggedFrameId !== frame.id
+                  ? " is-drop-target"
+                  : ""
+              }${draggedFrameId === frame.id ? " is-being-dragged" : ""}`}
               key={frame.id}
-              onClick={() => onFocusSlide(frame.id)}
+              onPointerEnter={() => {
+                if (!draggedFrameId || draggedFrameId === frame.id) {
+                  return;
+                }
+
+                setDropFrameId(frame.id);
+                onReorderSlide(draggedFrameId, frame.id, activeLayout);
+              }}
             >
-              <PresentationSlideThumbnail
-                index={index}
-                frame={frame}
-                elements={elements}
-                appState={appState}
-                files={files}
-              />
-              <div className="presentation-slide-card__body">
-                <strong>{title}</strong>
-                <span>
-                  {Math.round(frame.width)} x {Math.round(frame.height)} ·{" "}
-                  {childCount} {childCount === 1 ? "item" : "items"}
-                </span>
+              <div
+                role="button"
+                tabIndex={0}
+                className="presentation-slide-card__main"
+                onClick={() => onFocusSlide(frame.id)}
+                onKeyDown={(event) => {
+                  if (
+                    event.target instanceof HTMLInputElement ||
+                    event.target instanceof HTMLButtonElement
+                  ) {
+                    return;
+                  }
+
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onFocusSlide(frame.id);
+                  }
+                }}
+              >
+                <PresentationSlideThumbnail
+                  index={index}
+                  frame={frame}
+                  elements={elements}
+                  appState={appState}
+                  files={files}
+                />
+                <div className="presentation-slide-card__body">
+                  {isEditing ? (
+                    <input
+                      aria-label={`Rename ${title}`}
+                      autoFocus
+                      className="presentation-slide-card__name-input"
+                      value={editingSlideName}
+                      onBlur={finishRename}
+                      onChange={(event) =>
+                        setEditingSlideName(event.target.value)
+                      }
+                      onClick={(event) => event.stopPropagation()}
+                      onKeyDown={(event) => {
+                        event.stopPropagation();
+
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          finishRename();
+                        } else if (event.key === "Escape") {
+                          event.preventDefault();
+                          setEditingFrameId(null);
+                        }
+                      }}
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      className="presentation-slide-card__title-button"
+                      title="Rename"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setEditingFrameId(frame.id);
+                        setEditingSlideName(title);
+                      }}
+                    >
+                      {title}
+                    </button>
+                  )}
+                  <span>
+                    {Math.round(frame.width)} x {Math.round(frame.height)} ·{" "}
+                    {childCount} {childCount === 1 ? "item" : "items"}
+                  </span>
+                </div>
               </div>
-            </button>
+              <div className="presentation-slide-card__actions">
+                <button
+                  type="button"
+                  aria-label={`Delete ${title}`}
+                  className="presentation-slide-card__action--danger"
+                  title="Delete"
+                  onClick={() => onDeleteSlide(frame.id, activeLayout)}
+                >
+                  {TrashIcon}
+                </button>
+                <button
+                  type="button"
+                  aria-label={`Drag ${title} to reorder`}
+                  className="presentation-slide-card__drag-handle"
+                  title="Drag to reorder"
+                  onClick={(event) => event.stopPropagation()}
+                  onPointerDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setDraggedFrameId(frame.id);
+                    setDropFrameId(null);
+                    setDragPreview({
+                      x: event.clientX,
+                      y: event.clientY,
+                      title,
+                      meta: `${Math.round(frame.width)} x ${Math.round(
+                        frame.height,
+                      )} · ${childCount} ${
+                        childCount === 1 ? "item" : "items"
+                      }`,
+                    });
+                  }}
+                >
+                  <span aria-hidden="true" />
+                </button>
+              </div>
+            </article>
           );
         })}
+        {dragPreview
+          ? createPortal(
+              <div
+                className="presentation-slide-drag-preview"
+                style={{
+                  transform: `translate3d(${dragPreview.x + 12}px, ${
+                    dragPreview.y + 12
+                  }px, 0)`,
+                }}
+              >
+                <span className="presentation-slide-drag-preview__thumb" />
+                <div>
+                  <strong>{dragPreview.title}</strong>
+                  <span>{dragPreview.meta}</span>
+                </div>
+              </div>,
+              document.body,
+            )
+          : null}
       </div>
     );
   };
@@ -424,6 +605,9 @@ export const AppSidebar = ({
   onPresentationStart,
   onPresentationLayoutChange,
   onPresentationTemplateInsert,
+  onPresentationSlideRename,
+  onPresentationSlideDelete,
+  onPresentationSlideReorder,
   onSignIn,
   onStartPlacement,
   onGoToComment,
@@ -442,6 +626,16 @@ export const AppSidebar = ({
   onPresentationLayoutChange: (layout: PresentationLayout) => void;
   onPresentationTemplateInsert: (
     templateId: PresentationTemplateId,
+    layout: PresentationLayout,
+  ) => void;
+  onPresentationSlideRename: (frameId: string, name: string) => void;
+  onPresentationSlideDelete: (
+    frameId: string,
+    layout: PresentationLayout,
+  ) => void;
+  onPresentationSlideReorder: (
+    frameId: string,
+    targetFrameId: string,
     layout: PresentationLayout,
   ) => void;
   onSignIn: () => void;
@@ -489,6 +683,9 @@ export const AppSidebar = ({
           onStartPresentation={onPresentationStart}
           onLayoutChange={onPresentationLayoutChange}
           onTemplateInsert={onPresentationTemplateInsert}
+          onRenameSlide={onPresentationSlideRename}
+          onDeleteSlide={onPresentationSlideDelete}
+          onReorderSlide={onPresentationSlideReorder}
         />
       </Sidebar.Tab>
     </DefaultSidebar>
