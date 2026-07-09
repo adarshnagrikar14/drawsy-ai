@@ -415,16 +415,32 @@ const canvasToBlob = (canvas: HTMLCanvasElement, type = "image/png") =>
 const blobToBytes = async (blob: Blob) =>
   new Uint8Array(await blob.arrayBuffer());
 
-const dataUrlToBytes = (dataUrl: string) => {
-  const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
+const canvasToRgbBytes = (canvas: HTMLCanvasElement) => {
+  const context = canvas.getContext("2d");
 
-  for (let index = 0; index < binary.length; index++) {
-    bytes[index] = binary.charCodeAt(index);
+  if (!context) {
+    throw new Error("Unable to read slide image data.");
   }
 
-  return bytes;
+  const rgba = context.getImageData(0, 0, canvas.width, canvas.height).data;
+  const rgb = new Uint8Array(canvas.width * canvas.height * 3);
+
+  for (
+    let rgbaIndex = 0, rgbIndex = 0;
+    rgbaIndex < rgba.length;
+    rgbaIndex += 4, rgbIndex += 3
+  ) {
+    const alpha = rgba[rgbaIndex + 3] / 255;
+    rgb[rgbIndex] = Math.round(rgba[rgbaIndex] * alpha + 255 * (1 - alpha));
+    rgb[rgbIndex + 1] = Math.round(
+      rgba[rgbaIndex + 1] * alpha + 255 * (1 - alpha),
+    );
+    rgb[rgbIndex + 2] = Math.round(
+      rgba[rgbaIndex + 2] * alpha + 255 * (1 - alpha),
+    );
+  }
+
+  return rgb;
 };
 
 const savePresentationBlob = (blob: Blob, filename: string) => {
@@ -557,7 +573,7 @@ const xmlEscape = (value: string) =>
     .replace(/"/g, "&quot;");
 
 const createPresentationPdf = (
-  slides: readonly { width: number; height: number; jpeg: Uint8Array }[],
+  slides: readonly { width: number; height: number; rgb: Uint8Array }[],
 ) => {
   const chunks: Uint8Array[] = [];
   const offsets: number[] = [0];
@@ -572,7 +588,7 @@ const createPresentationPdf = (
   const contentObjectStart = imageObjectStart + slides.length;
   const objectCount = 2 + slides.length * 3;
 
-  add("%PDF-1.4\n");
+  add("%PDF-1.4\n%\xFF\xFF\xFF\xFF\n");
   const object = (id: number, body: () => void) => {
     offsets[id] = position;
     add(`${id} 0 obj\n`);
@@ -583,9 +599,9 @@ const createPresentationPdf = (
   object(1, () => add("<< /Type /Catalog /Pages 2 0 R >>"));
   object(2, () =>
     add(
-      `<< /Type /Pages /Kids ${slides
+      `<< /Type /Pages /Kids [${slides
         .map((_, index) => `${3 + index} 0 R`)
-        .join(" ")} /Count ${slides.length} >>`,
+        .join(" ")}] /Count ${slides.length} >>`,
     ),
   );
 
@@ -607,9 +623,9 @@ const createPresentationPdf = (
   slides.forEach((slide, index) => {
     object(imageObjectStart + index, () => {
       add(
-        `<< /Type /XObject /Subtype /Image /Width ${slide.width} /Height ${slide.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${slide.jpeg.length} >>\nstream\n`,
+        `<< /Type /XObject /Subtype /Image /Width ${slide.width} /Height ${slide.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Length ${slide.rgb.length} >>\nstream\n`,
       );
-      add(slide.jpeg);
+      add(slide.rgb);
       add("\nendstream");
     });
   });
@@ -713,15 +729,15 @@ const createPresentationPptx = (
     },
     {
       name: "ppt/slideMasters/slideMaster1.xml",
-      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:sldMaster xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/></p:spTree></p:cSld><p:sldLayoutIdLst><p:sldLayoutId id="2147483649" r:id="rId1"/></p:sldLayoutIdLst></p:sldMaster>`,
+      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:sldMaster xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:cSld><p:bg><p:bgPr><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill><a:effectLst/></p:bgPr></p:bg><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr></p:spTree></p:cSld><p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/><p:sldLayoutIdLst><p:sldLayoutId id="2147483649" r:id="rId1"/></p:sldLayoutIdLst><p:txStyles><p:titleStyle/><p:bodyStyle/><p:otherStyle/></p:txStyles></p:sldMaster>`,
     },
     {
       name: "ppt/slideMasters/_rels/slideMaster1.xml.rels",
-      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/></Relationships>`,
+      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="../theme/theme1.xml"/></Relationships>`,
     },
     {
       name: "ppt/slideLayouts/slideLayout1.xml",
-      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:sldLayout xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" type="blank"><p:cSld name="Blank"><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/></p:spTree></p:cSld></p:sldLayout>`,
+      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:sldLayout xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" type="blank" preserve="1"><p:cSld name="Blank"><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr></p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sldLayout>`,
     },
     {
       name: "ppt/slideLayouts/_rels/slideLayout1.xml.rels",
@@ -729,7 +745,7 @@ const createPresentationPptx = (
     },
     {
       name: "ppt/theme/theme1.xml",
-      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Drawsy"><a:themeElements><a:clrScheme name="Drawsy"><a:dk1><a:srgbClr val="111113"/></a:dk1><a:lt1><a:srgbClr val="FFFFFF"/></a:lt1></a:clrScheme><a:fontScheme name="Drawsy"><a:majorFont><a:latin typeface="Arial"/></a:majorFont><a:minorFont><a:latin typeface="Arial"/></a:minorFont></a:fontScheme><a:fmtScheme name="Drawsy"/></a:themeElements></a:theme>`,
+      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Drawsy"><a:themeElements><a:clrScheme name="Drawsy"><a:dk1><a:srgbClr val="111113"/></a:dk1><a:lt1><a:srgbClr val="FFFFFF"/></a:lt1><a:dk2><a:srgbClr val="1F2937"/></a:dk2><a:lt2><a:srgbClr val="F8F9FA"/></a:lt2><a:accent1><a:srgbClr val="A5A0FF"/></a:accent1><a:accent2><a:srgbClr val="4DABF7"/></a:accent2><a:accent3><a:srgbClr val="69DB7C"/></a:accent3><a:accent4><a:srgbClr val="FFD43B"/></a:accent4><a:accent5><a:srgbClr val="FF8787"/></a:accent5><a:accent6><a:srgbClr val="DA77F2"/></a:accent6><a:hlink><a:srgbClr val="4DABF7"/></a:hlink><a:folHlink><a:srgbClr val="B197FC"/></a:folHlink></a:clrScheme><a:fontScheme name="Drawsy"><a:majorFont><a:latin typeface="Arial"/><a:ea typeface=""/><a:cs typeface=""/></a:majorFont><a:minorFont><a:latin typeface="Arial"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont></a:fontScheme><a:fmtScheme name="Drawsy"><a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:gradFill rotWithShape="1"><a:gsLst><a:gs pos="0"><a:schemeClr val="phClr"><a:lumMod val="110000"/><a:satMod val="105000"/></a:schemeClr></a:gs><a:gs pos="100000"><a:schemeClr val="phClr"><a:lumMod val="90000"/><a:satMod val="105000"/></a:schemeClr></a:gs></a:gsLst><a:lin ang="5400000" scaled="0"/></a:gradFill><a:gradFill rotWithShape="1"><a:gsLst><a:gs pos="0"><a:schemeClr val="phClr"><a:lumMod val="102000"/><a:satMod val="103000"/></a:schemeClr></a:gs><a:gs pos="100000"><a:schemeClr val="phClr"><a:lumMod val="94000"/><a:satMod val="110000"/></a:schemeClr></a:gs></a:gsLst><a:lin ang="5400000" scaled="0"/></a:gradFill></a:fillStyleLst><a:lnStyleLst><a:ln w="6350" cap="flat" cmpd="sng" algn="ctr"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:prstDash val="solid"/></a:ln><a:ln w="12700" cap="flat" cmpd="sng" algn="ctr"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:prstDash val="solid"/></a:ln><a:ln w="19050" cap="flat" cmpd="sng" algn="ctr"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:prstDash val="solid"/></a:ln></a:lnStyleLst><a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst><a:bgFillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"><a:tint val="95000"/><a:satMod val="170000"/></a:schemeClr></a:solidFill><a:gradFill rotWithShape="1"><a:gsLst><a:gs pos="0"><a:schemeClr val="phClr"><a:tint val="93000"/><a:satMod val="150000"/></a:schemeClr></a:gs><a:gs pos="100000"><a:schemeClr val="phClr"><a:shade val="98000"/><a:satMod val="130000"/></a:schemeClr></a:gs></a:gsLst><a:lin ang="5400000" scaled="0"/></a:gradFill></a:bgFillStyleLst></a:fmtScheme></a:themeElements><a:objectDefaults/><a:extraClrSchemeLst/></a:theme>`,
     },
   ];
 
@@ -756,23 +772,22 @@ const createPresentationPptx = (
 const createPresentationDocx = (
   slides: readonly { title: string; png: Uint8Array }[],
 ) => {
-  const imageWidth = 9144000;
-  const imageHeight = 5143500;
+  const imageWidth = 12192000;
+  const imageHeight = 6858000;
   const body = slides
-    .map(
-      (slide, index) =>
-        `<w:p><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><wp:extent cx="${imageWidth}" cy="${imageHeight}"/><wp:docPr id="${
-          index + 1
-        }" name="${xmlEscape(
-          slide.title,
-        )}"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="${
-          index + 1
-        }" name="${xmlEscape(
-          slide.title,
-        )}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="rId${
-          index + 1
-        }"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${imageWidth}" cy="${imageHeight}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p><w:p><w:r><w:br w:type="page"/></w:r></w:p>`,
-    )
+    .map((slide, index) => {
+      const slideNumber = index + 1;
+      const pageBreak =
+        index === slides.length - 1
+          ? ""
+          : '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
+
+      return `<w:p><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><wp:extent cx="${imageWidth}" cy="${imageHeight}"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:docPr id="${slideNumber}" name="${xmlEscape(
+        slide.title,
+      )}"/><wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/></wp:cNvGraphicFramePr><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="${slideNumber}" name="${xmlEscape(
+        slide.title,
+      )}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="rId${slideNumber}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${imageWidth}" cy="${imageHeight}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>${pageBreak}`;
+    })
     .join("");
   const files: { name: string; data: Uint8Array | string }[] = [
     {
@@ -785,7 +800,7 @@ const createPresentationDocx = (
     },
     {
       name: "word/document.xml",
-      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:body>${body}<w:sectPr><w:pgSz w:w="15840" w:h="8910" w:orient="landscape"/><w:pgMar w:top="360" w:right="360" w:bottom="360" w:left="360"/></w:sectPr></w:body></w:document>`,
+      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:body>${body}<w:sectPr><w:pgSz w:w="19200" w:h="10800" w:orient="landscape"/><w:pgMar w:top="0" w:right="0" w:bottom="0" w:left="0" w:header="0" w:footer="0" w:gutter="0"/></w:sectPr></w:body></w:document>`,
     },
     {
       name: "word/_rels/document.xml.rels",
@@ -3495,14 +3510,14 @@ const ExcalidrawWrapper = () => {
               maxWidthOrHeight: 1920,
             });
             const png = await blobToBytes(await canvasToBlob(canvas));
-            const jpeg = dataUrlToBytes(canvas.toDataURL("image/jpeg", 0.92));
+            const rgb = canvasToRgbBytes(canvas);
 
             return {
               title: frame.name?.trim() || `Slide ${index + 1}`,
               width: canvas.width,
               height: canvas.height,
               png,
-              jpeg,
+              rgb,
             };
           }),
         );
