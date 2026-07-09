@@ -3,6 +3,7 @@ import {
   Excalidraw,
   TTDDialogTrigger,
   CaptureUpdateAction,
+  exportToCanvas,
   reconcileElements,
   ExcalidrawAPIProvider,
   useExcalidrawAPI,
@@ -49,10 +50,14 @@ import {
   DiscordIcon,
   ExcalLogo,
   usersIcon,
+  ExportIcon,
   exportToPlus,
+  frameToolIcon,
+  LoadIcon,
   share,
   messageCircleIcon,
   presentationIcon,
+  playerPlayIcon,
   youtubeIcon,
   ArrowRightIcon,
   CloseIcon,
@@ -375,6 +380,433 @@ const getPresentationFrames = (elements: readonly ExcalidrawElement[]) => {
 const PRESENTATION_TEMPLATE_SIZE = {
   width: 960,
   height: 540,
+};
+
+type PresentationExportFormat = "pdf" | "pngZip" | "pptx" | "docx";
+
+const textEncoder = new TextEncoder();
+
+const encodeText = (value: string) => textEncoder.encode(value);
+
+const concatBytes = (chunks: readonly Uint8Array[]) => {
+  const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+  const bytes = new Uint8Array(totalLength);
+  let offset = 0;
+
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.length;
+  }
+
+  return bytes;
+};
+
+const canvasToBlob = (canvas: HTMLCanvasElement, type = "image/png") =>
+  new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) {
+        resolve(blob);
+      } else {
+        reject(new Error("Unable to export slide image."));
+      }
+    }, type);
+  });
+
+const blobToBytes = async (blob: Blob) =>
+  new Uint8Array(await blob.arrayBuffer());
+
+const dataUrlToBytes = (dataUrl: string) => {
+  const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let index = 0; index < binary.length; index++) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+
+  return bytes;
+};
+
+const savePresentationBlob = (blob: Blob, filename: string) => {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+
+const crcTable = (() => {
+  const table = new Uint32Array(256);
+
+  for (let index = 0; index < 256; index++) {
+    let value = index;
+
+    for (let bit = 0; bit < 8; bit++) {
+      value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
+    }
+
+    table[index] = value >>> 0;
+  }
+
+  return table;
+})();
+
+const getCrc32 = (bytes: Uint8Array) => {
+  let crc = 0xffffffff;
+
+  for (const byte of bytes) {
+    crc = crcTable[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+  }
+
+  return (crc ^ 0xffffffff) >>> 0;
+};
+
+const numberToBytes = (value: number, byteCount: number) => {
+  const bytes = new Uint8Array(byteCount);
+
+  for (let index = 0; index < byteCount; index++) {
+    bytes[index] = (value >>> (index * 8)) & 0xff;
+  }
+
+  return bytes;
+};
+
+const createZipBlob = (
+  files: readonly { name: string; data: Uint8Array | string }[],
+) => {
+  const localChunks: Uint8Array[] = [];
+  const centralChunks: Uint8Array[] = [];
+  let offset = 0;
+  const now = new Date();
+  const dosTime =
+    (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1);
+  const dosDate =
+    ((now.getFullYear() - 1980) << 9) |
+    ((now.getMonth() + 1) << 5) |
+    now.getDate();
+
+  for (const file of files) {
+    const name = encodeText(file.name);
+    const data =
+      typeof file.data === "string" ? encodeText(file.data) : file.data;
+    const crc = getCrc32(data);
+    const localHeader = concatBytes([
+      numberToBytes(0x04034b50, 4),
+      numberToBytes(20, 2),
+      numberToBytes(0, 2),
+      numberToBytes(0, 2),
+      numberToBytes(dosTime, 2),
+      numberToBytes(dosDate, 2),
+      numberToBytes(crc, 4),
+      numberToBytes(data.length, 4),
+      numberToBytes(data.length, 4),
+      numberToBytes(name.length, 2),
+      numberToBytes(0, 2),
+      name,
+    ]);
+
+    localChunks.push(localHeader, data);
+    centralChunks.push(
+      concatBytes([
+        numberToBytes(0x02014b50, 4),
+        numberToBytes(20, 2),
+        numberToBytes(20, 2),
+        numberToBytes(0, 2),
+        numberToBytes(0, 2),
+        numberToBytes(dosTime, 2),
+        numberToBytes(dosDate, 2),
+        numberToBytes(crc, 4),
+        numberToBytes(data.length, 4),
+        numberToBytes(data.length, 4),
+        numberToBytes(name.length, 2),
+        numberToBytes(0, 2),
+        numberToBytes(0, 2),
+        numberToBytes(0, 2),
+        numberToBytes(0, 2),
+        numberToBytes(0, 4),
+        numberToBytes(offset, 4),
+        name,
+      ]),
+    );
+    offset += localHeader.length + data.length;
+  }
+
+  const centralDirectory = concatBytes(centralChunks);
+  const end = concatBytes([
+    numberToBytes(0x06054b50, 4),
+    numberToBytes(0, 2),
+    numberToBytes(0, 2),
+    numberToBytes(files.length, 2),
+    numberToBytes(files.length, 2),
+    numberToBytes(centralDirectory.length, 4),
+    numberToBytes(offset, 4),
+    numberToBytes(0, 2),
+  ]);
+
+  return new Blob([concatBytes([...localChunks, centralDirectory, end])]);
+};
+
+const xmlEscape = (value: string) =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+
+const createPresentationPdf = (
+  slides: readonly { width: number; height: number; jpeg: Uint8Array }[],
+) => {
+  const chunks: Uint8Array[] = [];
+  const offsets: number[] = [0];
+  let position = 0;
+  const add = (chunk: string | Uint8Array) => {
+    const bytes = typeof chunk === "string" ? encodeText(chunk) : chunk;
+    chunks.push(bytes);
+    position += bytes.length;
+  };
+  const pageWidth = 720;
+  const imageObjectStart = 3 + slides.length;
+  const contentObjectStart = imageObjectStart + slides.length;
+  const objectCount = 2 + slides.length * 3;
+
+  add("%PDF-1.4\n");
+  const object = (id: number, body: () => void) => {
+    offsets[id] = position;
+    add(`${id} 0 obj\n`);
+    body();
+    add("\nendobj\n");
+  };
+
+  object(1, () => add("<< /Type /Catalog /Pages 2 0 R >>"));
+  object(2, () =>
+    add(
+      `<< /Type /Pages /Kids ${slides
+        .map((_, index) => `${3 + index} 0 R`)
+        .join(" ")} /Count ${slides.length} >>`,
+    ),
+  );
+
+  slides.forEach((slide, index) => {
+    const pageHeight = pageWidth * (slide.height / slide.width);
+    object(3 + index, () =>
+      add(
+        `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth.toFixed(
+          2,
+        )} ${pageHeight.toFixed(2)}] /Resources << /XObject << /Im${
+          index + 1
+        } ${imageObjectStart + index} 0 R >> >> /Contents ${
+          contentObjectStart + index
+        } 0 R >>`,
+      ),
+    );
+  });
+
+  slides.forEach((slide, index) => {
+    object(imageObjectStart + index, () => {
+      add(
+        `<< /Type /XObject /Subtype /Image /Width ${slide.width} /Height ${slide.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${slide.jpeg.length} >>\nstream\n`,
+      );
+      add(slide.jpeg);
+      add("\nendstream");
+    });
+  });
+
+  slides.forEach((slide, index) => {
+    const pageHeight = pageWidth * (slide.height / slide.width);
+    const content = `q\n${pageWidth.toFixed(2)} 0 0 ${pageHeight.toFixed(
+      2,
+    )} 0 0 cm\n/Im${index + 1} Do\nQ`;
+    object(contentObjectStart + index, () =>
+      add(
+        `<< /Length ${
+          encodeText(content).length
+        } >>\nstream\n${content}\nendstream`,
+      ),
+    );
+  });
+
+  const xrefStart = position;
+  add(`xref\n0 ${objectCount + 1}\n0000000000 65535 f \n`);
+  for (let index = 1; index <= objectCount; index++) {
+    add(`${`${offsets[index]}`.padStart(10, "0")} 00000 n \n`);
+  }
+  add(
+    `trailer\n<< /Size ${
+      objectCount + 1
+    } /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`,
+  );
+
+  return new Blob([concatBytes(chunks).buffer as ArrayBuffer], {
+    type: "application/pdf",
+  });
+};
+
+const presentationContentTypes = (
+  slideCount: number,
+) => `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+<Default Extension="xml" ContentType="application/xml"/>
+<Default Extension="png" ContentType="image/png"/>
+<Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>
+<Override PartName="/ppt/slideMasters/slideMaster1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml"/>
+<Override PartName="/ppt/slideLayouts/slideLayout1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml"/>
+<Override PartName="/ppt/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>
+${Array.from(
+  { length: slideCount },
+  (_, index) =>
+    `<Override PartName="/ppt/slides/slide${
+      index + 1
+    }.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>`,
+).join("")}
+<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+<Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>
+</Types>`;
+
+const createPresentationPptx = (
+  slides: readonly { title: string; png: Uint8Array }[],
+) => {
+  const slideWidth = 12192000;
+  const slideHeight = 6858000;
+  const files: { name: string; data: Uint8Array | string }[] = [
+    {
+      name: "[Content_Types].xml",
+      data: presentationContentTypes(slides.length),
+    },
+    {
+      name: "_rels/.rels",
+      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/></Relationships>`,
+    },
+    {
+      name: "docProps/core.xml",
+      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>Drawsy presentation</dc:title></cp:coreProperties>`,
+    },
+    {
+      name: "docProps/app.xml",
+      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"><Application>Drawsy</Application></Properties>`,
+    },
+    {
+      name: "ppt/presentation.xml",
+      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:presentation xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:sldMasterIdLst><p:sldMasterId id="2147483648" r:id="rId1"/></p:sldMasterIdLst><p:sldIdLst>${slides
+        .map(
+          (_, index) => `<p:sldId id="${256 + index}" r:id="rId${index + 2}"/>`,
+        )
+        .join(
+          "",
+        )}</p:sldIdLst><p:sldSz cx="${slideWidth}" cy="${slideHeight}" type="screen16x9"/><p:notesSz cx="6858000" cy="9144000"/></p:presentation>`,
+    },
+    {
+      name: "ppt/_rels/presentation.xml.rels",
+      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="slideMasters/slideMaster1.xml"/>${slides
+        .map(
+          (_, index) =>
+            `<Relationship Id="rId${
+              index + 2
+            }" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide${
+              index + 1
+            }.xml"/>`,
+        )
+        .join("")}</Relationships>`,
+    },
+    {
+      name: "ppt/slideMasters/slideMaster1.xml",
+      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:sldMaster xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/></p:spTree></p:cSld><p:sldLayoutIdLst><p:sldLayoutId id="2147483649" r:id="rId1"/></p:sldLayoutIdLst></p:sldMaster>`,
+    },
+    {
+      name: "ppt/slideMasters/_rels/slideMaster1.xml.rels",
+      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/></Relationships>`,
+    },
+    {
+      name: "ppt/slideLayouts/slideLayout1.xml",
+      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:sldLayout xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" type="blank"><p:cSld name="Blank"><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/></p:spTree></p:cSld></p:sldLayout>`,
+    },
+    {
+      name: "ppt/slideLayouts/_rels/slideLayout1.xml.rels",
+      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="../slideMasters/slideMaster1.xml"/></Relationships>`,
+    },
+    {
+      name: "ppt/theme/theme1.xml",
+      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Drawsy"><a:themeElements><a:clrScheme name="Drawsy"><a:dk1><a:srgbClr val="111113"/></a:dk1><a:lt1><a:srgbClr val="FFFFFF"/></a:lt1></a:clrScheme><a:fontScheme name="Drawsy"><a:majorFont><a:latin typeface="Arial"/></a:majorFont><a:minorFont><a:latin typeface="Arial"/></a:minorFont></a:fontScheme><a:fmtScheme name="Drawsy"/></a:themeElements></a:theme>`,
+    },
+  ];
+
+  slides.forEach((slide, index) => {
+    const slideNumber = index + 1;
+    files.push(
+      { name: `ppt/media/image${slideNumber}.png`, data: slide.png },
+      {
+        name: `ppt/slides/slide${slideNumber}.xml`,
+        data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/><p:pic><p:nvPicPr><p:cNvPr id="2" name="${xmlEscape(
+          slide.title,
+        )}"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed="rId2"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${slideWidth}" cy="${slideHeight}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic></p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>`,
+      },
+      {
+        name: `ppt/slides/_rels/slide${slideNumber}.xml.rels`,
+        data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image${slideNumber}.png"/></Relationships>`,
+      },
+    );
+  });
+
+  return createZipBlob(files);
+};
+
+const createPresentationDocx = (
+  slides: readonly { title: string; png: Uint8Array }[],
+) => {
+  const imageWidth = 9144000;
+  const imageHeight = 5143500;
+  const body = slides
+    .map(
+      (slide, index) =>
+        `<w:p><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><wp:extent cx="${imageWidth}" cy="${imageHeight}"/><wp:docPr id="${
+          index + 1
+        }" name="${xmlEscape(
+          slide.title,
+        )}"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="${
+          index + 1
+        }" name="${xmlEscape(
+          slide.title,
+        )}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="rId${
+          index + 1
+        }"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${imageWidth}" cy="${imageHeight}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p><w:p><w:r><w:br w:type="page"/></w:r></w:p>`,
+    )
+    .join("");
+  const files: { name: string; data: Uint8Array | string }[] = [
+    {
+      name: "[Content_Types].xml",
+      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>`,
+    },
+    {
+      name: "_rels/.rels",
+      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`,
+    },
+    {
+      name: "word/document.xml",
+      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:body>${body}<w:sectPr><w:pgSz w:w="15840" w:h="8910" w:orient="landscape"/><w:pgMar w:top="360" w:right="360" w:bottom="360" w:left="360"/></w:sectPr></w:body></w:document>`,
+    },
+    {
+      name: "word/_rels/document.xml.rels",
+      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${slides
+        .map(
+          (_, index) =>
+            `<Relationship Id="rId${
+              index + 1
+            }" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image${
+              index + 1
+            }.png"/>`,
+        )
+        .join("")}</Relationships>`,
+    },
+  ];
+
+  slides.forEach((slide, index) => {
+    files.push({ name: `word/media/image${index + 1}.png`, data: slide.png });
+  });
+
+  return createZipBlob(files);
 };
 
 const getPresentationTemplateOrigin = (
@@ -1049,6 +1481,8 @@ const ExcalidrawWrapper = () => {
     PresentationStore.loadActive(),
   );
   const [presentationCanvasEmpty, setPresentationCanvasEmpty] = useState(true);
+  const [presentationExportMenuOpen, setPresentationExportMenuOpen] =
+    useState(false);
   const [presentationElements, setPresentationElements] = useState<
     readonly OrderedExcalidrawElement[]
   >([]);
@@ -1082,6 +1516,10 @@ const ExcalidrawWrapper = () => {
   const presentationLoadingWorkspaceRef = useRef(false);
   const presentationSceneRef = useRef<CanvasScene | null>(null);
   const presentationCanvasEmptyRef = useRef(presentationCanvasEmpty);
+  const presentationSlideCount = useMemo(
+    () => getPresentationFrames(presentationElements).length,
+    [presentationElements],
+  );
 
   useEffect(() => {
     if (kanbanInvitationToken && drawsyAuth.status === "anonymous") {
@@ -1090,6 +1528,47 @@ const ExcalidrawWrapper = () => {
       );
     }
   }, [drawsyAuth.status, kanbanInvitationToken]);
+
+  useEffect(() => {
+    if (!presentationExportMenuOpen) {
+      return;
+    }
+
+    const closeExportMenu = (event: PointerEvent | KeyboardEvent) => {
+      if (event instanceof KeyboardEvent && event.key !== "Escape") {
+        return;
+      }
+
+      if (
+        event instanceof PointerEvent &&
+        event.target instanceof Element &&
+        event.target.closest(".presentation-quick-dock")
+      ) {
+        return;
+      }
+
+      setPresentationExportMenuOpen(false);
+    };
+
+    window.addEventListener("pointerdown", closeExportMenu);
+    window.addEventListener("keydown", closeExportMenu);
+
+    return () => {
+      window.removeEventListener("pointerdown", closeExportMenu);
+      window.removeEventListener("keydown", closeExportMenu);
+    };
+  }, [presentationExportMenuOpen]);
+
+  const selectPresentationFrameTool = useCallback(() => {
+    excalidrawAPI?.setActiveTool({ type: "frame" });
+  }, [excalidrawAPI]);
+
+  const showPresentationDockToast = useCallback(
+    (message: string) => {
+      excalidrawAPI?.setToast({ message });
+    },
+    [excalidrawAPI],
+  );
 
   const updateKanbanBoard = useCallback((board: KanbanBoard) => {
     kanbanBoardRef.current = board;
@@ -2979,6 +3458,99 @@ const ExcalidrawWrapper = () => {
     }
   }, [excalidrawAPI, focusPresentationSlide]);
 
+  const exportPresentation = useCallback(
+    async (format: PresentationExportFormat) => {
+      if (!excalidrawAPI) {
+        return;
+      }
+
+      setPresentationExportMenuOpen(false);
+      const elements = excalidrawAPI.getSceneElements();
+      const frames = getPresentationFrames(elements);
+
+      if (!frames.length) {
+        excalidrawAPI.setToast({
+          message: "Add frames before exporting the presentation.",
+        });
+        return;
+      }
+
+      try {
+        excalidrawAPI.setToast({ message: "Exporting presentation..." });
+        const appState = excalidrawAPI.getAppState();
+        const files = excalidrawAPI.getFiles();
+        const exportElements = getNonDeletedElements(elements);
+        const slides = await Promise.all(
+          frames.map(async (frame, index) => {
+            const canvas = await exportToCanvas({
+              elements: exportElements,
+              appState: {
+                ...appState,
+                exportBackground: true,
+                exportScale: 1,
+              },
+              files,
+              exportingFrame: frame,
+              exportPadding: 0,
+              maxWidthOrHeight: 1920,
+            });
+            const png = await blobToBytes(await canvasToBlob(canvas));
+            const jpeg = dataUrlToBytes(canvas.toDataURL("image/jpeg", 0.92));
+
+            return {
+              title: frame.name?.trim() || `Slide ${index + 1}`,
+              width: canvas.width,
+              height: canvas.height,
+              png,
+              jpeg,
+            };
+          }),
+        );
+
+        if (format === "pngZip") {
+          const zip = createZipBlob(
+            slides.map((slide, index) => ({
+              name: `slide-${`${index + 1}`.padStart(2, "0")}.png`,
+              data: slide.png,
+            })),
+          );
+          savePresentationBlob(
+            new Blob([await zip.arrayBuffer()], { type: "application/zip" }),
+            "drawsy-presentation-slides.zip",
+          );
+        } else if (format === "pdf") {
+          savePresentationBlob(
+            createPresentationPdf(slides),
+            "drawsy-presentation.pdf",
+          );
+        } else if (format === "pptx") {
+          const pptx = createPresentationPptx(slides);
+          savePresentationBlob(
+            new Blob([await pptx.arrayBuffer()], {
+              type: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            }),
+            "drawsy-presentation.pptx",
+          );
+        } else if (format === "docx") {
+          const docx = createPresentationDocx(slides);
+          savePresentationBlob(
+            new Blob([await docx.arrayBuffer()], {
+              type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            }),
+            "drawsy-presentation.docx",
+          );
+        }
+
+        excalidrawAPI.setToast({ message: "Presentation exported." });
+      } catch (error: any) {
+        excalidrawAPI.setToast({
+          message: error?.message || "Could not export presentation.",
+        });
+      }
+    },
+    [excalidrawAPI],
+  );
+
   const goToPresentationStep = useCallback(
     (direction: -1 | 1) => {
       setFramePresenter((currentPresenter) => {
@@ -3615,6 +4187,84 @@ const ExcalidrawWrapper = () => {
             onGoToComment={goToComment}
             onCommentsOpenChange={setCommentsSidebarOpen}
           />
+        )}
+        {presentationCanvasOpen && !framePresenter && (
+          <div
+            className="presentation-quick-dock"
+            aria-label="Presentation quick actions"
+          >
+            <button
+              type="button"
+              className="presentation-quick-dock__button presentation-quick-dock__button--primary"
+              onClick={startFramePresentation}
+              disabled={presentationSlideCount === 0}
+              title="Present"
+              aria-label="Present"
+            >
+              {playerPlayIcon}
+            </button>
+            <button
+              type="button"
+              className="presentation-quick-dock__button"
+              onClick={selectPresentationFrameTool}
+              title="Frame tool"
+              aria-label="Frame tool"
+            >
+              {frameToolIcon}
+            </button>
+            <div className="presentation-quick-dock__export">
+              <button
+                type="button"
+                className="presentation-quick-dock__button"
+                onClick={() =>
+                  setPresentationExportMenuOpen((isOpen) => !isOpen)
+                }
+                title="Export"
+                aria-expanded={presentationExportMenuOpen}
+                aria-haspopup="menu"
+              >
+                {ExportIcon}
+              </button>
+              {presentationExportMenuOpen && (
+                <div
+                  className="presentation-quick-dock__menu"
+                  role="menu"
+                  aria-label="Export presentation"
+                >
+                  {[
+                    ["PDF", "pdf"],
+                    ["PNG ZIP", "pngZip"],
+                    ["PPTX", "pptx"],
+                    ["DOC", "docx"],
+                  ].map(([label, format]) => (
+                    <button
+                      type="button"
+                      key={label}
+                      role="menuitem"
+                      onClick={() => {
+                        void exportPresentation(
+                          format as PresentationExportFormat,
+                        );
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <button
+              type="button"
+              className="presentation-quick-dock__button"
+              onClick={() =>
+                showPresentationDockToast("Import flow will be wired next.")
+              }
+              title="Import"
+              aria-label="Import"
+            >
+              {LoadIcon}
+            </button>
+          </div>
         )}
         {framePresenter && presentationFrameRect && (
           <div
