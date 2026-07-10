@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { WorkspaceMenu } from "../components/WorkspaceMenu";
 
 import type { WorkspaceIndex } from "../data/WorkspaceStore";
+import type { PresentationIndex } from "../data/PresentationStore";
 
 vi.mock(
   "@excalidraw/excalidraw/components/OverwriteConfirm/OverwriteConfirmState",
@@ -105,6 +106,27 @@ const index: WorkspaceIndex = {
       version: 1,
       sync: { remoteVersion: 0, dirty: true },
     })),
+  ],
+};
+
+const presentationIndex: PresentationIndex = {
+  schemaVersion: 1,
+  activePresentationId: "presentation",
+  presentations: [
+    {
+      id: "presentation",
+      title: "Product launch",
+      createdAt: 1,
+      updatedAt: 1,
+      lastOpenedAt: 2,
+    },
+    {
+      id: "presentation-2",
+      title: "Roadmap",
+      createdAt: 1,
+      updatedAt: 1,
+      lastOpenedAt: 1,
+    },
   ],
 };
 
@@ -409,7 +431,8 @@ describe("WorkspaceMenu", () => {
     expect(onOpenKanban).toHaveBeenCalledTimes(1);
   });
 
-  it("opens Presentation from the card below Kanban", () => {
+  it("creates and opens local presentations from the card below Kanban", () => {
+    const onCreatePresentation = vi.fn();
     const onOpenPresentation = vi.fn();
     render(
       <WorkspaceMenu
@@ -418,7 +441,10 @@ describe("WorkspaceMenu", () => {
         onCreateCanvas={vi.fn()}
         onCreateProject={vi.fn()}
         onOpenKanban={vi.fn()}
+        presentationIndex={presentationIndex}
+        onCreatePresentation={onCreatePresentation}
         onOpenPresentation={onOpenPresentation}
+        onDeletePresentation={vi.fn()}
         onCreateProjectCanvas={vi.fn()}
         onOpenCanvas={vi.fn()}
         onDeleteCanvas={vi.fn()}
@@ -426,7 +452,11 @@ describe("WorkspaceMenu", () => {
       />,
     );
 
-    fireEvent.click(screen.getByText("Presentation"));
-    expect(onOpenPresentation).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByText("New Presentation"));
+    expect(onCreatePresentation).toHaveBeenCalledTimes(1);
+
+    fireEvent.mouseEnter(screen.getByLabelText("Recent presentations"));
+    fireEvent.click(screen.getByText("Roadmap"));
+    expect(onOpenPresentation).toHaveBeenCalledWith("presentation-2");
   });
 });
