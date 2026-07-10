@@ -253,11 +253,11 @@
     gap: 0.35rem;
     min-height: 2.05rem;
     padding: 0 0.65rem;
-    border: 1px solid transparent;
+    border: 0;
     border-radius: 0.5rem;
-    background: transparent;
+    background: var(--color-surface-high);
     color: var(--color-muted-darker);
-    font: 650 0.75rem/1 var(--ui-font);
+    font: 680 0.75rem/1 var(--ui-font);
     cursor: pointer;
 
     svg {
@@ -266,8 +266,11 @@
       flex: 0 0 auto;
     }
 
+    span {
+      font: inherit;
+    }
+
     &[data-active="true"] {
-      border-color: color-mix(in srgb, var(--color-primary) 48%, transparent);
       background: repeating-linear-gradient(
           -28deg,
           color-mix(in srgb, var(--color-primary) 22%, transparent) 0 1px,
@@ -275,11 +278,28 @@
         ),
         color-mix(in srgb, var(--color-primary) 10%, var(--color-surface-high));
       color: var(--color-on-surface);
+
+      &:hover {
+        background: repeating-linear-gradient(
+            -28deg,
+            color-mix(in srgb, var(--color-primary) 22%, transparent) 0 1px,
+            transparent 1px 8px
+          ),
+          color-mix(
+            in srgb,
+            var(--color-primary) 10%,
+            var(--color-surface-high)
+          );
+      }
     }
 
-    &:hover {
+    &:hover:not([data-active="true"]) {
       color: var(--color-on-surface);
-      background: var(--button-hover-bg);
+      background: var(--color-surface-high);
+
+      span {
+        font-weight: 760;
+      }
     }
   }
 
@@ -345,6 +365,10 @@
     gap: 0.5rem;
   }
 
+  .presentation-slide-list {
+    padding-top: 0.35rem;
+  }
+
   .presentation-slide-card,
   .presentation-option-row {
     display: flex;
@@ -358,14 +382,15 @@
   }
 
   .presentation-slide-card {
+    position: relative;
     box-sizing: border-box;
     padding: 0.45rem;
     width: 100%;
     max-width: 100%;
     color: inherit;
     text-align: left;
-    transition: border-color 120ms ease, background 120ms ease,
-      opacity 120ms ease;
+    transition: border-color 160ms ease, background 160ms ease,
+      opacity 160ms ease, transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
 
     &:hover {
       border-color: color-mix(
@@ -391,10 +416,35 @@
         var(--color-primary) 14%,
         var(--color-surface-high)
       );
+
+      &::before {
+        position: absolute;
+        z-index: 1;
+        right: 0.7rem;
+        left: 0.7rem;
+        top: -0.31rem;
+        height: 2px;
+        border-radius: 999px;
+        background: var(--color-primary);
+        box-shadow: 0 0 0 3px
+          color-mix(in srgb, var(--color-primary) 14%, transparent);
+        content: "";
+      }
     }
 
     &.is-being-dragged {
-      opacity: 0.46;
+      border-style: dashed;
+      border-color: color-mix(
+        in srgb,
+        var(--color-primary) 42%,
+        var(--color-border-outline-variant)
+      );
+      background: color-mix(
+        in srgb,
+        var(--color-primary) 4%,
+        var(--color-surface-high)
+      );
+      opacity: 0.24;
     }
   }
 
@@ -500,71 +550,6 @@
       background-position: 0 0, 0.3rem 0;
       background-size: 0.3rem 0.28rem;
       opacity: 0.8;
-    }
-  }
-
-  .presentation-slide-drag-preview {
-    position: fixed;
-    top: 0;
-    left: 0;
-    z-index: 100000;
-    display: flex;
-    width: 15rem;
-    max-width: 70vw;
-    align-items: center;
-    gap: 0.55rem;
-    border: 1px solid
-      color-mix(in srgb, var(--color-primary) 58%, var(--color-border-outline));
-    border-radius: 0.55rem;
-    background: color-mix(
-      in srgb,
-      var(--color-surface-high) 94%,
-      var(--color-primary)
-    );
-    box-shadow: 0 1rem 2.2rem
-      color-mix(in srgb, var(--color-gray-100) 32%, transparent);
-    color: var(--color-on-surface);
-    pointer-events: none;
-    padding: 0.55rem;
-
-    > div {
-      display: flex;
-      min-width: 0;
-      flex: 1 1 auto;
-      flex-direction: column;
-      gap: 0.25rem;
-    }
-
-    .presentation-slide-drag-preview__thumb {
-      display: block;
-      width: 4rem;
-      height: 2.25rem;
-      flex: 0 0 auto;
-      border: 1px dashed
-        color-mix(in srgb, var(--color-primary) 52%, var(--color-gray-60));
-      border-radius: 0.38rem;
-      background: repeating-linear-gradient(
-          -28deg,
-          color-mix(in srgb, var(--color-primary) 22%, transparent) 0 1px,
-          transparent 1px 7px
-        ),
-        color-mix(in srgb, var(--color-surface-low) 65%, transparent);
-    }
-
-    strong,
-    span {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    strong {
-      font: 750 0.88rem/1.1 var(--ui-font);
-    }
-
-    span {
-      color: var(--color-muted-darker);
-      font: 600 0.72rem/1.1 var(--ui-font);
     }
   }
 
@@ -1246,6 +1231,12 @@
     margin-top: 1rem;
     padding-top: 1rem;
     border-top: 1px solid var(--sidebar-border-color);
+  }
+
+  .presentation-animation__section:first-child {
+    margin-top: 0;
+    padding-top: 0.15rem;
+    border-top: 0;
   }
 
   .presentation-animation__heading {
@@ -2165,7 +2156,7 @@
     display: flex;
     flex-direction: column;
     gap: 0.55rem;
-    padding: 0;
+    padding: 0.35rem 0 0;
     border: 0;
     margin: 0;
 

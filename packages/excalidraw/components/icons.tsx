@@ -2201,6 +2201,18 @@ export const abacusIcon = createIcon(
   tablerIconProps,
 );
 
+export const chartIcon = createIcon(
+  <g strokeWidth={1.5}>
+    <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+    <path d="M4 19h16" />
+    <path d="M7 16v-4" />
+    <path d="M12 16v-8" />
+    <path d="M17 16v-11" />
+    <path d="M6 9l5 -3l5 2l3 -4" />
+  </g>,
+  tablerIconProps,
+);
+
 export const flipVertical = createIcon(
   <g strokeWidth={1.25}>
     <path stroke="none" d="M0 0h24v24H0z" fill="none" />

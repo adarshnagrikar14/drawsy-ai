@@ -6,9 +6,9 @@ import {
 } from "@excalidraw/excalidraw";
 import {
   MagicIcon,
-  extraToolsIcon,
+  chartIcon,
   frameToolIcon,
-  ImageIcon,
+  gridIcon,
   LoadIcon,
   messageCircleIcon,
   palette,
@@ -26,7 +26,6 @@ import {
   isFrameLikeElement,
 } from "@excalidraw/element";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 
 import type { AppState, BinaryFiles } from "@excalidraw/excalidraw/types";
 import type {
@@ -107,8 +106,8 @@ const PRESENTATION_TABS: {
   { id: "slides", label: "Slides", icon: frameToolIcon },
   { id: "templates", label: "Templates", icon: palette },
   { id: "animation", label: "Animation", icon: MagicIcon },
-  { id: "resources", label: "Resources", icon: ImageIcon },
-  { id: "layout", label: "Layout", icon: extraToolsIcon },
+  { id: "resources", label: "Resources", icon: chartIcon },
+  { id: "layout", label: "Layout", icon: gridIcon },
 ];
 
 const PRESENTATION_BUILD_EFFECTS: {
@@ -517,41 +516,6 @@ const PresentationPanel = ({
   const [animationDirection, setAnimationDirection] =
     useState<PresentationBuildDirection>("left");
   const resourceImportInputRef = useRef<HTMLInputElement | null>(null);
-  const [dragPreview, setDragPreview] = useState<{
-    x: number;
-    y: number;
-    title: string;
-    meta: string;
-  } | null>(null);
-
-  useEffect(() => {
-    if (!draggedFrameId) {
-      return;
-    }
-
-    const clearDragState = () => {
-      setDraggedFrameId(null);
-      setDropFrameId(null);
-      setDragPreview(null);
-    };
-    const updateDragPreview = (event: PointerEvent) => {
-      setDragPreview((currentPreview) =>
-        currentPreview
-          ? { ...currentPreview, x: event.clientX, y: event.clientY }
-          : null,
-      );
-    };
-
-    window.addEventListener("pointermove", updateDragPreview);
-    window.addEventListener("pointerup", clearDragState);
-    window.addEventListener("blur", clearDragState);
-
-    return () => {
-      window.removeEventListener("pointermove", updateDragPreview);
-      window.removeEventListener("pointerup", clearDragState);
-      window.removeEventListener("blur", clearDragState);
-    };
-  }, [draggedFrameId]);
 
   const { frames, childCountByFrameId } = useMemo(() => {
     const nonDeletedElements = getNonDeletedElements(elements);
@@ -619,13 +583,26 @@ const PresentationPanel = ({
                   : ""
               }${draggedFrameId === frame.id ? " is-being-dragged" : ""}`}
               key={frame.id}
-              onPointerEnter={() => {
+              data-presentation-frame-id={frame.id}
+              onDragOver={(event) => {
                 if (!draggedFrameId || draggedFrameId === frame.id) {
                   return;
                 }
 
+                event.preventDefault();
+                event.dataTransfer.dropEffect = "move";
                 setDropFrameId(frame.id);
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+
+                if (!draggedFrameId || draggedFrameId === frame.id) {
+                  return;
+                }
+
                 onReorderSlide(draggedFrameId, frame.id, activeLayout);
+                setDraggedFrameId(null);
+                setDropFrameId(null);
               }}
             >
               <div
@@ -710,25 +687,34 @@ const PresentationPanel = ({
                 </button>
                 <button
                   type="button"
+                  draggable
                   aria-label={`Drag ${title} to reorder`}
                   className="presentation-slide-card__drag-handle"
                   title="Drag to reorder"
                   onClick={(event) => event.stopPropagation()}
-                  onPointerDown={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
+                  onDragStart={(event) => {
+                    const card = event.currentTarget.closest<HTMLElement>(
+                      ".presentation-slide-card",
+                    );
+                    if (!card) {
+                      event.preventDefault();
+                      return;
+                    }
+
+                    const cardRect = card.getBoundingClientRect();
+                    event.dataTransfer.effectAllowed = "move";
+                    event.dataTransfer.setData("text/plain", frame.id);
+                    event.dataTransfer.setDragImage(
+                      card,
+                      event.clientX - cardRect.left,
+                      event.clientY - cardRect.top,
+                    );
                     setDraggedFrameId(frame.id);
                     setDropFrameId(null);
-                    setDragPreview({
-                      x: event.clientX,
-                      y: event.clientY,
-                      title,
-                      meta: `${Math.round(frame.width)} x ${Math.round(
-                        frame.height,
-                      )} · ${childCount} ${
-                        childCount === 1 ? "item" : "items"
-                      }`,
-                    });
+                  }}
+                  onDragEnd={() => {
+                    setDraggedFrameId(null);
+                    setDropFrameId(null);
                   }}
                 >
                   <span aria-hidden="true" />
@@ -737,25 +723,6 @@ const PresentationPanel = ({
             </article>
           );
         })}
-        {dragPreview
-          ? createPortal(
-              <div
-                className="presentation-slide-drag-preview"
-                style={{
-                  transform: `translate3d(${dragPreview.x + 12}px, ${
-                    dragPreview.y + 12
-                  }px, 0)`,
-                }}
-              >
-                <span className="presentation-slide-drag-preview__thumb" />
-                <div>
-                  <strong>{dragPreview.title}</strong>
-                  <span>{dragPreview.meta}</span>
-                </div>
-              </div>,
-              document.body,
-            )
-          : null}
       </div>
     );
   };
