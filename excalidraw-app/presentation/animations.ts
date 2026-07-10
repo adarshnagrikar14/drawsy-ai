@@ -1,4 +1,8 @@
-import { getNonDeletedElements, isFrameLikeElement } from "@excalidraw/element";
+import {
+  filterElementsEligibleAsFrameChildren,
+  getNonDeletedElements,
+  isFrameLikeElement,
+} from "@excalidraw/element";
 
 import type { ExcalidrawElement } from "@excalidraw/element/types";
 
@@ -58,6 +62,32 @@ export const createPresentationAnimationMetadata =
     builds: [],
     transitions: {},
   });
+
+export const getPresentationTargetFrameId = (
+  target: ExcalidrawElement,
+  elements: readonly ExcalidrawElement[],
+) => {
+  const nonDeletedElements = getNonDeletedElements(elements);
+  const frames = nonDeletedElements.filter(isFrameLikeElement);
+
+  if (target.isDeleted || isFrameLikeElement(target)) {
+    return null;
+  }
+
+  if (target.frameId) {
+    return frames.some((frame) => frame.id === target.frameId)
+      ? target.frameId
+      : null;
+  }
+
+  const containingFrames = frames.filter((frame) =>
+    filterElementsEligibleAsFrameChildren(nonDeletedElements, frame).some(
+      (element) => element.id === target.id,
+    ),
+  );
+
+  return containingFrames.length === 1 ? containingFrames[0].id : null;
+};
 
 const normalizeBuildStartTriggers = (builds: PresentationBuild[]) => {
   const frameIdsWithBuilds = new Set<string>();
@@ -171,8 +201,8 @@ export const sanitizePresentationAnimationMetadata = (
       const target = elementById.get(targetId);
       return (
         !!target &&
-        !isFrameLikeElement(target) &&
-        target.frameId === build.frameId
+        getPresentationTargetFrameId(target, nonDeletedElements) ===
+          build.frameId
       );
     });
 
