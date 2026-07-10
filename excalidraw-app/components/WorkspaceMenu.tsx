@@ -1,6 +1,9 @@
 import {
   ArrowRightIcon,
+  frameToolIcon,
   PlusIcon,
+  presentationIcon,
+  stackPushIcon,
   TrashIcon,
 } from "@excalidraw/excalidraw/components/icons";
 import { openConfirmModal } from "@excalidraw/excalidraw/components/OverwriteConfirm/OverwriteConfirmState";
@@ -18,6 +21,15 @@ import type {
   WorkspaceIndex,
   WorkspaceProject,
 } from "../data/WorkspaceStore";
+import type {
+  PresentationDocumentMetadata,
+  PresentationIndex,
+} from "../data/PresentationStore";
+
+type WorkspaceHistoryItem =
+  | CanvasDocumentMetadata
+  | WorkspaceProject
+  | PresentationDocumentMetadata;
 
 type Props = {
   index: WorkspaceIndex | null;
@@ -26,12 +38,17 @@ type Props = {
   onCreateCanvas: () => void;
   onCreateProject: () => void;
   onOpenKanban: () => void;
-  onOpenPresentation?: () => void;
+  presentationIndex?: PresentationIndex | null;
+  presentationActive?: boolean;
+  onCreatePresentation?: () => void;
+  onOpenPresentation?: (presentationId: string) => void;
+  onDeletePresentation?: (presentationId: string) => Promise<boolean>;
   onCreateProjectCanvas: (projectId: string) => void;
   onOpenCanvas: (canvasId: string) => void;
   onDeleteCanvas: (canvasId: string) => Promise<boolean>;
   onDeleteProject: (projectId: string) => Promise<boolean>;
   loadingCanvasId?: string | null;
+  loadingPresentationId?: string | null;
 };
 
 const sortByRecent = <T extends { lastOpenedAt: number }>(items: T[]) =>
@@ -56,17 +73,15 @@ const HistoryPanel = ({
   className = "",
   style,
   footer,
+  itemKind,
+  leadingIcon,
+  trailingIcon,
 }: {
-  items: Array<CanvasDocumentMetadata | WorkspaceProject>;
+  items: WorkspaceHistoryItem[];
   emptyLabel: string;
-  onSelect: (item: CanvasDocumentMetadata | WorkspaceProject) => void;
-  onDelete: (
-    item: CanvasDocumentMetadata | WorkspaceProject,
-  ) => Promise<boolean>;
-  onHover?: (
-    item: CanvasDocumentMetadata | WorkspaceProject,
-    anchor: HTMLButtonElement,
-  ) => void;
+  onSelect: (item: WorkspaceHistoryItem) => void;
+  onDelete: (item: WorkspaceHistoryItem) => Promise<boolean>;
+  onHover?: (item: WorkspaceHistoryItem, anchor: HTMLButtonElement) => void;
   onScroll?: React.UIEventHandler<HTMLDivElement>;
   onItemRef?: (itemId: string, element: HTMLButtonElement | null) => void;
   disabled?: boolean;
@@ -77,6 +92,9 @@ const HistoryPanel = ({
   className?: string;
   style?: React.CSSProperties;
   footer?: React.ReactNode;
+  itemKind?: "canvas" | "project" | "presentation";
+  leadingIcon?: React.ReactNode;
+  trailingIcon?: React.ReactNode;
 }) => {
   const [removingItemId, setRemovingItemId] = useState<string | null>(null);
   const visibleItems = expanded
@@ -84,12 +102,11 @@ const HistoryPanel = ({
     : items.slice(0, COLLAPSED_HISTORY_LIMIT);
   const hasOverflow = items.length > COLLAPSED_HISTORY_LIMIT;
 
-  const deleteItem = async (
-    item: CanvasDocumentMetadata | WorkspaceProject,
-  ) => {
+  const deleteItem = async (item: WorkspaceHistoryItem) => {
     const isProject = "canvasIds" in item;
+    const label = itemKind || (isProject ? "project" : "canvas");
     const confirmed = await openConfirmModal({
-      title: isProject ? "Delete project?" : "Delete canvas?",
+      title: `Delete ${label}?`,
       description: isProject ? (
         <>
           <strong>{item.title}</strong> and {item.canvasIds.length}{" "}
@@ -105,7 +122,7 @@ const HistoryPanel = ({
           This cannot be undone.
         </>
       ),
-      actionLabel: isProject ? "Delete project" : "Delete canvas",
+      actionLabel: `Delete ${label}`,
       color: "danger",
     });
     if (!confirmed) {
@@ -159,7 +176,10 @@ const HistoryPanel = ({
                 }
                 disabled={disabled || !!loadingItemId}
               >
-                <span>{item.title}</span>
+                <span className="workspace-history-item-label">
+                  {leadingIcon}
+                  <span>{item.title}</span>
+                </span>
                 {loadingItemId === item.id ? (
                   <Spinner
                     className="workspace-history-loading"
@@ -168,7 +188,7 @@ const HistoryPanel = ({
                     synchronized
                   />
                 ) : (
-                  "canvasIds" in item && ArrowRightIcon
+                  trailingIcon || ("canvasIds" in item && ArrowRightIcon)
                 )}
               </button>
               <button
@@ -212,19 +232,27 @@ export const WorkspaceMenu = ({
   onCreateCanvas,
   onCreateProject,
   onOpenKanban,
+  presentationIndex = null,
+  presentationActive = false,
+  onCreatePresentation,
   onOpenPresentation,
+  onDeletePresentation,
   onCreateProjectCanvas,
   onOpenCanvas,
   onDeleteCanvas,
   onDeleteProject,
   loadingCanvasId = null,
+  loadingPresentationId = null,
 }: Props) => {
-  const [branch, setBranch] = useState<"canvases" | "projects" | null>(null);
+  const [branch, setBranch] = useState<
+    "canvases" | "projects" | "presentations" | null
+  >(null);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [projectPanelTop, setProjectPanelTop] = useState<number | null>(null);
   const [expandedCanvases, setExpandedCanvases] = useState(false);
   const [expandedProjects, setExpandedProjects] = useState(false);
   const [expandedProjectCanvases, setExpandedProjectCanvases] = useState(false);
+  const [expandedPresentations, setExpandedPresentations] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const projectButtonRefs = useRef(new Map<string, HTMLButtonElement>());
 
@@ -234,6 +262,10 @@ export const WorkspaceMenu = ({
     [index],
   );
   const projects = useMemo(() => sortByRecent(index?.projects || []), [index]);
+  const presentations = useMemo(
+    () => sortByRecent(presentationIndex?.presentations || []),
+    [presentationIndex],
+  );
   const projectCanvases = useMemo(
     () =>
       sortByRecent(
@@ -246,7 +278,8 @@ export const WorkspaceMenu = ({
   const currentCanvas = index?.canvases.find(
     (canvas) => canvas.id === index.activeCanvasId,
   );
-  const interactionDisabled = disabled || !!loadingCanvasId;
+  const interactionDisabled =
+    disabled || !!loadingCanvasId || !!loadingPresentationId;
   const updateProjectPanelPosition = useCallback(
     (projectId: string, anchor?: HTMLButtonElement) => {
       const menu = menuRef.current;
@@ -290,6 +323,7 @@ export const WorkspaceMenu = ({
       setExpandedCanvases(false);
       setExpandedProjects(false);
       setExpandedProjectCanvases(false);
+      setExpandedPresentations(false);
     }
   }, [disabled]);
 
@@ -297,12 +331,14 @@ export const WorkspaceMenu = ({
     setExpandedProjectCanvases(false);
   }, [activeProjectId]);
 
-  const showBranch = (nextBranch: "canvases" | "projects") => {
+  const showBranch = (
+    nextBranch: "canvases" | "projects" | "presentations",
+  ) => {
     if (disabled) {
       return;
     }
     setBranch(nextBranch);
-    if (nextBranch === "canvases") {
+    if (nextBranch !== "projects") {
       setActiveProjectId(null);
       setProjectPanelTop(null);
     }
@@ -321,7 +357,10 @@ export const WorkspaceMenu = ({
           onClick={onCreateCanvas}
           disabled={interactionDisabled}
         >
-          New Canvas
+          <span className="workspace-menu-icon" aria-hidden="true">
+            {frameToolIcon}
+          </span>
+          <span>New Canvas</span>
         </button>
         <button
           type="button"
@@ -344,7 +383,10 @@ export const WorkspaceMenu = ({
           onClick={onCreateProject}
           disabled={interactionDisabled}
         >
-          New Project
+          <span className="workspace-menu-icon" aria-hidden="true">
+            {stackPushIcon}
+          </span>
+          <span>New Project</span>
         </button>
         <button
           type="button"
@@ -372,32 +414,57 @@ export const WorkspaceMenu = ({
           disabled={interactionDisabled}
           aria-current={kanbanActive ? "page" : undefined}
         >
-          Kanban
+          <span
+            className="workspace-menu-icon workspace-kanban-icon"
+            aria-hidden="true"
+          >
+            <svg viewBox="0 0 24 24" fill="none">
+              <rect x="3" y="4" width="18" height="16" rx="2.5" />
+              <path d="M9 4v16M15 4v16" />
+              <path d="M5.5 7h1M11.5 7h1M17.5 7h1" />
+            </svg>
+          </span>
+          <span>Kanban</span>
         </button>
-        <span className="workspace-kanban-preview" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none">
-            <rect x="3" y="4" width="18" height="16" rx="2.5" />
-            <path d="M9 4v16M15 4v16" />
-            <path d="M5.5 7h1M11.5 7h1M17.5 7h1" />
-          </svg>
-        </span>
+        <button
+          type="button"
+          className="workspace-branch-trigger"
+          aria-label="Open Kanban"
+          onClick={onOpenKanban}
+          disabled={interactionDisabled}
+        >
+          {ArrowRightIcon}
+        </button>
       </div>
 
-      <div className="workspace-create-card add-menu-card workspace-presentation-card">
+      <div
+        className={`workspace-create-card add-menu-card workspace-presentation-card ${
+          presentationActive ? "is-current" : ""
+        }`}
+      >
         <button
           type="button"
           className="workspace-create-action"
-          onClick={onOpenPresentation}
+          onClick={onCreatePresentation}
+          disabled={interactionDisabled || !onCreatePresentation}
+        >
+          <span className="workspace-menu-icon" aria-hidden="true">
+            {presentationIcon}
+          </span>
+          <span>New Presentation</span>
+        </button>
+        <button
+          type="button"
+          className="workspace-branch-trigger"
+          aria-label="Recent presentations"
+          aria-expanded={branch === "presentations"}
+          onMouseEnter={() => showBranch("presentations")}
+          onFocus={() => showBranch("presentations")}
+          onClick={() => showBranch("presentations")}
           disabled={interactionDisabled || !onOpenPresentation}
         >
-          Presentation
+          {ArrowRightIcon}
         </button>
-        <span className="workspace-presentation-preview" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none">
-            <rect x="4" y="5" width="16" height="11" rx="2" />
-            <path d="M8 20h8M12 16v4M8 9h8M8 12h5" />
-          </svg>
-        </span>
       </div>
 
       {Array.from({ length: 2 }, (_, index) => (
@@ -421,6 +488,7 @@ export const WorkspaceMenu = ({
           expanded={expandedCanvases}
           onToggleExpanded={() => setExpandedCanvases((current) => !current)}
           className="workspace-history-panel--canvases"
+          leadingIcon={frameToolIcon}
         />
       )}
 
@@ -460,6 +528,7 @@ export const WorkspaceMenu = ({
             setProjectPanelTop(null);
           }}
           className="workspace-history-panel--projects"
+          leadingIcon={stackPushIcon}
         />
       )}
 
@@ -477,6 +546,7 @@ export const WorkspaceMenu = ({
             setExpandedProjectCanvases((current) => !current)
           }
           className="workspace-history-panel--project-canvases"
+          leadingIcon={frameToolIcon}
           style={
             {
               "--workspace-panel-top": `${projectPanelTop}px`,
@@ -490,10 +560,39 @@ export const WorkspaceMenu = ({
               onClick={() => onCreateProjectCanvas(activeProjectId)}
               disabled={interactionDisabled}
             >
-              <span>Create canvas</span>
-              {PlusIcon}
+              <span className="workspace-history-item-label">
+                {PlusIcon}
+                <span>Create canvas</span>
+              </span>
             </button>
           }
+        />
+      )}
+
+      {branch === "presentations" && (
+        <HistoryPanel
+          items={presentations}
+          emptyLabel="No presentations yet"
+          onSelect={(item) => onOpenPresentation?.(item.id)}
+          onDelete={(item) =>
+            onDeletePresentation
+              ? onDeletePresentation(item.id)
+              : Promise.resolve(false)
+          }
+          disabled={interactionDisabled || !onOpenPresentation}
+          currentItemId={
+            presentationActive
+              ? presentationIndex?.activePresentationId || null
+              : null
+          }
+          loadingItemId={loadingPresentationId}
+          expanded={expandedPresentations}
+          onToggleExpanded={() =>
+            setExpandedPresentations((current) => !current)
+          }
+          className="workspace-history-panel--presentations"
+          itemKind="presentation"
+          leadingIcon={presentationIcon}
         />
       )}
     </div>
