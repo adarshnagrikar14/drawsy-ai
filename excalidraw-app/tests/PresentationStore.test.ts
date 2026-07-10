@@ -56,23 +56,29 @@ describe("PresentationStore", () => {
     await clear(store);
   });
 
-  it("persists active state and scene outside workspace canvases", async () => {
+  it("persists an active presentation outside workspace canvases", async () => {
     PresentationStore.saveActive(true);
     expect(PresentationStore.loadActive()).toBe(true);
 
     const scene = createScene();
-    await PresentationStore.flushSave(scene);
+    const created = await PresentationStore.initialize(scene);
+    await PresentationStore.flushSave(created.document.id, scene);
 
-    const restored = await PresentationStore.loadScene();
-    expect(restored?.elements).toHaveLength(1);
-    expect(restored?.appState?.name).toBe("Presentation");
-    expect(restored?.appState?.viewBackgroundColor).toBe("#ffffff");
-    expect(restored?.presentation).toEqual(
+    const restored = await PresentationStore.openPresentation(
+      created.index,
+      created.document.id,
+    );
+    expect(restored?.document.scene.elements).toHaveLength(1);
+    expect(restored?.document.scene.appState?.name).toBe("Draft title");
+    expect(restored?.document.scene.appState?.viewBackgroundColor).toBe(
+      "#ffffff",
+    );
+    expect(restored?.document.scene.presentation).toEqual(
       createPresentationAnimationMetadata(),
     );
   });
 
-  it("retains animation metadata and gives legacy scenes an empty animation layer", async () => {
+  it("keeps independent documents for multiple presentations", async () => {
     const scene = createScene();
     scene.presentation = {
       version: 1,
@@ -88,12 +94,43 @@ describe("PresentationStore", () => {
       ],
       transitions: { "frame-1": "fade" },
     };
-    await PresentationStore.flushSave(scene);
-
-    expect((await PresentationStore.loadScene())?.presentation).toEqual(
-      scene.presentation,
+    const first = await PresentationStore.initialize(scene);
+    const secondScene = {
+      ...createScene(),
+      appState: { name: "Q2 review" },
+    };
+    const second = await PresentationStore.createPresentation(
+      first.index,
+      secondScene,
     );
 
+    expect(second.index.presentations).toHaveLength(2);
+    expect(second.document.scene.appState?.name).toBe("Q2 review");
+
+    const renamedIndex = await PresentationStore.renamePresentation(
+      second.index,
+      first.document.id,
+      "Opening",
+    );
+    const reopened = await PresentationStore.openPresentation(
+      renamedIndex,
+      first.document.id,
+    );
+
+    expect(reopened?.document.title).toBe("Opening");
+    expect(reopened?.document.scene.presentation).toEqual(scene.presentation);
+
+    const afterDelete = await PresentationStore.deletePresentation(
+      reopened!.index,
+      second.document.id,
+      createScene(),
+    );
+    expect(afterDelete?.index.presentations).toHaveLength(1);
+    expect(afterDelete?.document.id).toBe(first.document.id);
+  });
+
+  it("migrates the legacy single presentation into the indexed store", async () => {
+    const scene = createScene();
     await set(
       "presentation-document",
       {
@@ -109,7 +146,10 @@ describe("PresentationStore", () => {
       store,
     );
 
-    expect((await PresentationStore.loadScene())?.presentation).toEqual(
+    const migrated = await PresentationStore.initialize(createScene());
+    expect(migrated.index.presentations).toHaveLength(1);
+    expect(migrated.document.title).toBe("Presentation");
+    expect(migrated.document.scene.presentation).toEqual(
       createPresentationAnimationMetadata(),
     );
   });
