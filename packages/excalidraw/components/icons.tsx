@@ -2204,11 +2204,10 @@ export const abacusIcon = createIcon(
 export const chartIcon = createIcon(
   <g strokeWidth={1.5}>
     <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-    <path d="M4 19h16" />
-    <path d="M7 16v-4" />
-    <path d="M12 16v-8" />
-    <path d="M17 16v-11" />
-    <path d="M6 9l5 -3l5 2l3 -4" />
+    <path d="M4 20h16" />
+    <path d="M5 19v-5h3v5" />
+    <path d="M10.5 19v-10h3v10" />
+    <path d="M16 19v-14h3v14" />
   </g>,
   tablerIconProps,
 );
