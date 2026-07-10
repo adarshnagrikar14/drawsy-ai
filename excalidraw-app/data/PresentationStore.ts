@@ -6,6 +6,11 @@ import type { ExcalidrawElement } from "@excalidraw/element/types";
 import type { AppState, BinaryFiles } from "@excalidraw/excalidraw/types";
 
 import { SAVE_TO_LOCAL_STORAGE_TIMEOUT, STORAGE_KEYS } from "../app_constants";
+import {
+  createPresentationAnimationMetadata,
+  normalizePresentationAnimationMetadata,
+  type PresentationAnimationMetadata,
+} from "../presentation/animations";
 
 import type { CanvasScene } from "./WorkspaceStore";
 
@@ -16,18 +21,25 @@ const presentationStore = createStore(
 
 const PRESENTATION_DOCUMENT_KEY = "presentation-document";
 
+export type PresentationScene = CanvasScene & {
+  presentation: PresentationAnimationMetadata;
+};
+
 type PresentationDocument = {
-  schemaVersion: 1;
+  schemaVersion: 1 | 2;
   title: "Presentation";
   scene: {
     elements: readonly ExcalidrawElement[];
     appState: Partial<AppState>;
     files: BinaryFiles;
   };
+  presentation?: PresentationAnimationMetadata;
   updatedAt: number;
 };
 
-const normalizeScene = (scene: CanvasScene): PresentationDocument["scene"] => ({
+const normalizeScene = (
+  scene: PresentationScene,
+): PresentationDocument["scene"] => ({
   elements: scene.elements || [],
   appState: {
     ...clearAppStateForLocalStorage(scene.appState || {}),
@@ -36,11 +48,12 @@ const normalizeScene = (scene: CanvasScene): PresentationDocument["scene"] => ({
   files: scene.files || {},
 });
 
-const persistScene = async (scene: CanvasScene) => {
+const persistScene = async (scene: PresentationScene) => {
   const document: PresentationDocument = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     title: "Presentation",
     scene: normalizeScene(scene),
+    presentation: normalizePresentationAnimationMetadata(scene.presentation),
     updatedAt: Date.now(),
   };
   await set(PRESENTATION_DOCUMENT_KEY, document, presentationStore);
@@ -48,7 +61,7 @@ const persistScene = async (scene: CanvasScene) => {
 
 export class PresentationStore {
   private static saveSceneDebounced = debounce(
-    (scene: CanvasScene) => persistScene(scene),
+    (scene: PresentationScene) => persistScene(scene),
     SAVE_TO_LOCAL_STORAGE_TIMEOUT,
   );
 
@@ -74,12 +87,15 @@ export class PresentationStore {
     }
   }
 
-  static async loadScene(): Promise<CanvasScene | null> {
+  static async loadScene(): Promise<PresentationScene | null> {
     const document = await get<PresentationDocument>(
       PRESENTATION_DOCUMENT_KEY,
       presentationStore,
     );
-    if (!document || document.schemaVersion !== 1) {
+    if (
+      !document ||
+      (document.schemaVersion !== 1 && document.schemaVersion !== 2)
+    ) {
       return null;
     }
 
@@ -90,14 +106,17 @@ export class PresentationStore {
         name: "Presentation",
       },
       files: document.scene.files || {},
+      presentation: normalizePresentationAnimationMetadata(
+        document.presentation || createPresentationAnimationMetadata(),
+      ),
     };
   }
 
-  static saveScene(scene: CanvasScene) {
+  static saveScene(scene: PresentationScene) {
     this.saveSceneDebounced(scene);
   }
 
-  static async flushSave(scene?: CanvasScene | null) {
+  static async flushSave(scene?: PresentationScene | null) {
     if (scene) {
       await persistScene(scene);
       return;
