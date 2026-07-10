@@ -791,10 +791,27 @@
   }
 
   .workspace-create-action {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
     padding: 0 1rem;
     text-align: left;
     font-size: 0.9375rem;
     font-weight: 600;
+  }
+
+  .workspace-menu-icon {
+    display: grid;
+    width: 1.25rem;
+    height: 1.25rem;
+    flex: 0 0 1.25rem;
+    place-items: center;
+
+    svg {
+      width: 1.25rem;
+      height: 1.25rem;
+      opacity: 0.84;
+    }
   }
 
   .workspace-branch-trigger {
@@ -833,45 +850,24 @@
       );
     }
 
-    .workspace-kanban-preview {
-      display: grid;
-      place-items: center;
-      border-left: 1px solid var(--color-surface-high);
-
-      svg {
-        width: 1.375rem;
-        height: 1.375rem;
-        stroke: currentColor;
-        stroke-width: 1.65;
-        stroke-linecap: round;
-        stroke-linejoin: round;
-        opacity: 0.78;
-      }
+    .workspace-kanban-icon svg {
+      width: 1.375rem;
+      height: 1.375rem;
+      stroke: currentColor;
+      stroke-width: 1.65;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      opacity: 0.78;
     }
   }
 
   .workspace-presentation-card {
-    cursor: default;
-
-    .workspace-create-action {
-      display: flex;
-      align-items: center;
-    }
-
-    .workspace-presentation-preview {
-      display: grid;
-      place-items: center;
-      border-left: 1px solid var(--color-surface-high);
-
-      svg {
-        width: 1.375rem;
-        height: 1.375rem;
-        stroke: currentColor;
-        stroke-width: 1.65;
-        stroke-linecap: round;
-        stroke-linejoin: round;
-        opacity: 0.78;
-      }
+    &.is-current {
+      background: color-mix(
+        in srgb,
+        var(--color-primary) 10%,
+        var(--island-bg-color)
+      );
     }
   }
 
@@ -916,6 +912,10 @@
 
   .workspace-history-panel--projects {
     top: 5.125rem;
+  }
+
+  .workspace-history-panel--presentations {
+    top: 15.375rem;
   }
 
   .workspace-history-panel--project-canvases {
@@ -967,10 +967,30 @@
     text-align: left;
     transition: background-color 150ms ease, transform 180ms ease;
 
-    span {
+    > span {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+
+    .workspace-history-item-label {
+      display: flex;
+      flex: 1 1 auto;
+      min-width: 0;
+      align-items: center;
+      gap: 0.625rem;
+
+      > svg {
+        width: 1.125rem;
+        min-width: 1.125rem;
+        opacity: 0.72;
+      }
+
+      > span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
     }
 
     svg {
