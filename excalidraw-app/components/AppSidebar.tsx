@@ -9,11 +9,14 @@ import {
   extraToolsIcon,
   frameToolIcon,
   ImageIcon,
+  LoadIcon,
   messageCircleIcon,
   palette,
   presentationIcon,
+  PlusIcon,
   start,
   TrashIcon,
+  ArrowRightIcon,
 } from "@excalidraw/excalidraw/components/icons";
 import { useUIAppState } from "@excalidraw/excalidraw/context/ui-appState";
 import {
@@ -21,7 +24,7 @@ import {
   getNonDeletedElements,
   isFrameLikeElement,
 } from "@excalidraw/element";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import type { AppState, BinaryFiles } from "@excalidraw/excalidraw/types";
@@ -62,6 +65,25 @@ export type PresentationTemplateId =
   | "content-data"
   | "content-flow"
   | "content-compare";
+export type PresentationResourceId =
+  | "bar-chart"
+  | "line-chart"
+  | "donut-chart"
+  | "area-chart"
+  | "process"
+  | "funnel"
+  | "timeline"
+  | "matrix"
+  | "kpi-cards"
+  | "comparison-table"
+  | "roadmap"
+  | "pricing-grid";
+export type PresentationResourceConfig = {
+  resourceId: PresentationResourceId;
+  title: string;
+  rows: { id: string; label: string; value: string }[];
+  style: "clean" | "colorful" | "executive";
+};
 type PresentationExportAppState = Partial<
   Omit<AppState, "offsetTop" | "offsetLeft">
 >;
@@ -114,6 +136,218 @@ const PRESENTATION_TEMPLATE_SECTIONS: {
     ],
   },
 ];
+
+const PRESENTATION_RESOURCE_SECTIONS: {
+  title: string;
+  items: {
+    id: PresentationResourceId;
+    label: string;
+    type: string;
+    tone: string;
+    rows: { label: string; value: string }[];
+  }[];
+}[] = [
+  {
+    title: "Charts",
+    items: [
+      {
+        id: "bar-chart",
+        label: "Bar chart",
+        type: "editable data",
+        tone: "blue",
+        rows: [
+          { label: "Q1", value: "42" },
+          { label: "Q2", value: "68" },
+          { label: "Q3", value: "55" },
+          { label: "Q4", value: "86" },
+        ],
+      },
+      {
+        id: "line-chart",
+        label: "Line chart",
+        type: "editable trend",
+        tone: "green",
+        rows: [
+          { label: "Jan", value: "18" },
+          { label: "Feb", value: "36" },
+          { label: "Mar", value: "29" },
+          { label: "Apr", value: "64" },
+          { label: "May", value: "78" },
+        ],
+      },
+      {
+        id: "donut-chart",
+        label: "Donut chart",
+        type: "editable split",
+        tone: "coral",
+        rows: [
+          { label: "Organic", value: "45" },
+          { label: "Paid", value: "28" },
+          { label: "Referral", value: "17" },
+          { label: "Direct", value: "10" },
+        ],
+      },
+      {
+        id: "area-chart",
+        label: "Area chart",
+        type: "adoption curve",
+        tone: "violet",
+        rows: [
+          { label: "Week 1", value: "12" },
+          { label: "Week 2", value: "28" },
+          { label: "Week 3", value: "54" },
+          { label: "Week 4", value: "82" },
+        ],
+      },
+    ],
+  },
+  {
+    title: "Diagrams",
+    items: [
+      {
+        id: "process",
+        label: "3-step process",
+        type: "sequence",
+        tone: "blue",
+        rows: [
+          { label: "Capture", value: "Collect the signal" },
+          { label: "Shape", value: "Turn it into structure" },
+          { label: "Present", value: "Guide the room" },
+        ],
+      },
+      {
+        id: "funnel",
+        label: "Funnel",
+        type: "conversion path",
+        tone: "coral",
+        rows: [
+          { label: "Awareness", value: "12k" },
+          { label: "Interest", value: "6.4k" },
+          { label: "Intent", value: "2.1k" },
+          { label: "Action", value: "840" },
+        ],
+      },
+      {
+        id: "timeline",
+        label: "Timeline",
+        type: "milestones",
+        tone: "green",
+        rows: [
+          { label: "Discover", value: "Week 1" },
+          { label: "Design", value: "Week 2" },
+          { label: "Launch", value: "Week 4" },
+        ],
+      },
+      {
+        id: "matrix",
+        label: "2x2 matrix",
+        type: "decision map",
+        tone: "violet",
+        rows: [
+          { label: "Now", value: "High impact" },
+          { label: "Next", value: "Low effort" },
+          { label: "Later", value: "Strategic" },
+          { label: "Avoid", value: "Low signal" },
+        ],
+      },
+    ],
+  },
+  {
+    title: "Business blocks",
+    items: [
+      {
+        id: "kpi-cards",
+        label: "KPI cards",
+        type: "metrics",
+        tone: "violet",
+        rows: [
+          { label: "Revenue", value: "$84k" },
+          { label: "Growth", value: "+32%" },
+          { label: "Users", value: "12.8k" },
+        ],
+      },
+      {
+        id: "comparison-table",
+        label: "Comparison table",
+        type: "side-by-side",
+        tone: "blue",
+        rows: [
+          { label: "Speed", value: "Fast / Faster" },
+          { label: "Effort", value: "Medium / Low" },
+          { label: "Risk", value: "Known / Lower" },
+        ],
+      },
+      {
+        id: "roadmap",
+        label: "Roadmap strip",
+        type: "quarters",
+        tone: "green",
+        rows: [
+          { label: "Q1", value: "Foundation" },
+          { label: "Q2", value: "Launch" },
+          { label: "Q3", value: "Scale" },
+          { label: "Q4", value: "Optimize" },
+        ],
+      },
+      {
+        id: "pricing-grid",
+        label: "Pricing grid",
+        type: "plans",
+        tone: "coral",
+        rows: [
+          { label: "Starter", value: "$19" },
+          { label: "Pro", value: "$49" },
+          { label: "Team", value: "$99" },
+        ],
+      },
+    ],
+  },
+];
+
+const resourceRowId = () =>
+  `resource-row-${Date.now().toString(36)}-${Math.random()
+    .toString(36)
+    .slice(2, 8)}`;
+
+const getPresentationResource = (resourceId: PresentationResourceId) =>
+  PRESENTATION_RESOURCE_SECTIONS.flatMap((section) => section.items).find(
+    (item) => item.id === resourceId,
+  );
+
+const createPresentationResourceConfig = (
+  resourceId: PresentationResourceId,
+): PresentationResourceConfig => {
+  const resource = getPresentationResource(resourceId);
+
+  return {
+    resourceId,
+    title: resource?.label || "Resource",
+    rows:
+      resource?.rows.map((row) => ({
+        ...row,
+        id: resourceRowId(),
+      })) || [],
+    style: "colorful",
+  };
+};
+
+const parseResourceRows = (content: string) =>
+  content
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [label = "", value = ""] = line.includes("\t")
+        ? line.split("\t")
+        : line.split(",");
+
+      return {
+        id: resourceRowId(),
+        label: label.trim(),
+        value: value.trim(),
+      };
+    })
+    .filter((row) => row.label || row.value);
 
 const sortFramesForSlides = (frames: readonly ExcalidrawFrameLikeElement[]) => {
   return [...frames].sort((a, b) => {
@@ -190,6 +424,7 @@ const PresentationPanel = ({
   onStartPresentation,
   onLayoutChange,
   onTemplateInsert,
+  onResourceInsert,
   onRenameSlide,
   onDeleteSlide,
   onReorderSlide,
@@ -202,6 +437,10 @@ const PresentationPanel = ({
   onLayoutChange: (layout: PresentationLayout) => void;
   onTemplateInsert: (
     templateId: PresentationTemplateId,
+    layout: PresentationLayout,
+  ) => void;
+  onResourceInsert: (
+    config: PresentationResourceConfig,
     layout: PresentationLayout,
   ) => void;
   onRenameSlide: (frameId: string, name: string) => void;
@@ -219,6 +458,9 @@ const PresentationPanel = ({
   const [editingSlideName, setEditingSlideName] = useState("");
   const [draggedFrameId, setDraggedFrameId] = useState<string | null>(null);
   const [dropFrameId, setDropFrameId] = useState<string | null>(null);
+  const [resourceConfig, setResourceConfig] =
+    useState<PresentationResourceConfig | null>(null);
+  const resourceImportInputRef = useRef<HTMLInputElement | null>(null);
   const [dragPreview, setDragPreview] = useState<{
     x: number;
     y: number;
@@ -510,16 +752,220 @@ const PresentationPanel = ({
     </div>
   );
 
-  const renderResources = () => (
-    <div className="presentation-card-grid">
-      {["Charts", "Graphs", "Tables", "Media"].map((label) => (
-        <div className="presentation-resource-card" key={label}>
-          <strong>{label}</strong>
-          <span />
+  const updateResourceRow = (
+    rowId: string,
+    key: "label" | "value",
+    value: string,
+  ) => {
+    setResourceConfig((currentConfig) =>
+      currentConfig
+        ? {
+            ...currentConfig,
+            rows: currentConfig.rows.map((row) =>
+              row.id === rowId ? { ...row, [key]: value } : row,
+            ),
+          }
+        : currentConfig,
+    );
+  };
+
+  const renderResourceConfig = (config: PresentationResourceConfig) => {
+    const resource = getPresentationResource(config.resourceId);
+
+    return (
+      <div className="presentation-resource-editor">
+        <div className="presentation-resource-editor__header">
+          <button
+            className="presentation-resource-editor__back"
+            type="button"
+            aria-label="Back to resources"
+            title="Back"
+            onClick={() => setResourceConfig(null)}
+          >
+            {ArrowRightIcon}
+          </button>
+          <div className="presentation-resource-editor__resource-name">
+            <strong>{resource?.label || "Resource"}</strong>
+          </div>
         </div>
-      ))}
-    </div>
-  );
+
+        <label className="presentation-resource-title">
+          <span>Slide title</span>
+          <input
+            aria-label="Resource title"
+            value={config.title}
+            onChange={(event) =>
+              setResourceConfig((currentConfig) =>
+                currentConfig
+                  ? { ...currentConfig, title: event.target.value }
+                  : currentConfig,
+              )
+            }
+          />
+        </label>
+
+        <section className="presentation-resource-section presentation-resource-style">
+          <h3>Style</h3>
+          <div>
+            {(["clean", "colorful", "executive"] as const).map((style) => (
+              <button
+                type="button"
+                key={style}
+                data-active={config.style === style}
+                onClick={() =>
+                  setResourceConfig((currentConfig) =>
+                    currentConfig ? { ...currentConfig, style } : currentConfig,
+                  )
+                }
+              >
+                {style}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="presentation-resource-section presentation-resource-rows">
+          <div className="presentation-resource-rows__header">
+            <h3>Data</h3>
+            <button
+              type="button"
+              aria-label="Add data row"
+              title="Add data row"
+              onClick={() =>
+                setResourceConfig((currentConfig) =>
+                  currentConfig
+                    ? {
+                        ...currentConfig,
+                        rows: [
+                          ...currentConfig.rows,
+                          { id: resourceRowId(), label: "Item", value: "50" },
+                        ],
+                      }
+                    : currentConfig,
+                )
+              }
+            >
+              {PlusIcon}
+            </button>
+          </div>
+          <div className="presentation-resource-row__labels" aria-hidden="true">
+            <span>Label</span>
+            <span>Value</span>
+          </div>
+          {config.rows.map((row, index) => (
+            <div className="presentation-resource-row" key={row.id}>
+              <input
+                aria-label={`Label ${index + 1}`}
+                value={row.label}
+                onChange={(event) =>
+                  updateResourceRow(row.id, "label", event.target.value)
+                }
+              />
+              <input
+                aria-label={`Value ${index + 1}`}
+                value={row.value}
+                onChange={(event) =>
+                  updateResourceRow(row.id, "value", event.target.value)
+                }
+              />
+              <button
+                type="button"
+                aria-label={`Remove row ${index + 1}`}
+                title="Remove"
+                disabled={config.rows.length <= 1}
+                onClick={() =>
+                  setResourceConfig((currentConfig) =>
+                    currentConfig
+                      ? {
+                          ...currentConfig,
+                          rows: currentConfig.rows.filter(
+                            (currentRow) => currentRow.id !== row.id,
+                          ),
+                        }
+                      : currentConfig,
+                  )
+                }
+              >
+                {TrashIcon}
+              </button>
+            </div>
+          ))}
+        </section>
+
+        <input
+          ref={resourceImportInputRef}
+          type="file"
+          accept=".csv,.txt,text/csv,text/plain"
+          hidden
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = "";
+
+            if (!file) {
+              return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = () => {
+              const rows = parseResourceRows(String(reader.result || ""));
+              if (rows.length) {
+                setResourceConfig((currentConfig) =>
+                  currentConfig ? { ...currentConfig, rows } : currentConfig,
+                );
+              }
+            };
+            reader.readAsText(file);
+          }}
+        />
+      </div>
+    );
+  };
+
+  const renderResources = () => {
+    if (resourceConfig) {
+      return renderResourceConfig(resourceConfig);
+    }
+
+    return (
+      <div className="presentation-resource-sections">
+        {PRESENTATION_RESOURCE_SECTIONS.map((section) => (
+          <section
+            className="presentation-template-section"
+            key={section.title}
+          >
+            <div className="presentation-panel-section-heading">
+              <span>{section.title}</span>
+            </div>
+            <div className="presentation-card-grid">
+              {section.items.map((item) => (
+                <button
+                  type="button"
+                  className="presentation-resource-card"
+                  data-resource={item.id}
+                  data-tone={item.tone}
+                  key={item.id}
+                  onClick={() =>
+                    setResourceConfig(createPresentationResourceConfig(item.id))
+                  }
+                >
+                  <span
+                    className="presentation-resource-card__thumbnail"
+                    aria-hidden="true"
+                  >
+                    <i />
+                    <b />
+                    <em />
+                    <small />
+                  </span>
+                  <strong>{item.label}</strong>
+                </button>
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+    );
+  };
 
   const renderLayout = () => (
     <fieldset className="presentation-layout-options">
@@ -577,17 +1023,40 @@ const PresentationPanel = ({
         </div>
       </div>
 
-      <div className="presentation-panel-footer">
-        <button
-          type="button"
-          className="presentation-present-button"
-          disabled={!frames.length}
-          onClick={onStartPresentation}
-        >
-          {start}
-          <span>Present</span>
-        </button>
-      </div>
+      {activeTab === "resources" && resourceConfig ? (
+        <div className="presentation-panel-footer presentation-panel-footer--resource">
+          <div className="presentation-resource-editor__dock">
+            <button
+              type="button"
+              className="presentation-resource-import"
+              onClick={() => resourceImportInputRef.current?.click()}
+            >
+              {LoadIcon}
+              <span>Import</span>
+            </button>
+            <button
+              type="button"
+              className="presentation-resource-insert"
+              onClick={() => onResourceInsert(resourceConfig, activeLayout)}
+            >
+              {PlusIcon}
+              <span>Insert</span>
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="presentation-panel-footer">
+          <button
+            type="button"
+            className="presentation-present-button"
+            disabled={!frames.length}
+            onClick={onStartPresentation}
+          >
+            {start}
+            <span>Present</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 };
@@ -605,6 +1074,7 @@ export const AppSidebar = ({
   onPresentationStart,
   onPresentationLayoutChange,
   onPresentationTemplateInsert,
+  onPresentationResourceInsert,
   onPresentationSlideRename,
   onPresentationSlideDelete,
   onPresentationSlideReorder,
@@ -626,6 +1096,10 @@ export const AppSidebar = ({
   onPresentationLayoutChange: (layout: PresentationLayout) => void;
   onPresentationTemplateInsert: (
     templateId: PresentationTemplateId,
+    layout: PresentationLayout,
+  ) => void;
+  onPresentationResourceInsert: (
+    config: PresentationResourceConfig,
     layout: PresentationLayout,
   ) => void;
   onPresentationSlideRename: (frameId: string, name: string) => void;
@@ -683,6 +1157,7 @@ export const AppSidebar = ({
           onStartPresentation={onPresentationStart}
           onLayoutChange={onPresentationLayoutChange}
           onTemplateInsert={onPresentationTemplateInsert}
+          onResourceInsert={onPresentationResourceInsert}
           onRenameSlide={onPresentationSlideRename}
           onDeleteSlide={onPresentationSlideDelete}
           onReorderSlide={onPresentationSlideReorder}

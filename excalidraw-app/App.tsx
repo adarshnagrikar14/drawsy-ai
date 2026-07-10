@@ -74,8 +74,10 @@ import {
   isInvisiblySmallElement,
   newElement,
   newFrameElement,
+  newLinearElement,
   newTextElement,
 } from "@excalidraw/element";
+import { pointFrom } from "@excalidraw/math";
 import {
   bumpElementVersions,
   restoreAppState,
@@ -211,6 +213,7 @@ import { ExcalidrawPlusPromoBanner } from "./components/ExcalidrawPlusPromoBanne
 import {
   AppSidebar,
   type PresentationLayout,
+  type PresentationResourceConfig,
   type PresentationTemplateId,
 } from "./components/AppSidebar";
 import { CommentDraftBubble } from "./comments/CommentDraftBubble";
@@ -1188,6 +1191,553 @@ const createPresentationTemplateElements = (
   return templates[templateId];
 };
 
+const parsePresentationResourceValue = (value: string, fallback: number) => {
+  const parsed = Number(value.replace(/[^0-9.-]/g, ""));
+  return Number.isFinite(parsed) ? Math.max(0, parsed) : fallback;
+};
+
+const createPresentationResourceElements = (
+  config: PresentationResourceConfig,
+  origin: { x: number; y: number },
+  targetFrame?: ExcalidrawFrameLikeElement,
+) => {
+  const templateSize = PRESENTATION_TEMPLATE_SIZE;
+  const frame =
+    targetFrame ||
+    newFrameElement({
+      x: origin.x,
+      y: origin.y,
+      width: templateSize.width,
+      height: templateSize.height,
+      name: "Slide",
+      strokeColor: "#868e96",
+      backgroundColor: "transparent",
+      fillStyle: "solid",
+      strokeWidth: 2,
+      roughness: 0,
+    });
+  const sx = frame.width / templateSize.width;
+  const sy = frame.height / templateSize.height;
+  const scale = Math.min(sx, sy);
+  const frameId = frame.id;
+  const rows = config.rows.length
+    ? config.rows
+    : [{ id: "fallback", label: "Item", value: "50" }];
+  const values = rows.map((row, index) =>
+    parsePresentationResourceValue(row.value, 20 + index * 12),
+  );
+  const maxValue = Math.max(1, ...values);
+  const colors =
+    config.style === "executive"
+      ? ["#364fc7", "#495057", "#228be6", "#868e96", "#15aabf"]
+      : config.style === "clean"
+      ? ["#4dabf7", "#868e96", "#adb5bd", "#ced4da", "#495057"]
+      : ["#4dabf7", "#69db7c", "#ff8787", "#ffd43b", "#b197fc"];
+  const x = (value: number) => frame.x + value * sx;
+  const y = (value: number) => frame.y + value * sy;
+  const size = (value: number) => value * scale;
+  const resourceElements: ExcalidrawElement[] = [];
+  const add = (element: ExcalidrawElement) => {
+    resourceElements.push(element);
+  };
+  const rect = (
+    x1: number,
+    y1: number,
+    width: number,
+    height: number,
+    backgroundColor: string,
+    strokeColor = "transparent",
+    roughness = 0,
+    opacity = 100,
+  ) =>
+    newElement({
+      type: "rectangle",
+      x: x(x1),
+      y: y(y1),
+      width: width * sx,
+      height: height * sy,
+      strokeColor,
+      backgroundColor,
+      fillStyle: "solid",
+      strokeWidth: 2,
+      roughness,
+      opacity,
+      frameId,
+    });
+  const ellipse = (
+    x1: number,
+    y1: number,
+    width: number,
+    height: number,
+    backgroundColor: string,
+    strokeColor = "transparent",
+    roughness = 0,
+    opacity = 100,
+  ) =>
+    newElement({
+      type: "ellipse",
+      x: x(x1),
+      y: y(y1),
+      width: width * sx,
+      height: height * sy,
+      strokeColor,
+      backgroundColor,
+      fillStyle: "solid",
+      strokeWidth: 2,
+      roughness,
+      opacity,
+      frameId,
+    });
+  const text = (
+    value: string,
+    x1: number,
+    y1: number,
+    fontSize: number,
+    strokeColor: string,
+    fontFamily = FONT_FAMILY["Comic Shanns"],
+  ) =>
+    newTextElement({
+      text: value,
+      x: x(x1),
+      y: y(y1),
+      fontSize: size(fontSize),
+      fontFamily,
+      strokeColor,
+      backgroundColor: "transparent",
+      frameId,
+    });
+  const line = (
+    points: readonly [number, number][],
+    strokeColor: string,
+    strokeWidth = 3,
+    strokeStyle: "solid" | "dashed" | "dotted" = "solid",
+    opacity = 100,
+  ) => {
+    const scaledPoints = points.map(
+      ([pointX, pointY]) => [pointX * sx, pointY * sy] as [number, number],
+    );
+    const minX = Math.min(...scaledPoints.map(([pointX]) => pointX));
+    const minY = Math.min(...scaledPoints.map(([, pointY]) => pointY));
+    const maxX = Math.max(...scaledPoints.map(([pointX]) => pointX));
+    const maxY = Math.max(...scaledPoints.map(([, pointY]) => pointY));
+
+    return newLinearElement({
+      type: "line",
+      x: frame.x + minX,
+      y: frame.y + minY,
+      width: maxX - minX,
+      height: maxY - minY,
+      points: scaledPoints.map(([pointX, pointY]) =>
+        pointFrom(pointX - minX, pointY - minY),
+      ),
+      strokeColor,
+      backgroundColor: "transparent",
+      fillStyle: "solid",
+      strokeWidth,
+      strokeStyle,
+      roughness: 1,
+      opacity,
+      frameId,
+    });
+  };
+
+  if (!targetFrame) {
+    add(frame);
+  }
+
+  if (!targetFrame) {
+    add(
+      rect(
+        0,
+        0,
+        templateSize.width,
+        templateSize.height,
+        config.style === "executive" ? "#101113" : "#f8f9fa",
+        "transparent",
+      ),
+    );
+  }
+  add(
+    text(
+      config.title || "Resource",
+      72,
+      56,
+      44,
+      config.style === "executive" ? "#f8f9fa" : "#212529",
+    ),
+  );
+
+  if (config.resourceId === "bar-chart") {
+    const chartLeft = 104;
+    const chartBottom = 420;
+    const slot = Math.min(112, 640 / Math.max(1, rows.length));
+    add(
+      line(
+        [
+          [88, chartBottom],
+          [840, chartBottom],
+        ],
+        "#495057",
+        3,
+      ),
+    );
+    rows.forEach((row, index) => {
+      const height = 42 + (values[index] / maxValue) * 230;
+      add(
+        rect(
+          chartLeft + index * slot,
+          chartBottom - height,
+          slot * 0.52,
+          height,
+          colors[index % colors.length],
+          "#212529",
+          0.8,
+        ),
+      );
+      add(text(row.label, chartLeft + index * slot - 2, 446, 18, "#495057"));
+    });
+  } else if (config.resourceId === "line-chart") {
+    const points = rows.map((_, index) => [
+      112 + index * (680 / Math.max(1, rows.length - 1)),
+      410 - (values[index] / maxValue) * 245,
+    ]) as [number, number][];
+    add(
+      line(
+        [
+          [96, 410],
+          [820, 410],
+        ],
+        "#495057",
+        3,
+      ),
+    );
+    add(
+      line(
+        [
+          [96, 410],
+          [96, 142],
+        ],
+        "#495057",
+        3,
+      ),
+    );
+    add(line(points, colors[0], 4));
+    points.forEach(([pointX, pointY], index) => {
+      add(
+        ellipse(
+          pointX - 10,
+          pointY - 10,
+          20,
+          20,
+          colors[index % colors.length],
+        ),
+      );
+      add(text(rows[index].label, pointX - 22, 442, 17, "#495057"));
+    });
+  } else if (config.resourceId === "area-chart") {
+    const points = rows.map((_, index) => [
+      112 + index * (680 / Math.max(1, rows.length - 1)),
+      410 - (values[index] / maxValue) * 245,
+    ]) as [number, number][];
+    const baselineY = 410;
+    const stripCount = 56;
+    const stripWidth = 680 / stripCount;
+    for (let stripIndex = 0; stripIndex < stripCount; stripIndex++) {
+      const pointX = 112 + stripIndex * stripWidth;
+      const segmentIndex = Math.min(
+        points.length - 2,
+        Math.max(
+          0,
+          Math.floor(
+            ((pointX - points[0][0]) /
+              (points[points.length - 1][0] - points[0][0])) *
+              (points.length - 1),
+          ),
+        ),
+      );
+      const [startX, startY] = points[segmentIndex];
+      const [endX, endY] = points[segmentIndex + 1] || points[segmentIndex];
+      const progress =
+        endX === startX ? 0 : (pointX - startX) / (endX - startX);
+      const pointY = startY + (endY - startY) * progress;
+      add(
+        rect(
+          pointX,
+          pointY,
+          stripWidth + 1,
+          baselineY - pointY,
+          colors[0],
+          "transparent",
+          0,
+          34,
+        ),
+      );
+    }
+    add(line(points, colors[0], 4));
+    rows.forEach((row, index) => {
+      add(text(row.label, 92 + index * 150, 446, 17, "#495057"));
+    });
+  } else if (config.resourceId === "donut-chart") {
+    const total = Math.max(
+      1,
+      values.reduce((sum, value) => sum + value, 0),
+    );
+    let angle = -90;
+    rows.forEach((_, index) => {
+      const nextAngle = angle + (values[index] / total) * 360;
+      const arcPoints: [number, number][] = [];
+      for (let step = 0; step <= 10; step++) {
+        const currentAngle = angle + ((nextAngle - angle) * step) / 10;
+        const radians = (currentAngle * Math.PI) / 180;
+        arcPoints.push([
+          310 + Math.cos(radians) * 120,
+          290 + Math.sin(radians) * 120,
+        ]);
+      }
+      add(line(arcPoints, colors[index % colors.length], 34));
+      angle = nextAngle;
+    });
+    add(
+      ellipse(
+        226,
+        206,
+        168,
+        168,
+        config.style === "executive" ? "#101113" : "#f8f9fa",
+      ),
+    );
+    rows.slice(0, 5).forEach((row, index) => {
+      add(rect(520, 188 + index * 46, 28, 18, colors[index % colors.length]));
+      add(
+        text(
+          `${row.label} · ${row.value}`,
+          566,
+          180 + index * 46,
+          22,
+          config.style === "executive" ? "#f8f9fa" : "#212529",
+        ),
+      );
+    });
+  } else if (config.resourceId === "kpi-cards") {
+    rows.slice(0, 4).forEach((row, index) => {
+      const colWidth = rows.length > 3 ? 190 : 240;
+      add(
+        rect(
+          78 + index * (colWidth + 28),
+          180,
+          colWidth,
+          190,
+          "#ffffff",
+          colors[index % colors.length],
+          1,
+        ),
+      );
+      add(
+        text(
+          row.value,
+          108 + index * (colWidth + 28),
+          224,
+          44,
+          colors[index % colors.length],
+        ),
+      );
+      add(text(row.label, 110 + index * (colWidth + 28), 306, 23, "#495057"));
+    });
+  } else if (config.resourceId === "process") {
+    rows.slice(0, 4).forEach((row, index) => {
+      const pointX = 96 + index * 214;
+      add(
+        ellipse(
+          pointX,
+          204,
+          96,
+          96,
+          colors[index % colors.length],
+          "#212529",
+          0.8,
+        ),
+      );
+      add(text(`${index + 1}`, pointX + 34, 228, 34, "#101113"));
+      add(
+        text(
+          row.label,
+          pointX - 8,
+          340,
+          28,
+          config.style === "executive" ? "#f8f9fa" : "#212529",
+        ),
+      );
+      add(text(row.value, pointX - 8, 386, 17, "#868e96"));
+      if (index < Math.min(rows.length, 4) - 1) {
+        add(
+          line(
+            [
+              [pointX + 116, 252],
+              [pointX + 190, 252],
+            ],
+            "#868e96",
+            4,
+          ),
+        );
+      }
+    });
+  } else if (config.resourceId === "funnel") {
+    rows.slice(0, 5).forEach((row, index) => {
+      const width = 680 - index * 92;
+      const left = 140 + index * 46;
+      const top = 146 + index * 62;
+      add(
+        rect(
+          left,
+          top,
+          width,
+          46,
+          colors[index % colors.length],
+          "#212529",
+          0.8,
+          88,
+        ),
+      );
+      add(text(row.label, left + 24, top + 10, 20, "#101113"));
+      add(text(row.value, left + width - 96, top + 10, 20, "#101113"));
+    });
+  } else if (config.resourceId === "timeline") {
+    add(
+      line(
+        [
+          [112, 282],
+          [826, 282],
+        ],
+        colors[0],
+        5,
+      ),
+    );
+    rows.forEach((row, index) => {
+      const pointX = 132 + index * (650 / Math.max(1, rows.length - 1));
+      add(
+        ellipse(
+          pointX - 22,
+          260,
+          44,
+          44,
+          colors[index % colors.length],
+          "#212529",
+          0.8,
+        ),
+      );
+      add(
+        text(
+          row.label,
+          pointX - 46,
+          330,
+          24,
+          config.style === "executive" ? "#f8f9fa" : "#212529",
+        ),
+      );
+      add(text(row.value, pointX - 38, 370, 18, "#868e96"));
+    });
+  } else if (config.resourceId === "matrix") {
+    add(rect(96, 150, 760, 300, "#ffffff", "#212529", 1));
+    add(
+      line(
+        [
+          [476, 150],
+          [476, 450],
+        ],
+        "#212529",
+        3,
+      ),
+    );
+    add(
+      line(
+        [
+          [96, 300],
+          [856, 300],
+        ],
+        "#212529",
+        3,
+      ),
+    );
+    rows.slice(0, 4).forEach((row, index) => {
+      const col = index % 2;
+      const rowIndex = Math.floor(index / 2);
+      add(
+        text(
+          row.label,
+          140 + col * 380,
+          188 + rowIndex * 150,
+          30,
+          colors[index % colors.length],
+        ),
+      );
+      add(
+        text(row.value, 140 + col * 380, 246 + rowIndex * 150, 21, "#495057"),
+      );
+    });
+  } else if (config.resourceId === "comparison-table") {
+    add(rect(86, 140, 788, 318, "#ffffff", "#212529", 1));
+    add(rect(86, 140, 788, 58, colors[0], "#212529", 0.8));
+    add(text("Criteria", 122, 156, 23, "#101113"));
+    add(text("Option A", 392, 156, 23, "#101113"));
+    add(text("Option B", 650, 156, 23, "#101113"));
+    rows.slice(0, 4).forEach((row, index) => {
+      const top = 220 + index * 54;
+      const [leftValue = row.value, rightValue = ""] = row.value.split("/");
+      add(text(row.label, 122, top, 21, "#212529"));
+      add(text(leftValue.trim(), 392, top, 21, "#495057"));
+      add(text(rightValue.trim(), 650, top, 21, "#495057"));
+      add(
+        line(
+          [
+            [106, top + 38],
+            [850, top + 38],
+          ],
+          "#dee2e6",
+          2,
+        ),
+      );
+    });
+  } else if (config.resourceId === "roadmap") {
+    rows.slice(0, 5).forEach((row, index) => {
+      const left = 82 + index * 172;
+      add(
+        rect(left, 208, 138, 164, "#ffffff", colors[index % colors.length], 1),
+      );
+      add(
+        rect(left, 208, 138, 36, colors[index % colors.length], "#212529", 0.8),
+      );
+      add(text(row.label, left + 28, 218, 20, "#101113"));
+      add(text(row.value, left + 22, 286, 24, "#212529"));
+      if (index < Math.min(rows.length, 5) - 1) {
+        add(
+          line(
+            [
+              [left + 146, 290],
+              [left + 170, 290],
+            ],
+            "#868e96",
+            3,
+          ),
+        );
+      }
+    });
+  } else {
+    rows.slice(0, 4).forEach((row, index) => {
+      const left = 86 + index * 212;
+      add(
+        rect(left, 154, 174, 306, "#ffffff", colors[index % colors.length], 1),
+      );
+      add(text(row.label, left + 26, 196, 26, "#212529"));
+      add(text(row.value, left + 30, 258, 38, colors[index % colors.length]));
+      add(rect(left + 28, 336, 116, 10, "#adb5bd"));
+      add(rect(left + 28, 374, 88, 10, "#ced4da"));
+      add(rect(left + 28, 412, 132, 10, "#adb5bd"));
+    });
+  }
+
+  return resourceElements;
+};
+
 const initializeScene = async (opts: {
   collabAPI: CollabAPI | null;
   excalidrawAPI: ExcalidrawImperativeAPI;
@@ -1535,6 +2085,7 @@ const ExcalidrawWrapper = () => {
     () => getPresentationFrames(presentationElements).length,
     [presentationElements],
   );
+  const isPresentationCanvasActive = presentationCanvasOpen && !kanbanOpen;
 
   useEffect(() => {
     if (kanbanInvitationToken && drawsyAuth.status === "anonymous") {
@@ -1573,6 +2124,12 @@ const ExcalidrawWrapper = () => {
       window.removeEventListener("keydown", closeExportMenu);
     };
   }, [presentationExportMenuOpen]);
+
+  useEffect(() => {
+    if (!isPresentationCanvasActive) {
+      setPresentationExportMenuOpen(false);
+    }
+  }, [isPresentationCanvasActive]);
 
   const selectPresentationFrameTool = useCallback(() => {
     excalidrawAPI?.setActiveTool({ type: "frame" });
@@ -3047,8 +3604,8 @@ const ExcalidrawWrapper = () => {
   );
   const comments = useCanvasComments({
     auth: drawsyAuth,
-    canvasId: presentationCanvasOpen ? null : activeCanvas?.id || null,
-    enabled: !!activeCanvas && !isCollaborating && !presentationCanvasOpen,
+    canvasId: isPresentationCanvasActive ? null : activeCanvas?.id || null,
+    enabled: !!activeCanvas && !isCollaborating && !isPresentationCanvasActive,
     sidebarOpen: commentsSidebarOpen,
   });
   const {
@@ -3271,6 +3828,54 @@ const ExcalidrawWrapper = () => {
       const nextElements =
         getArrangedPresentationElements(elementsWithTemplate, layout) ||
         elementsWithTemplate;
+
+      excalidrawAPI.updateScene({
+        elements: nextElements,
+        captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+      });
+
+      if (insertedFrame) {
+        requestAnimationFrame(() => focusPresentationSlide(insertedFrame.id));
+      }
+      setPresentationElements(excalidrawAPI.getSceneElements());
+    },
+    [excalidrawAPI, focusPresentationSlide],
+  );
+
+  const insertPresentationResource = useCallback(
+    (config: PresentationResourceConfig, layout: PresentationLayout) => {
+      if (!excalidrawAPI) {
+        return;
+      }
+
+      const currentElements = excalidrawAPI.getSceneElementsIncludingDeleted();
+      const visibleElements = excalidrawAPI.getSceneElements();
+      const appState = excalidrawAPI.getAppState();
+      const selectedFrameIds = new Set(
+        Object.keys(appState.selectedElementIds),
+      );
+      const selectedFrame =
+        selectedFrameIds.size === 1
+          ? (visibleElements.find(
+              (element) =>
+                selectedFrameIds.has(element.id) && isFrameLikeElement(element),
+            ) as ExcalidrawFrameLikeElement | undefined)
+          : undefined;
+      const frames = getPresentationFrames(visibleElements);
+      const origin = getPresentationTemplateOrigin(frames, layout, appState);
+      const resourceElements = createPresentationResourceElements(
+        config,
+        origin,
+        selectedFrame,
+      );
+      const insertedFrame =
+        selectedFrame || resourceElements.find(isFrameLikeElement);
+      const elementsWithResource = [...currentElements, ...resourceElements];
+      const nextElements =
+        selectedFrame || layout === "freeform"
+          ? elementsWithResource
+          : getArrangedPresentationElements(elementsWithResource, layout) ||
+            elementsWithResource;
 
       excalidrawAPI.updateScene({
         elements: nextElements,
@@ -3925,7 +4530,7 @@ const ExcalidrawWrapper = () => {
                   onPresentationSelect={openPresentationPanel}
                   isPlacingComment={isPlacingComment}
                   isKanbanOpen={kanbanOpen}
-                  isPresentationOpen={presentationCanvasOpen}
+                  isPresentationOpen={isPresentationCanvasActive}
                   onCollabDialogOpen={() => {
                     if (!kanbanOpen) {
                       onCollabDialogOpen();
@@ -3995,6 +4600,7 @@ const ExcalidrawWrapper = () => {
                   excalidrawAPI?.updateScene({
                     appState: { openSidebar: null, openMenu: null },
                   });
+                  setPresentationCanvasActive(false);
                   setKanbanWorkspaceActive(true);
                 }}
                 onOpenPresentation={() => {
@@ -4031,7 +4637,7 @@ const ExcalidrawWrapper = () => {
                   onProjectTitleChange={() => undefined}
                   onProjectTitleFocused={() => undefined}
                 />
-              ) : presentationCanvasOpen ? (
+              ) : isPresentationCanvasActive ? (
                 <WorkspaceTitle
                   canvasTitle="Presentation"
                   projectTitle={null}
@@ -4077,11 +4683,11 @@ const ExcalidrawWrapper = () => {
         )}
         <DefaultSidebar.Trigger style={{ display: "none" }} />
         {!kanbanOpen &&
-          (!presentationCanvasOpen || presentationCanvasEmpty) && (
+          (!isPresentationCanvasActive || presentationCanvasEmpty) && (
             <AppWelcomeScreen
               onCollabDialogOpen={onCollabDialogOpen}
               isCollabEnabled={!isCollabDisabled}
-              isPresentationMode={presentationCanvasOpen}
+              isPresentationMode={isPresentationCanvasActive}
               onOpenPresentationPanel={openPresentationPanel}
             />
           )}
@@ -4177,7 +4783,7 @@ const ExcalidrawWrapper = () => {
                 ? kanbanBoardReady
                   ? kanbanBoard.title
                   : "Kanban"
-                : presentationCanvasOpen
+                : isPresentationCanvasActive
                 ? "Presentation"
                 : activeCanvas?.title || "Canvas"
             }
@@ -4190,12 +4796,13 @@ const ExcalidrawWrapper = () => {
             onPresentationStart={startFramePresentation}
             onPresentationLayoutChange={arrangePresentationFrames}
             onPresentationTemplateInsert={insertPresentationTemplate}
+            onPresentationResourceInsert={insertPresentationResource}
             onPresentationSlideRename={renamePresentationSlide}
             onPresentationSlideDelete={deletePresentationSlide}
             onPresentationSlideReorder={reorderPresentationSlide}
             onSignIn={() => void drawsyAuth.signIn().catch(() => undefined)}
             onStartPlacement={
-              presentationCanvasOpen || kanbanOpen
+              isPresentationCanvasActive || kanbanOpen
                 ? () => undefined
                 : beginCommentPlacement
             }
@@ -4203,7 +4810,7 @@ const ExcalidrawWrapper = () => {
             onCommentsOpenChange={setCommentsSidebarOpen}
           />
         )}
-        {presentationCanvasOpen && !framePresenter && (
+        {isPresentationCanvasActive && !framePresenter && (
           <div
             className="presentation-quick-dock"
             aria-label="Presentation quick actions"
@@ -4413,7 +5020,7 @@ const ExcalidrawWrapper = () => {
         {drawsyAuth.status === "authenticated" &&
           !isCollaborating &&
           !kanbanOpen &&
-          !presentationCanvasOpen && (
+          !isPresentationCanvasActive && (
             <CommentPins
               comments={comments.comments}
               selectedId={comments.selectedId}
@@ -4423,7 +5030,7 @@ const ExcalidrawWrapper = () => {
         {drawsyAuth.status === "authenticated" &&
           !isCollaborating &&
           !kanbanOpen &&
-          !presentationCanvasOpen &&
+          !isPresentationCanvasActive &&
           (comments.placing || comments.draftAnchor) && (
             <CommentDraftBubble
               anchor={comments.draftAnchor}
