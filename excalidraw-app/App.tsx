@@ -132,6 +132,8 @@ import { WorkspaceSync } from "./data/WorkspaceSync";
 import { KanbanApi } from "./data/KanbanApi";
 import {
   PresentationStore,
+  type PresentationDocument,
+  type PresentationIndex,
   type PresentationScene,
 } from "./data/PresentationStore";
 import {
@@ -147,6 +149,7 @@ import {
   type PresentationBuild,
   type PresentationSlideTransition,
 } from "./presentation/animations";
+import { importPptxPresentation } from "./presentation/pptxImport";
 
 import {
   KanbanBoardSelectionRequiredError,
@@ -384,6 +387,18 @@ const isSceneEmptyForPresentation = (
   getNonDeletedElements(elements || []).every((element) =>
     isInvisiblySmallElement(element),
   );
+
+const createInitialPresentationScene = (): PresentationScene => ({
+  elements: [],
+  appState: {
+    ...getDefaultAppState(),
+    name: "Untitled presentation",
+    isLoading: false,
+    openMenu: null,
+  },
+  files: {},
+  presentation: createPresentationAnimationMetadata(),
+});
 
 const getPresentationFrames = (elements: readonly ExcalidrawElement[]) => {
   return getNonDeletedElements(elements)
@@ -2046,6 +2061,7 @@ const ExcalidrawWrapper = () => {
   );
   const workspaceIndexRef = useRef<WorkspaceIndex | null>(null);
   const workspaceOperationRef = useRef<Promise<void>>(Promise.resolve());
+  const presentationOperationRef = useRef<Promise<void>>(Promise.resolve());
   const workspaceSaveTimerRef = useRef<number | null>(null);
   const workspaceSyncTimerRef = useRef<number | null>(null);
   const workspaceSyncRetryTimerRef = useRef<number | null>(null);
@@ -2060,6 +2076,12 @@ const ExcalidrawWrapper = () => {
     null,
   );
   const [loadingCanvasId, setLoadingCanvasId] = useState<string | null>(null);
+  const [presentationIndex, setPresentationIndex] =
+    useState<PresentationIndex | null>(null);
+  const presentationIndexRef = useRef<PresentationIndex | null>(null);
+  const [loadingPresentationId, setLoadingPresentationId] = useState<
+    string | null
+  >(null);
   const [commentsSidebarOpen, setCommentsSidebarOpen] = useState(false);
   const [kanbanBoard, setKanbanBoard] = useState<KanbanBoard>(() =>
     loadKanbanBoard(),
@@ -2088,6 +2110,7 @@ const ExcalidrawWrapper = () => {
   const [presentationCanvasEmpty, setPresentationCanvasEmpty] = useState(true);
   const [presentationExportMenuOpen, setPresentationExportMenuOpen] =
     useState(false);
+  const [presentationImporting, setPresentationImporting] = useState(false);
   const [presentationElements, setPresentationElements] = useState<
     readonly OrderedExcalidrawElement[]
   >([]);
@@ -2112,6 +2135,9 @@ const ExcalidrawWrapper = () => {
   } | null>(null);
   const presentationCanvasOpenRef = useRef(presentationCanvasOpen);
   const presentationLoadingWorkspaceRef = useRef(false);
+  const presentationIdRef = useRef<string | null>(null);
+  const presentationImportInputRef = useRef<HTMLInputElement | null>(null);
+  const presentationImportInFlightRef = useRef(false);
   const presentationSceneRef = useRef<PresentationScene | null>(null);
   const presentationCanvasEmptyRef = useRef(presentationCanvasEmpty);
   const presentationAnimationMetadataRef = useRef(
@@ -2129,6 +2155,14 @@ const ExcalidrawWrapper = () => {
     [presentationElements],
   );
   const isPresentationCanvasActive = presentationCanvasOpen && !kanbanOpen;
+  const activePresentation = useMemo(
+    () =>
+      presentationIndex?.presentations.find(
+        (presentation) =>
+          presentation.id === presentationIndex.activePresentationId,
+      ) || null,
+    [presentationIndex],
+  );
   const currentPresentationBuildCount = framePresenter
     ? getPresentationBuilds(
         presentationAnimationMetadata,
@@ -2191,13 +2225,6 @@ const ExcalidrawWrapper = () => {
   const selectPresentationFrameTool = useCallback(() => {
     excalidrawAPI?.setActiveTool({ type: "frame" });
   }, [excalidrawAPI]);
-
-  const showPresentationDockToast = useCallback(
-    (message: string) => {
-      excalidrawAPI?.setToast({ message });
-    },
-    [excalidrawAPI],
-  );
 
   const updateKanbanBoard = useCallback((board: KanbanBoard) => {
     kanbanBoardRef.current = board;
@@ -2371,10 +2398,31 @@ const ExcalidrawWrapper = () => {
     setWorkspaceIndex(index);
   }, []);
 
+  const commitPresentationIndex = useCallback((index: PresentationIndex) => {
+    presentationIndexRef.current = index;
+    presentationIdRef.current = index.activePresentationId;
+    setPresentationIndex(index);
+  }, []);
+
   const queueWorkspaceOperation = useCallback(
     <T,>(operation: () => Promise<T>): Promise<T> => {
       const result = workspaceOperationRef.current.then(operation, operation);
       workspaceOperationRef.current = result.then(
+        () => undefined,
+        () => undefined,
+      );
+      return result;
+    },
+    [],
+  );
+
+  const queuePresentationOperation = useCallback(
+    <T,>(operation: () => Promise<T>): Promise<T> => {
+      const result = presentationOperationRef.current.then(
+        operation,
+        operation,
+      );
+      presentationOperationRef.current = result.then(
         () => undefined,
         () => undefined,
       );
@@ -2584,16 +2632,12 @@ const ExcalidrawWrapper = () => {
         }
         commitWorkspaceIndex(workspace.index);
         setWorkspaceSyncStatus(workspaceSync ? "synced" : "local");
+        const presentations = await PresentationStore.initialize(
+          createInitialPresentationScene(),
+        );
+        commitPresentationIndex(presentations.index);
         if (isPresentationRefresh) {
-          const presentationScene = (await PresentationStore.loadScene()) || {
-            elements: [],
-            appState: {
-              ...getDefaultAppState(),
-              name: "Presentation",
-            },
-            files: {},
-            presentation: createPresentationAnimationMetadata(),
-          };
+          const presentationScene = presentations.document.scene;
           presentationSceneRef.current = presentationScene;
           setPresentationAnimationMetadata(presentationScene.presentation);
           updatePresentationCanvasEmpty(presentationScene.elements);
@@ -2642,16 +2686,12 @@ const ExcalidrawWrapper = () => {
         const fallback = await WorkspaceStore.initialize(fallbackScene);
         workspaceScopeRef.current = drawsyAuth.user?.uid || null;
         commitWorkspaceIndex(fallback.index);
+        const presentations = await PresentationStore.initialize(
+          createInitialPresentationScene(),
+        );
+        commitPresentationIndex(presentations.index);
         if (presentationCanvasOpenRef.current) {
-          const presentationScene = (await PresentationStore.loadScene()) || {
-            elements: [],
-            appState: {
-              ...getDefaultAppState(),
-              name: "Presentation",
-            },
-            files: {},
-            presentation: createPresentationAnimationMetadata(),
-          };
+          const presentationScene = presentations.document.scene;
           presentationSceneRef.current = presentationScene;
           setPresentationAnimationMetadata(presentationScene.presentation);
           data.scene = presentationScene;
@@ -2665,6 +2705,7 @@ const ExcalidrawWrapper = () => {
     },
     [
       commitWorkspaceIndex,
+      commitPresentationIndex,
       drawsyAuth.user,
       updatePresentationCanvasEmpty,
       workspaceSync,
@@ -2789,7 +2830,10 @@ const ExcalidrawWrapper = () => {
 
     const onUnload = () => {
       if (presentationCanvasOpenRef.current) {
-        void PresentationStore.flushSave(presentationSceneRef.current);
+        void PresentationStore.flushSave(
+          presentationIdRef.current,
+          presentationSceneRef.current,
+        );
         return;
       }
       LocalData.flushSave();
@@ -2798,7 +2842,10 @@ const ExcalidrawWrapper = () => {
     const visibilityChange = (event: FocusEvent | Event) => {
       if (event.type === EVENT.BLUR || document.hidden) {
         if (presentationCanvasOpenRef.current) {
-          void PresentationStore.flushSave(presentationSceneRef.current);
+          void PresentationStore.flushSave(
+            presentationIdRef.current,
+            presentationSceneRef.current,
+          );
         } else {
           LocalData.flushSave();
         }
@@ -2841,7 +2888,10 @@ const ExcalidrawWrapper = () => {
   useEffect(() => {
     const unloadHandler = (event: BeforeUnloadEvent) => {
       if (presentationCanvasOpenRef.current) {
-        void PresentationStore.flushSave(presentationSceneRef.current);
+        void PresentationStore.flushSave(
+          presentationIdRef.current,
+          presentationSceneRef.current,
+        );
       } else {
         LocalData.flushSave();
       }
@@ -2907,7 +2957,9 @@ const ExcalidrawWrapper = () => {
           presentation: nextMetadata,
         };
         presentationSceneRef.current = scene;
-        PresentationStore.saveScene(scene);
+        if (presentationIdRef.current) {
+          PresentationStore.saveScene(presentationIdRef.current, scene);
+        }
       }
       return;
     }
@@ -2997,78 +3049,248 @@ const ExcalidrawWrapper = () => {
     };
   }, [excalidrawAPI]);
 
-  const openPresentationCanvas = useCallback(async () => {
-    if (!excalidrawAPI) {
+  const createBlankPresentationScene = useCallback((): PresentationScene => {
+    const scene = createBlankScene();
+    return {
+      ...scene,
+      appState: {
+        ...scene.appState,
+        name: "Untitled presentation",
+      },
+      presentation: createPresentationAnimationMetadata(),
+    };
+  }, [createBlankScene]);
+
+  const flushCurrentPresentation = useCallback(async () => {
+    const presentationId = presentationIdRef.current;
+    const scene = presentationSceneRef.current;
+    if (presentationId && scene) {
+      await PresentationStore.flushSave(presentationId, scene);
+    }
+  }, []);
+
+  const saveCurrentWorkspaceBeforePresentation = useCallback(async () => {
+    if (!excalidrawAPI || presentationCanvasOpenRef.current) {
+      return true;
+    }
+    const activeCanvasId = workspaceIndexRef.current?.activeCanvasId;
+    if (!activeCanvasId) {
+      return true;
+    }
+    if (workspaceSaveTimerRef.current !== null) {
+      window.clearTimeout(workspaceSaveTimerRef.current);
+      workspaceSaveTimerRef.current = null;
+    }
+    try {
+      LocalData.flushSave();
+      await saveWorkspaceCanvas(
+        activeCanvasId,
+        excalidrawAPI.getSceneElementsIncludingDeleted(),
+        excalidrawAPI.getAppState(),
+        excalidrawAPI.getFiles(),
+      );
+      return true;
+    } catch {
+      setErrorMessage("Couldn't save the current canvas before presentation.");
+      return false;
+    }
+  }, [excalidrawAPI, saveWorkspaceCanvas]);
+
+  const applyPresentationDocument = useCallback(
+    (document: PresentationDocument) => {
+      if (!excalidrawAPI) {
+        return;
+      }
+
+      presentationLoadingWorkspaceRef.current = true;
+      presentationIdRef.current = document.id;
+      presentationSceneRef.current = document.scene;
+      setPresentationAnimationMetadata(document.scene.presentation);
+      setPresentationElements(
+        (document.scene.elements || []) as readonly OrderedExcalidrawElement[],
+      );
+      setPresentationAppState(document.scene.appState || {});
+      setPresentationFiles(document.scene.files || {});
+      updatePresentationCanvasEmpty(document.scene.elements || []);
+      setPresentationCanvasActive(true);
+
+      LocalData.pauseSave("workspace-switch");
+      try {
+        excalidrawAPI.resetScene({ resetLoadingState: true });
+        excalidrawAPI.updateScene({
+          elements: restoreElements(document.scene.elements, null, {
+            repairBindings: true,
+          }),
+          appState: {
+            ...restoreAppState(document.scene.appState, null),
+            name: document.title,
+            isLoading: false,
+            openMenu: null,
+            openSidebar: null,
+          },
+          captureUpdate: CaptureUpdateAction.NEVER,
+        });
+        excalidrawAPI.replaceFiles(document.scene.files || {});
+        excalidrawAPI.history.clear();
+      } finally {
+        LocalData.resumeSave("workspace-switch");
+        presentationLoadingWorkspaceRef.current = false;
+      }
+    },
+    [excalidrawAPI, setPresentationCanvasActive, updatePresentationCanvasEmpty],
+  );
+
+  const openPresentationCanvas = useCallback(
+    async (presentationId: string) => {
+      if (!excalidrawAPI || collabAPI?.isCollaborating()) {
+        excalidrawAPI?.setToast({
+          message: "Leave collaboration before switching presentations.",
+        });
+        return;
+      }
+      if (
+        presentationCanvasOpenRef.current &&
+        presentationId === presentationIdRef.current
+      ) {
+        excalidrawAPI.updateScene({ appState: { openMenu: null } });
+        return;
+      }
+
+      setLoadingPresentationId(presentationId);
+      try {
+        if (presentationCanvasOpenRef.current) {
+          await flushCurrentPresentation();
+        } else if (!(await saveCurrentWorkspaceBeforePresentation())) {
+          return;
+        }
+
+        const index = presentationIndexRef.current;
+        if (!index) {
+          return;
+        }
+        const result = await queuePresentationOperation(() =>
+          PresentationStore.openPresentation(index, presentationId),
+        );
+        if (!result) {
+          excalidrawAPI.setToast({
+            message: "That presentation is unavailable.",
+          });
+          return;
+        }
+        commitPresentationIndex(result.index);
+        applyPresentationDocument(result.document);
+      } catch (error) {
+        console.error("Failed to switch presentation", error);
+        excalidrawAPI.setToast({
+          message: "Couldn't switch presentations. Your current work is safe.",
+        });
+      } finally {
+        setLoadingPresentationId(null);
+      }
+    },
+    [
+      applyPresentationDocument,
+      collabAPI,
+      commitPresentationIndex,
+      excalidrawAPI,
+      flushCurrentPresentation,
+      queuePresentationOperation,
+      saveCurrentWorkspaceBeforePresentation,
+    ],
+  );
+
+  const createPresentationCanvas = useCallback(async () => {
+    if (!excalidrawAPI || collabAPI?.isCollaborating()) {
+      excalidrawAPI?.setToast({
+        message: "Leave collaboration before creating a presentation.",
+      });
       return;
     }
 
-    const activeCanvasId = workspaceIndexRef.current?.activeCanvasId;
-    if (activeCanvasId && !collabAPI?.isCollaborating()) {
-      if (workspaceSaveTimerRef.current !== null) {
-        window.clearTimeout(workspaceSaveTimerRef.current);
-        workspaceSaveTimerRef.current = null;
-      }
-      try {
-        LocalData.flushSave();
-        await saveWorkspaceCanvas(
-          activeCanvasId,
-          excalidrawAPI.getSceneElementsIncludingDeleted(),
-          excalidrawAPI.getAppState(),
-          excalidrawAPI.getFiles(),
-        );
-      } catch {
-        setErrorMessage(
-          "Couldn't save the current canvas before presentation.",
-        );
+    setLoadingPresentationId("new-presentation");
+    try {
+      if (presentationCanvasOpenRef.current) {
+        await flushCurrentPresentation();
+      } else if (!(await saveCurrentWorkspaceBeforePresentation())) {
         return;
       }
-    }
 
-    const blankScene = createBlankScene();
-    const scene = presentationSceneRef.current ||
-      (await PresentationStore.loadScene()) || {
-        ...blankScene,
-        appState: {
-          ...blankScene.appState,
-          name: "Presentation",
-        },
-        presentation: createPresentationAnimationMetadata(),
-      };
-    presentationSceneRef.current = scene;
-    setPresentationAnimationMetadata(scene.presentation);
-    updatePresentationCanvasEmpty(scene.elements);
-    PresentationStore.saveScene(scene);
-
-    setPresentationCanvasActive(true);
-    LocalData.pauseSave("workspace-switch");
-    try {
-      excalidrawAPI.resetScene({ resetLoadingState: true });
-      excalidrawAPI.updateScene({
-        elements: restoreElements(scene.elements, null, {
-          repairBindings: true,
-        }),
-        appState: {
-          ...restoreAppState(scene.appState, null),
-          name: "Presentation",
-          isLoading: false,
-          openMenu: null,
-          openSidebar: null,
-        },
-        captureUpdate: CaptureUpdateAction.NEVER,
-      });
-      excalidrawAPI.replaceFiles(scene.files || {});
-      excalidrawAPI.history.clear();
+      const index = presentationIndexRef.current;
+      if (!index) {
+        return;
+      }
+      const result = await queuePresentationOperation(() =>
+        PresentationStore.createPresentation(
+          index,
+          createBlankPresentationScene(),
+        ),
+      );
+      commitPresentationIndex(result.index);
+      applyPresentationDocument(result.document);
+    } catch (error) {
+      console.error("Failed to create presentation", error);
+      excalidrawAPI.setToast({ message: "Couldn't create a presentation." });
     } finally {
-      LocalData.resumeSave("workspace-switch");
+      setLoadingPresentationId(null);
     }
   }, [
+    applyPresentationDocument,
     collabAPI,
-    createBlankScene,
+    commitPresentationIndex,
+    createBlankPresentationScene,
     excalidrawAPI,
-    saveWorkspaceCanvas,
-    setPresentationCanvasActive,
-    updatePresentationCanvasEmpty,
+    flushCurrentPresentation,
+    queuePresentationOperation,
+    saveCurrentWorkspaceBeforePresentation,
   ]);
+
+  const deletePresentationCanvas = useCallback(
+    async (presentationId: string) => {
+      if (collabAPI?.isCollaborating()) {
+        return false;
+      }
+      const index = presentationIndexRef.current;
+      if (!index) {
+        return false;
+      }
+
+      setLoadingPresentationId(presentationId);
+      try {
+        const wasActive = index.activePresentationId === presentationId;
+        if (wasActive && presentationCanvasOpenRef.current) {
+          await flushCurrentPresentation();
+        }
+        const result = await queuePresentationOperation(() =>
+          PresentationStore.deletePresentation(
+            index,
+            presentationId,
+            createBlankPresentationScene(),
+          ),
+        );
+        if (!result) {
+          return false;
+        }
+        commitPresentationIndex(result.index);
+        if (wasActive && presentationCanvasOpenRef.current) {
+          applyPresentationDocument(result.document);
+        }
+        return true;
+      } catch (error) {
+        console.error("Failed to delete presentation", error);
+        return false;
+      } finally {
+        setLoadingPresentationId(null);
+      }
+    },
+    [
+      applyPresentationDocument,
+      collabAPI,
+      commitPresentationIndex,
+      createBlankPresentationScene,
+      flushCurrentPresentation,
+      queuePresentationOperation,
+    ],
+  );
 
   const applyWorkspaceDocument = useCallback(
     (document: CanvasDocument) => {
@@ -3895,7 +4117,9 @@ const ExcalidrawWrapper = () => {
         presentation: nextMetadata,
       };
       presentationSceneRef.current = nextScene;
-      PresentationStore.saveScene(nextScene);
+      if (presentationIdRef.current) {
+        PresentationStore.saveScene(presentationIdRef.current, nextScene);
+      }
     },
     [excalidrawAPI],
   );
@@ -4393,7 +4617,9 @@ const ExcalidrawWrapper = () => {
         presentation: presentationAnimationMetadataRef.current,
       };
       presentationSceneRef.current = restoredScene;
-      PresentationStore.saveScene(restoredScene);
+      if (presentationIdRef.current) {
+        PresentationStore.saveScene(presentationIdRef.current, restoredScene);
+      }
       setPresentationElements(excalidrawAPI.getSceneElements());
       setPresentationAppState(excalidrawAPI.getAppState());
       setPresentationFiles(excalidrawAPI.getFiles());
@@ -4565,6 +4791,86 @@ const ExcalidrawWrapper = () => {
         excalidrawAPI.setToast({
           message: error?.message || "Could not export presentation.",
         });
+      }
+    },
+    [excalidrawAPI],
+  );
+
+  const importPresentationPptx = useCallback(
+    async (file: File) => {
+      if (!excalidrawAPI || presentationImportInFlightRef.current) {
+        return;
+      }
+
+      setPresentationExportMenuOpen(false);
+      presentationImportInFlightRef.current = true;
+      setPresentationImporting(true);
+      const presentationId = presentationIdRef.current;
+
+      try {
+        excalidrawAPI.setToast({ message: "Importing PowerPoint..." });
+        const frames = getPresentationFrames(excalidrawAPI.getSceneElements());
+        const result = await importPptxPresentation(file, {
+          origin: getPresentationTemplateOrigin(
+            frames,
+            "horizontal",
+            excalidrawAPI.getAppState(),
+          ),
+        });
+
+        if (
+          !presentationCanvasOpenRef.current ||
+          presentationIdRef.current !== presentationId ||
+          presentationRuntimeActiveRef.current
+        ) {
+          return;
+        }
+
+        excalidrawAPI.addFiles(result.files);
+        excalidrawAPI.updateScene({
+          elements: [
+            ...excalidrawAPI.getSceneElementsIncludingDeleted(),
+            ...result.elements,
+          ],
+          captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+        });
+        setPresentationElements(excalidrawAPI.getSceneElements());
+
+        const unsupportedCount = Object.values(result.unsupported).reduce(
+          (total, count) => total + count,
+          0,
+        );
+        const flattenedCount = Object.values(result.flattened).reduce(
+          (total, count) => total + count,
+          0,
+        );
+        const notes = [
+          unsupportedCount
+            ? `${unsupportedCount} PowerPoint-only object${
+                unsupportedCount === 1 ? " was" : "s were"
+              } omitted`
+            : null,
+          flattenedCount
+            ? `${flattenedCount} visual effect${
+                flattenedCount === 1 ? " was" : "s were"
+              } simplified`
+            : null,
+        ].filter(Boolean);
+
+        excalidrawAPI.setToast({
+          message: `Imported ${result.slideCount} ${
+            result.slideCount === 1 ? "slide" : "slides"
+          } as editable canvas content${
+            notes.length ? `. ${notes.join("; ")}.` : "."
+          }`,
+        });
+      } catch (error: any) {
+        excalidrawAPI.setToast({
+          message: error?.message || "Could not import that PowerPoint file.",
+        });
+      } finally {
+        presentationImportInFlightRef.current = false;
+        setPresentationImporting(false);
       }
     },
     [excalidrawAPI],
@@ -4773,6 +5079,62 @@ const ExcalidrawWrapper = () => {
       });
     },
     [activeCanvas, commitWorkspaceIndex, excalidrawAPI],
+  );
+
+  const renameActivePresentation = useCallback(
+    (title: string) => {
+      const index = presentationIndexRef.current;
+      const presentationId = presentationIdRef.current;
+      if (!index || !presentationId) {
+        return;
+      }
+
+      const current = index.presentations.find(
+        (presentation) => presentation.id === presentationId,
+      );
+      if (!current) {
+        return;
+      }
+      const normalizedTitle = title.trim() || current.title;
+      const nextIndex: PresentationIndex = {
+        ...index,
+        presentations: index.presentations.map((presentation) =>
+          presentation.id === presentationId
+            ? {
+                ...presentation,
+                title: normalizedTitle,
+                updatedAt: Date.now(),
+              }
+            : presentation,
+        ),
+      };
+      commitPresentationIndex(nextIndex);
+
+      const currentScene = presentationSceneRef.current;
+      if (currentScene) {
+        presentationSceneRef.current = {
+          ...currentScene,
+          appState: { ...currentScene.appState, name: normalizedTitle },
+        };
+      }
+      excalidrawAPI?.updateScene({
+        appState: { name: normalizedTitle },
+        captureUpdate: CaptureUpdateAction.NEVER,
+      });
+
+      void queuePresentationOperation(async () => {
+        const persistedIndex = await PresentationStore.renamePresentation(
+          nextIndex,
+          presentationId,
+          normalizedTitle,
+        );
+        commitPresentationIndex(persistedIndex);
+      }).catch((error) => {
+        console.error("Failed to rename presentation", error);
+        excalidrawAPI?.setToast({ message: "Couldn't rename presentation." });
+      });
+    },
+    [commitPresentationIndex, excalidrawAPI, queuePresentationOperation],
   );
 
   const renameActiveProject = useCallback(
@@ -5041,7 +5403,11 @@ const ExcalidrawWrapper = () => {
               <WorkspaceMenu
                 index={workspaceIndex}
                 kanbanActive={kanbanOpen}
-                disabled={!workspaceIndex || isCollaborating}
+                presentationIndex={presentationIndex}
+                presentationActive={isPresentationCanvasActive}
+                disabled={
+                  !workspaceIndex || !presentationIndex || isCollaborating
+                }
                 onCreateCanvas={() => {
                   setKanbanWorkspaceActive(false);
                   createWorkspaceCanvas();
@@ -5060,13 +5426,21 @@ const ExcalidrawWrapper = () => {
                   setPresentationCanvasActive(false);
                   setKanbanWorkspaceActive(true);
                 }}
-                onOpenPresentation={() => {
+                onCreatePresentation={() => {
                   setCommentPlacement(false);
                   setCommentDraftAnchor(null);
                   setCommentsSidebarOpen(false);
                   setKanbanWorkspaceActive(false);
-                  void openPresentationCanvas();
+                  void createPresentationCanvas();
                 }}
+                onOpenPresentation={(presentationId) => {
+                  setCommentPlacement(false);
+                  setCommentDraftAnchor(null);
+                  setCommentsSidebarOpen(false);
+                  setKanbanWorkspaceActive(false);
+                  void openPresentationCanvas(presentationId);
+                }}
+                onDeletePresentation={deletePresentationCanvas}
                 onCreateProjectCanvas={(projectId) => {
                   setKanbanWorkspaceActive(false);
                   createWorkspaceProjectCanvas(projectId);
@@ -5078,6 +5452,7 @@ const ExcalidrawWrapper = () => {
                 onDeleteCanvas={deleteWorkspaceCanvas}
                 onDeleteProject={deleteWorkspaceProject}
                 loadingCanvasId={loadingCanvasId}
+                loadingPresentationId={loadingPresentationId}
               />
             }
             header={
@@ -5096,12 +5471,11 @@ const ExcalidrawWrapper = () => {
                 />
               ) : isPresentationCanvasActive ? (
                 <WorkspaceTitle
-                  canvasTitle="Presentation"
+                  canvasTitle={activePresentation?.title || "Presentation"}
                   projectTitle={null}
                   focusProjectTitle={false}
                   itemLabel="Presentation"
-                  readOnly
-                  onCanvasTitleChange={() => undefined}
+                  onCanvasTitleChange={renameActivePresentation}
                   onProjectTitleChange={() => undefined}
                   onProjectTitleFocused={() => undefined}
                 />
@@ -5339,14 +5713,26 @@ const ExcalidrawWrapper = () => {
             <button
               type="button"
               className="presentation-quick-dock__button"
-              onClick={() =>
-                showPresentationDockToast("Import flow will be wired next.")
-              }
+              onClick={() => presentationImportInputRef.current?.click()}
+              disabled={presentationImporting}
               title="Import"
               aria-label="Import"
             >
               {LoadIcon}
             </button>
+            <input
+              ref={presentationImportInputRef}
+              type="file"
+              accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+              hidden
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                if (file) {
+                  void importPresentationPptx(file);
+                }
+              }}
+            />
           </div>
         )}
         {framePresenter && presentationFrameRect && (
