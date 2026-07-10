@@ -1,12 +1,14 @@
-import { clear, createStore } from "idb-keyval";
+import { clear, createStore, set } from "idb-keyval";
 
-import { PresentationStore } from "../data/PresentationStore";
-
-import type { CanvasScene } from "../data/WorkspaceStore";
+import {
+  PresentationStore,
+  type PresentationScene,
+} from "../data/PresentationStore";
+import { createPresentationAnimationMetadata } from "../presentation/animations";
 
 const store = createStore("drawsy-presentation-db", "presentation-store");
 
-const createScene = (): CanvasScene =>
+const createScene = (): PresentationScene =>
   ({
     elements: [
       {
@@ -40,7 +42,8 @@ const createScene = (): CanvasScene =>
     ],
     appState: { name: "Draft title", viewBackgroundColor: "#ffffff" },
     files: {},
-  } as unknown as CanvasScene);
+    presentation: createPresentationAnimationMetadata(),
+  } as unknown as PresentationScene);
 
 describe("PresentationStore", () => {
   beforeEach(async () => {
@@ -64,5 +67,50 @@ describe("PresentationStore", () => {
     expect(restored?.elements).toHaveLength(1);
     expect(restored?.appState?.name).toBe("Presentation");
     expect(restored?.appState?.viewBackgroundColor).toBe("#ffffff");
+    expect(restored?.presentation).toEqual(
+      createPresentationAnimationMetadata(),
+    );
+  });
+
+  it("retains animation metadata and gives legacy scenes an empty animation layer", async () => {
+    const scene = createScene();
+    scene.presentation = {
+      version: 1,
+      builds: [
+        {
+          id: "build-1",
+          frameId: "frame-1",
+          targetIds: ["presentation-element"],
+          effect: "fade",
+          trigger: "on-click",
+          direction: "left",
+        },
+      ],
+      transitions: { "frame-1": "fade" },
+    };
+    await PresentationStore.flushSave(scene);
+
+    expect((await PresentationStore.loadScene())?.presentation).toEqual(
+      scene.presentation,
+    );
+
+    await set(
+      "presentation-document",
+      {
+        schemaVersion: 1,
+        title: "Presentation",
+        scene: {
+          elements: scene.elements,
+          appState: scene.appState,
+          files: scene.files,
+        },
+        updatedAt: 1,
+      },
+      store,
+    );
+
+    expect((await PresentationStore.loadScene())?.presentation).toEqual(
+      createPresentationAnimationMetadata(),
+    );
   });
 });
