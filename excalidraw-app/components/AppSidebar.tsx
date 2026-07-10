@@ -37,6 +37,7 @@ import type {
 import { CommentsSidebar } from "../comments/CommentsSidebar";
 import {
   getPresentationBuilds,
+  getPresentationTargetFrameId,
   type PresentationAnimationMetadata,
   type PresentationBuild,
   type PresentationBuildDirection,
@@ -809,7 +810,7 @@ const PresentationPanel = ({
     );
     const selectedFrameIds = new Set(
       selectedObjects
-        .map((element) => element.frameId)
+        .map((element) => getPresentationTargetFrameId(element, elements))
         .filter((frameId): frameId is string => !!frameId),
     );
     const selectedFrameId =
@@ -874,7 +875,7 @@ const PresentationPanel = ({
           <section className="presentation-animation__section presentation-animation__composer">
             <div className="presentation-animation__heading">
               <span>Selection</span>
-              <strong>
+              <strong className="presentation-animation__status">
                 {selectedObjects.length}{" "}
                 {selectedObjects.length === 1 ? "object" : "objects"}
               </strong>
@@ -973,7 +974,9 @@ const PresentationPanel = ({
           <section className="presentation-animation__section presentation-animation__builds">
             <div className="presentation-animation__heading">
               <span>Build order</span>
-              <strong>{builds.length || "None"}</strong>
+              <strong className="presentation-animation__status">
+                {builds.length || "None"}
+              </strong>
             </div>
             {builds.length ? (
               <ol>
