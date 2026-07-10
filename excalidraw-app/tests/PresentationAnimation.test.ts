@@ -1,5 +1,6 @@
 import {
   createPresentationAnimationMetadata,
+  getPresentationTargetFrameId,
   getHiddenPresentationBuildTargetIds,
   getPresentationBuildSequence,
   getPreviousPresentationBuildCount,
@@ -72,6 +73,43 @@ describe("presentation animation metadata", () => {
         trigger: "on-click",
       },
     ]);
+  });
+
+  it("uses Excalidraw frame containment for manually framed objects", () => {
+    const manuallyFramed = {
+      ...rectangle("manual"),
+      frameId: null,
+      x: 120,
+      y: 120,
+      width: 240,
+      height: 120,
+    };
+
+    expect(
+      getPresentationTargetFrameId(
+        manuallyFramed as any,
+        [frame, manuallyFramed] as any,
+      ),
+    ).toBe("frame-1");
+
+    const sanitized = sanitizePresentationAnimationMetadata(
+      {
+        ...createPresentationAnimationMetadata(),
+        builds: [
+          {
+            id: "manual-build",
+            frameId: "frame-1",
+            targetIds: ["manual"],
+            effect: "fade",
+            trigger: "on-click",
+            direction: "left",
+          },
+        ],
+      },
+      [frame, manuallyFramed] as any,
+    );
+
+    expect(sanitized.builds).toHaveLength(1);
   });
 
   it("plays with and after-previous builds as one click sequence", () => {
