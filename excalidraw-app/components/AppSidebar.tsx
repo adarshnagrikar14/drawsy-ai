@@ -22,6 +22,7 @@ import { useUIAppState } from "@excalidraw/excalidraw/context/ui-appState";
 import {
   getFrameChildren,
   getNonDeletedElements,
+  getSelectedElements,
   isFrameLikeElement,
 } from "@excalidraw/element";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
@@ -34,6 +35,15 @@ import type {
 } from "@excalidraw/element/types";
 
 import { CommentsSidebar } from "../comments/CommentsSidebar";
+import {
+  getPresentationBuilds,
+  type PresentationAnimationMetadata,
+  type PresentationBuild,
+  type PresentationBuildDirection,
+  type PresentationBuildEffect,
+  type PresentationBuildTrigger,
+  type PresentationSlideTransition,
+} from "../presentation/animations";
 
 import "./AppSidebar.scss";
 
@@ -98,6 +108,34 @@ const PRESENTATION_TABS: {
   { id: "animation", label: "Animation", icon: MagicIcon },
   { id: "resources", label: "Resources", icon: ImageIcon },
   { id: "layout", label: "Layout", icon: extraToolsIcon },
+];
+
+const PRESENTATION_BUILD_EFFECTS: {
+  value: PresentationBuildEffect;
+  label: string;
+}[] = [
+  { value: "appear", label: "Appear" },
+  { value: "fade", label: "Fade" },
+  { value: "fly", label: "Fly in" },
+];
+
+const PRESENTATION_BUILD_TRIGGERS: {
+  value: PresentationBuildTrigger;
+  label: string;
+}[] = [
+  { value: "on-click", label: "On click" },
+  { value: "with-previous", label: "With previous" },
+  { value: "after-previous", label: "After previous" },
+];
+
+const PRESENTATION_BUILD_DIRECTIONS: {
+  value: PresentationBuildDirection;
+  label: string;
+}[] = [
+  { value: "left", label: "From left" },
+  { value: "right", label: "From right" },
+  { value: "up", label: "From top" },
+  { value: "down", label: "From bottom" },
 ];
 
 const PRESENTATION_TEMPLATE_SECTIONS: {
@@ -428,6 +466,10 @@ const PresentationPanel = ({
   onRenameSlide,
   onDeleteSlide,
   onReorderSlide,
+  animationMetadata,
+  onPresentationBuildAdd,
+  onPresentationBuildDelete,
+  onPresentationSlideTransitionChange,
 }: {
   elements: readonly OrderedExcalidrawElement[];
   appState: PresentationExportAppState;
@@ -450,6 +492,13 @@ const PresentationPanel = ({
     targetFrameId: string,
     layout: PresentationLayout,
   ) => void;
+  animationMetadata: PresentationAnimationMetadata;
+  onPresentationBuildAdd: (build: Omit<PresentationBuild, "id">) => void;
+  onPresentationBuildDelete: (buildId: string) => void;
+  onPresentationSlideTransitionChange: (
+    frameId: string,
+    transition: PresentationSlideTransition,
+  ) => void;
 }) => {
   const [activeTab, setActiveTab] = useState<PresentationPanelTab>("slides");
   const [activeLayout, setActiveLayout] =
@@ -460,6 +509,12 @@ const PresentationPanel = ({
   const [dropFrameId, setDropFrameId] = useState<string | null>(null);
   const [resourceConfig, setResourceConfig] =
     useState<PresentationResourceConfig | null>(null);
+  const [animationEffect, setAnimationEffect] =
+    useState<PresentationBuildEffect>("fade");
+  const [animationTrigger, setAnimationTrigger] =
+    useState<PresentationBuildTrigger>("on-click");
+  const [animationDirection, setAnimationDirection] =
+    useState<PresentationBuildDirection>("left");
   const resourceImportInputRef = useRef<HTMLInputElement | null>(null);
   const [dragPreview, setDragPreview] = useState<{
     x: number;
@@ -739,18 +794,226 @@ const PresentationPanel = ({
     </div>
   );
 
-  const renderAnimation = () => (
-    <div className="presentation-stack">
-      {["Slide transition", "Element entrance", "Emphasis", "Motion path"].map(
-        (label) => (
-          <div className="presentation-option-row" key={label}>
-            <span>{label}</span>
-            <small>effect layer</small>
-          </div>
-        ),
-      )}
-    </div>
-  );
+  const renderAnimation = () => {
+    const selectedElements = getSelectedElements(
+      getNonDeletedElements(elements),
+      { selectedElementIds: appState.selectedElementIds || {} },
+      { includeBoundTextElement: true },
+    );
+    const selectedFrame =
+      selectedElements.length === 1 && isFrameLikeElement(selectedElements[0])
+        ? selectedElements[0]
+        : null;
+    const selectedObjects = selectedElements.filter(
+      (element) => !isFrameLikeElement(element),
+    );
+    const selectedFrameIds = new Set(
+      selectedObjects
+        .map((element) => element.frameId)
+        .filter((frameId): frameId is string => !!frameId),
+    );
+    const selectedFrameId =
+      selectedFrame || selectedFrameIds.size !== 1
+        ? null
+        : [...selectedFrameIds][0];
+    const canCreateBuild =
+      selectedObjects.length > 0 &&
+      !selectedFrame &&
+      selectedFrameIds.size === 1 &&
+      !!selectedFrameId;
+    const activeFrameId = selectedFrame?.id || selectedFrameId;
+    const builds = activeFrameId
+      ? getPresentationBuilds(animationMetadata, activeFrameId)
+      : [];
+    const builtTargetIds = new Set(builds.flatMap((build) => build.targetIds));
+    const selectionAlreadyHasBuild = selectedObjects.some((element) =>
+      builtTargetIds.has(element.id),
+    );
+    const activeFrame = activeFrameId
+      ? frames.find((frame) => frame.id === activeFrameId)
+      : null;
+    const activeSlideTitle = activeFrame
+      ? activeFrame.name?.trim() || `Slide ${frames.indexOf(activeFrame) + 1}`
+      : null;
+
+    return (
+      <div className="presentation-animation">
+        {selectedFrame ? (
+          <section className="presentation-animation__section presentation-animation__transition">
+            <div className="presentation-animation__heading">
+              <span>Slide entry</span>
+              <strong>{activeSlideTitle}</strong>
+            </div>
+            <div className="presentation-animation__segmented">
+              {(
+                [
+                  ["none", "None"],
+                  ["fade", "Fade"],
+                ] as const
+              ).map(([transition, label]) => (
+                <button
+                  type="button"
+                  data-active={
+                    (animationMetadata.transitions[selectedFrame.id] ||
+                      "none") === transition
+                  }
+                  key={transition}
+                  onClick={() =>
+                    onPresentationSlideTransitionChange(
+                      selectedFrame.id,
+                      transition,
+                    )
+                  }
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </section>
+        ) : canCreateBuild ? (
+          <section className="presentation-animation__section presentation-animation__composer">
+            <div className="presentation-animation__heading">
+              <span>Selection</span>
+              <strong>
+                {selectedObjects.length}{" "}
+                {selectedObjects.length === 1 ? "object" : "objects"}
+              </strong>
+            </div>
+            <div className="presentation-animation__control-group">
+              <span>Build in</span>
+              <div className="presentation-animation__segmented">
+                {PRESENTATION_BUILD_EFFECTS.map((effect) => (
+                  <button
+                    type="button"
+                    data-active={animationEffect === effect.value}
+                    key={effect.value}
+                    onClick={() => setAnimationEffect(effect.value)}
+                  >
+                    {effect.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {animationEffect === "fly" && (
+              <div className="presentation-animation__control-group">
+                <span>Direction</span>
+                <div className="presentation-animation__direction-grid">
+                  {PRESENTATION_BUILD_DIRECTIONS.map((direction) => (
+                    <button
+                      type="button"
+                      data-active={animationDirection === direction.value}
+                      key={direction.value}
+                      onClick={() => setAnimationDirection(direction.value)}
+                    >
+                      {direction.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="presentation-animation__control-group">
+              <span>Start</span>
+              <div className="presentation-animation__trigger-grid">
+                {PRESENTATION_BUILD_TRIGGERS.map((trigger) => (
+                  <button
+                    type="button"
+                    disabled={
+                      builds.length === 0 && trigger.value !== "on-click"
+                    }
+                    data-active={
+                      (builds.length === 0 ? "on-click" : animationTrigger) ===
+                      trigger.value
+                    }
+                    key={trigger.value}
+                    onClick={() => setAnimationTrigger(trigger.value)}
+                  >
+                    {trigger.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <button
+              type="button"
+              className="presentation-animation__add"
+              disabled={selectionAlreadyHasBuild}
+              onClick={() =>
+                onPresentationBuildAdd({
+                  frameId: selectedFrameId,
+                  targetIds: selectedObjects.map((element) => element.id),
+                  effect: animationEffect,
+                  trigger: builds.length === 0 ? "on-click" : animationTrigger,
+                  direction: animationDirection,
+                })
+              }
+            >
+              {MagicIcon}
+              <span>
+                {selectionAlreadyHasBuild
+                  ? "Already in build order"
+                  : selectedObjects.length > 1
+                  ? "Animate together"
+                  : "Add to build order"}
+              </span>
+            </button>
+          </section>
+        ) : (
+          <section className="presentation-animation__empty">
+            <img
+              className="presentation-animation__empty-art"
+              src="/presentation/animation-empty-state.png"
+              alt=""
+              aria-hidden="true"
+            />
+            <strong>Choose a slide or its objects</strong>
+            <span>Objects in the same frame can build together.</span>
+          </section>
+        )}
+
+        {activeFrameId && (
+          <section className="presentation-animation__section presentation-animation__builds">
+            <div className="presentation-animation__heading">
+              <span>Build order</span>
+              <strong>{builds.length || "None"}</strong>
+            </div>
+            {builds.length ? (
+              <ol>
+                {builds.map((build, index) => (
+                  <li key={build.id}>
+                    <span>{index + 1}</span>
+                    <div>
+                      <strong>
+                        {build.targetIds.length}{" "}
+                        {build.targetIds.length === 1 ? "object" : "objects"}
+                      </strong>
+                      <small>
+                        {PRESENTATION_BUILD_EFFECTS.find(
+                          (effect) => effect.value === build.effect,
+                        )?.label || build.effect}
+                        {" · "}
+                        {PRESENTATION_BUILD_TRIGGERS.find(
+                          (trigger) => trigger.value === build.trigger,
+                        )?.label || build.trigger}
+                      </small>
+                    </div>
+                    <button
+                      type="button"
+                      aria-label={`Delete build ${index + 1}`}
+                      title="Delete build"
+                      onClick={() => onPresentationBuildDelete(build.id)}
+                    >
+                      {TrashIcon}
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p>Nothing animates on this slide yet.</p>
+            )}
+          </section>
+        )}
+      </div>
+    );
+  };
 
   const updateResourceRow = (
     rowId: string,
@@ -1078,6 +1341,10 @@ export const AppSidebar = ({
   onPresentationSlideRename,
   onPresentationSlideDelete,
   onPresentationSlideReorder,
+  presentationAnimationMetadata,
+  onPresentationBuildAdd,
+  onPresentationBuildDelete,
+  onPresentationSlideTransitionChange,
   onSignIn,
   onStartPlacement,
   onGoToComment,
@@ -1111,6 +1378,13 @@ export const AppSidebar = ({
     frameId: string,
     targetFrameId: string,
     layout: PresentationLayout,
+  ) => void;
+  presentationAnimationMetadata: PresentationAnimationMetadata;
+  onPresentationBuildAdd: (build: Omit<PresentationBuild, "id">) => void;
+  onPresentationBuildDelete: (buildId: string) => void;
+  onPresentationSlideTransitionChange: (
+    frameId: string,
+    transition: PresentationSlideTransition,
   ) => void;
   onSignIn: () => void;
   onStartPlacement: () => void;
@@ -1161,6 +1435,12 @@ export const AppSidebar = ({
           onRenameSlide={onPresentationSlideRename}
           onDeleteSlide={onPresentationSlideDelete}
           onReorderSlide={onPresentationSlideReorder}
+          animationMetadata={presentationAnimationMetadata}
+          onPresentationBuildAdd={onPresentationBuildAdd}
+          onPresentationBuildDelete={onPresentationBuildDelete}
+          onPresentationSlideTransitionChange={
+            onPresentationSlideTransitionChange
+          }
         />
       </Sidebar.Tab>
     </DefaultSidebar>
