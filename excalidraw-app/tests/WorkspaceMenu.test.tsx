@@ -110,8 +110,9 @@ const index: WorkspaceIndex = {
 };
 
 const presentationIndex: PresentationIndex = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   activePresentationId: "presentation",
+  pendingDeletes: [],
   presentations: [
     {
       id: "presentation",
@@ -119,6 +120,13 @@ const presentationIndex: PresentationIndex = {
       createdAt: 1,
       updatedAt: 1,
       lastOpenedAt: 2,
+      version: 1,
+      sync: {
+        remoteVersion: 0,
+        remoteContentHash: null,
+        dirty: true,
+        contentDirty: true,
+      },
     },
     {
       id: "presentation-2",
@@ -126,6 +134,13 @@ const presentationIndex: PresentationIndex = {
       createdAt: 1,
       updatedAt: 1,
       lastOpenedAt: 1,
+      version: 1,
+      sync: {
+        remoteVersion: 0,
+        remoteContentHash: null,
+        dirty: true,
+        contentDirty: true,
+      },
     },
   ],
 };

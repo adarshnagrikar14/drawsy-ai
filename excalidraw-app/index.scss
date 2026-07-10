@@ -528,6 +528,83 @@
     }
   }
 
+  &:not(.theme--dark) {
+    .presentation-welcome-screen__sketch {
+      color: color-mix(
+        in srgb,
+        var(--color-primary) 62%,
+        var(--color-on-surface)
+      );
+      opacity: 0.72;
+    }
+
+    .presentation-welcome-screen__title {
+      color: var(--color-on-surface);
+    }
+
+    .presentation-welcome-screen__body {
+      color: color-mix(
+        in srgb,
+        var(--color-on-surface) 72%,
+        var(--color-surface-lowest)
+      );
+    }
+
+    .presentation-welcome-screen__note {
+      color: color-mix(
+        in srgb,
+        var(--color-primary) 72%,
+        var(--color-on-surface)
+      );
+    }
+
+    .presentation-welcome-screen__start {
+      border-color: color-mix(
+        in srgb,
+        var(--color-primary) 76%,
+        var(--color-on-surface)
+      );
+      background: repeating-linear-gradient(
+          -28deg,
+          color-mix(in srgb, var(--color-primary) 30%, transparent) 0 1.5px,
+          transparent 1.5px 10px
+        ),
+        color-mix(in srgb, var(--color-primary) 14%, var(--color-surface-high));
+      color: var(--color-on-primary-container);
+
+      span {
+        color: inherit;
+      }
+
+      &:hover,
+      &:focus-visible {
+        color: var(--color-on-primary-container);
+        background: repeating-linear-gradient(
+            -28deg,
+            color-mix(in srgb, var(--color-primary) 42%, transparent) 0 1.5px,
+            transparent 1.5px 8px
+          ),
+          color-mix(
+            in srgb,
+            var(--color-primary) 24%,
+            var(--color-surface-high)
+          );
+      }
+    }
+
+    .presentation-welcome-screen__start-icon {
+      border-color: color-mix(in srgb, currentColor 72%, transparent);
+    }
+
+    .presentation-welcome-screen__hint {
+      color: color-mix(
+        in srgb,
+        var(--color-on-surface) 58%,
+        var(--color-primary)
+      );
+    }
+  }
+
   @media (max-width: 760px), (max-height: 620px) {
     .presentation-welcome-screen__hint,
     .presentation-welcome-screen__sketch {

@@ -130,10 +130,15 @@ import { useDrawsyAuth } from "./auth/useDrawsyAuth";
 import { WorkspaceApi } from "./data/WorkspaceApi";
 import { WorkspaceSync } from "./data/WorkspaceSync";
 import { KanbanApi } from "./data/KanbanApi";
+import { PresentationApi } from "./data/PresentationApi";
+import { PresentationSync } from "./data/PresentationSync";
 import {
+  PRESENTATION_CLIENT_ID,
+  PRESENTATION_SYNC_CHANNEL,
   PresentationStore,
   type PresentationDocument,
   type PresentationIndex,
+  type PresentationResult,
   type PresentationScene,
 } from "./data/PresentationStore";
 import {
@@ -2004,6 +2009,16 @@ const ExcalidrawWrapper = () => {
         : null,
     [drawsyAuth.getIdToken, drawsyAuth.user],
   );
+  const presentationSync = useMemo(
+    () =>
+      drawsyAuth.user
+        ? new PresentationSync(
+            new PresentationApi(drawsyAuth.getIdToken),
+            createInitialPresentationScene(),
+          )
+        : null,
+    [drawsyAuth.getIdToken, drawsyAuth.user],
+  );
   const kanbanApi = useMemo(
     () => (drawsyAuth.user ? new KanbanApi(drawsyAuth.getIdToken) : null),
     [drawsyAuth.getIdToken, drawsyAuth.user],
@@ -2014,6 +2029,10 @@ const ExcalidrawWrapper = () => {
     "local" | "pending" | "syncing" | "synced" | "error"
   >("local");
   const [workspaceSyncRetry, setWorkspaceSyncRetry] = useState(0);
+  const [presentationSyncStatus, setPresentationSyncStatus] = useState<
+    "local" | "pending" | "syncing" | "synced" | "error"
+  >("local");
+  const [presentationSyncRetry, setPresentationSyncRetry] = useState(0);
   const isCollabDisabled = isRunningInIframe();
 
   const { editorTheme, appTheme, setAppTheme } = useHandleAppTheme();
@@ -2069,6 +2088,11 @@ const ExcalidrawWrapper = () => {
   const workspaceSceneFingerprintsRef = useRef(new Map<string, string>());
   const workspaceSwitchingRef = useRef(false);
   const workspaceScopeRef = useRef<string | null | undefined>(undefined);
+  const presentationSaveTimerRef = useRef<number | null>(null);
+  const presentationSyncTimerRef = useRef<number | null>(null);
+  const presentationSyncRetryTimerRef = useRef<number | null>(null);
+  const presentationSyncInFlightRef = useRef<Promise<void> | null>(null);
+  const presentationScopeRef = useRef<string | null | undefined>(undefined);
   const initialWorkspaceLoadStartedRef = useRef(false);
   const [initialWorkspaceLoadComplete, setInitialWorkspaceLoadComplete] =
     useState(false);
@@ -2163,6 +2187,22 @@ const ExcalidrawWrapper = () => {
       ) || null,
     [presentationIndex],
   );
+  const cloudSyncStatus = useMemo(() => {
+    const statuses = [workspaceSyncStatus, presentationSyncStatus];
+    if (statuses.includes("syncing")) {
+      return "syncing" as const;
+    }
+    if (statuses.includes("error")) {
+      return "error" as const;
+    }
+    if (statuses.includes("pending")) {
+      return "pending" as const;
+    }
+    if (statuses.every((status) => status === "synced")) {
+      return "synced" as const;
+    }
+    return "local" as const;
+  }, [presentationSyncStatus, workspaceSyncStatus]);
   const currentPresentationBuildCount = framePresenter
     ? getPresentationBuilds(
         presentationAnimationMetadata,
@@ -2431,6 +2471,55 @@ const ExcalidrawWrapper = () => {
     [],
   );
 
+  const persistPresentationScene = useCallback(
+    async (
+      scene: PresentationScene,
+      presentationId = presentationIdRef.current,
+    ) => {
+      if (
+        presentationId === presentationIdRef.current &&
+        presentationSaveTimerRef.current !== null
+      ) {
+        window.clearTimeout(presentationSaveTimerRef.current);
+        presentationSaveTimerRef.current = null;
+      }
+      await queuePresentationOperation(async () => {
+        const index = presentationIndexRef.current;
+        if (!index || !presentationId) {
+          return;
+        }
+        commitPresentationIndex(
+          await PresentationStore.savePresentation(
+            index,
+            presentationId,
+            scene,
+          ),
+        );
+      });
+    },
+    [commitPresentationIndex, queuePresentationOperation],
+  );
+
+  const schedulePresentationSave = useCallback(
+    (scene: PresentationScene) => {
+      const presentationId = presentationIdRef.current;
+      presentationSceneRef.current = scene;
+      if (presentationSaveTimerRef.current !== null) {
+        window.clearTimeout(presentationSaveTimerRef.current);
+      }
+      presentationSaveTimerRef.current = window.setTimeout(() => {
+        presentationSaveTimerRef.current = null;
+        void persistPresentationScene(scene, presentationId).catch((error) => {
+          console.error("Failed to save presentation locally", error);
+          setErrorMessage(
+            "The presentation couldn't be saved in this browser.",
+          );
+        });
+      }, SAVE_TO_LOCAL_STORAGE_TIMEOUT);
+    },
+    [persistPresentationScene],
+  );
+
   const saveWorkspaceCanvas = useCallback(
     async (
       canvasId: string,
@@ -2603,6 +2692,8 @@ const ExcalidrawWrapper = () => {
       try {
         WorkspaceStore.setScope(drawsyAuth.user?.uid || null);
         workspaceScopeRef.current = drawsyAuth.user?.uid || null;
+        PresentationStore.setScope(drawsyAuth.user?.uid || null);
+        presentationScopeRef.current = drawsyAuth.user?.uid || null;
         const isPresentationRefresh = presentationCanvasOpenRef.current;
         const workspaceInitialScene: CanvasScene = isPresentationRefresh
           ? {
@@ -2632,9 +2723,31 @@ const ExcalidrawWrapper = () => {
         }
         commitWorkspaceIndex(workspace.index);
         setWorkspaceSyncStatus(workspaceSync ? "synced" : "local");
-        const presentations = await PresentationStore.initialize(
-          createInitialPresentationScene(),
-        );
+        const initialPresentationScene = createInitialPresentationScene();
+        let presentations: PresentationResult;
+        try {
+          presentations =
+            presentationSync && drawsyAuth.user
+              ? await presentationSync.initialize(
+                  drawsyAuth.user.uid,
+                  initialPresentationScene,
+                )
+              : await PresentationStore.initialize(initialPresentationScene);
+          setPresentationSyncStatus(presentationSync ? "synced" : "local");
+        } catch (error) {
+          console.error("Failed to initialize presentation sync", error);
+          setPresentationSyncStatus(presentationSync ? "error" : "local");
+          PresentationStore.setScope(drawsyAuth.user?.uid || null);
+          if (
+            drawsyAuth.user &&
+            !(await PresentationStore.hasPresentations())
+          ) {
+            await PresentationStore.seedFromGuest();
+          }
+          presentations = await PresentationStore.initialize(
+            initialPresentationScene,
+          );
+        }
         commitPresentationIndex(presentations.index);
         if (isPresentationRefresh) {
           const presentationScene = presentations.document.scene;
@@ -2670,8 +2783,12 @@ const ExcalidrawWrapper = () => {
         console.error("Failed to initialize workspace storage", error);
         setWorkspaceSyncStatus("error");
         WorkspaceStore.setScope(drawsyAuth.user?.uid || null);
+        PresentationStore.setScope(drawsyAuth.user?.uid || null);
         if (drawsyAuth.user && !(await WorkspaceStore.hasWorkspace())) {
           await WorkspaceStore.seedFromGuest();
+        }
+        if (drawsyAuth.user && !(await PresentationStore.hasPresentations())) {
+          await PresentationStore.seedFromGuest();
         }
         const fallbackScene: CanvasScene = presentationCanvasOpenRef.current
           ? {
@@ -2685,11 +2802,13 @@ const ExcalidrawWrapper = () => {
           : data.scene;
         const fallback = await WorkspaceStore.initialize(fallbackScene);
         workspaceScopeRef.current = drawsyAuth.user?.uid || null;
+        presentationScopeRef.current = drawsyAuth.user?.uid || null;
         commitWorkspaceIndex(fallback.index);
         const presentations = await PresentationStore.initialize(
           createInitialPresentationScene(),
         );
         commitPresentationIndex(presentations.index);
+        setPresentationSyncStatus(presentationSync ? "error" : "local");
         if (presentationCanvasOpenRef.current) {
           const presentationScene = presentations.document.scene;
           presentationSceneRef.current = presentationScene;
@@ -2707,6 +2826,7 @@ const ExcalidrawWrapper = () => {
       commitWorkspaceIndex,
       commitPresentationIndex,
       drawsyAuth.user,
+      presentationSync,
       updatePresentationCanvasEmpty,
       workspaceSync,
     ],
@@ -2829,11 +2949,8 @@ const ExcalidrawWrapper = () => {
     }, SYNC_BROWSER_TABS_TIMEOUT);
 
     const onUnload = () => {
-      if (presentationCanvasOpenRef.current) {
-        void PresentationStore.flushSave(
-          presentationIdRef.current,
-          presentationSceneRef.current,
-        );
+      if (presentationCanvasOpenRef.current && presentationSceneRef.current) {
+        void persistPresentationScene(presentationSceneRef.current);
         return;
       }
       LocalData.flushSave();
@@ -2841,11 +2958,8 @@ const ExcalidrawWrapper = () => {
 
     const visibilityChange = (event: FocusEvent | Event) => {
       if (event.type === EVENT.BLUR || document.hidden) {
-        if (presentationCanvasOpenRef.current) {
-          void PresentationStore.flushSave(
-            presentationIdRef.current,
-            presentationSceneRef.current,
-          );
+        if (presentationCanvasOpenRef.current && presentationSceneRef.current) {
+          void persistPresentationScene(presentationSceneRef.current);
         } else {
           LocalData.flushSave();
         }
@@ -2883,15 +2997,13 @@ const ExcalidrawWrapper = () => {
     commitWorkspaceIndex,
     prepareWorkspaceScene,
     drawsyAuth.status,
+    persistPresentationScene,
   ]);
 
   useEffect(() => {
     const unloadHandler = (event: BeforeUnloadEvent) => {
-      if (presentationCanvasOpenRef.current) {
-        void PresentationStore.flushSave(
-          presentationIdRef.current,
-          presentationSceneRef.current,
-        );
+      if (presentationCanvasOpenRef.current && presentationSceneRef.current) {
+        void persistPresentationScene(presentationSceneRef.current);
       } else {
         LocalData.flushSave();
       }
@@ -2915,7 +3027,7 @@ const ExcalidrawWrapper = () => {
     return () => {
       window.removeEventListener(EVENT.BEFORE_UNLOAD, unloadHandler);
     };
-  }, [excalidrawAPI]);
+  }, [excalidrawAPI, persistPresentationScene]);
 
   const onChange = (
     elements: readonly OrderedExcalidrawElement[],
@@ -2962,10 +3074,7 @@ const ExcalidrawWrapper = () => {
           files,
           presentation: nextMetadata,
         };
-        presentationSceneRef.current = scene;
-        if (presentationIdRef.current) {
-          PresentationStore.saveScene(presentationIdRef.current, scene);
-        }
+        schedulePresentationSave(scene);
       }
       return;
     }
@@ -3036,6 +3145,15 @@ const ExcalidrawWrapper = () => {
       if (workspaceSyncRetryTimerRef.current !== null) {
         window.clearTimeout(workspaceSyncRetryTimerRef.current);
       }
+      if (presentationSaveTimerRef.current !== null) {
+        window.clearTimeout(presentationSaveTimerRef.current);
+      }
+      if (presentationSyncTimerRef.current !== null) {
+        window.clearTimeout(presentationSyncTimerRef.current);
+      }
+      if (presentationSyncRetryTimerRef.current !== null) {
+        window.clearTimeout(presentationSyncRetryTimerRef.current);
+      }
     },
     [],
   );
@@ -3068,12 +3186,11 @@ const ExcalidrawWrapper = () => {
   }, [createBlankScene]);
 
   const flushCurrentPresentation = useCallback(async () => {
-    const presentationId = presentationIdRef.current;
     const scene = presentationSceneRef.current;
-    if (presentationId && scene) {
-      await PresentationStore.flushSave(presentationId, scene);
+    if (scene) {
+      await persistPresentationScene(scene);
     }
-  }, []);
+  }, [persistPresentationScene]);
 
   const saveCurrentWorkspaceBeforePresentation = useCallback(async () => {
     if (!excalidrawAPI || presentationCanvasOpenRef.current) {
@@ -3175,7 +3292,9 @@ const ExcalidrawWrapper = () => {
           return;
         }
         const result = await queuePresentationOperation(() =>
-          PresentationStore.openPresentation(index, presentationId),
+          presentationSync
+            ? presentationSync.openPresentation(index, presentationId)
+            : PresentationStore.openPresentation(index, presentationId),
         );
         if (!result) {
           excalidrawAPI.setToast({
@@ -3202,6 +3321,7 @@ const ExcalidrawWrapper = () => {
       flushCurrentPresentation,
       queuePresentationOperation,
       saveCurrentWorkspaceBeforePresentation,
+      presentationSync,
     ],
   );
 
@@ -3435,6 +3555,7 @@ const ExcalidrawWrapper = () => {
   useEffect(() => {
     const nextScope = drawsyAuth.user?.uid || null;
     const previousScope = workspaceScopeRef.current || null;
+    const previousPresentationScope = presentationScopeRef.current || null;
     if (
       !initialWorkspaceLoadComplete ||
       drawsyAuth.status === "loading" ||
@@ -3447,6 +3568,10 @@ const ExcalidrawWrapper = () => {
 
     void queueWorkspaceOperation(async () => {
       await workspaceSyncInFlightRef.current;
+      await presentationSyncInFlightRef.current;
+      if (presentationCanvasOpenRef.current && presentationSceneRef.current) {
+        await persistPresentationScene(presentationSceneRef.current);
+      }
       const currentIndex = workspaceIndexRef.current;
       if (currentIndex && !presentationCanvasOpenRef.current) {
         await WorkspaceStore.saveCanvas(
@@ -3475,31 +3600,66 @@ const ExcalidrawWrapper = () => {
           : excalidrawAPI.getFiles(),
       };
       setWorkspaceSyncStatus(workspaceSync ? "syncing" : "local");
+      setPresentationSyncStatus(presentationSync ? "syncing" : "local");
       WorkspaceStore.setScope(nextScope);
+      PresentationStore.setScope(nextScope);
       const workspace =
         workspaceSync && drawsyAuth.user
           ? await workspaceSync.initialize(drawsyAuth.user.uid, currentScene)
           : await WorkspaceStore.initialize(currentScene);
+      const initialPresentationScene = createInitialPresentationScene();
+      let presentations: PresentationResult;
+      try {
+        presentations =
+          presentationSync && drawsyAuth.user
+            ? await presentationSync.initialize(
+                drawsyAuth.user.uid,
+                initialPresentationScene,
+              )
+            : await PresentationStore.initialize(initialPresentationScene);
+        setPresentationSyncStatus(presentationSync ? "synced" : "local");
+      } catch (error) {
+        console.error("Failed to switch presentation account", error);
+        setPresentationSyncStatus(presentationSync ? "error" : "local");
+        if (drawsyAuth.user && !(await PresentationStore.hasPresentations())) {
+          await PresentationStore.seedFromGuest();
+        }
+        presentations = await PresentationStore.initialize(
+          initialPresentationScene,
+        );
+      }
       workspaceScopeRef.current = nextScope;
+      presentationScopeRef.current = nextScope;
       workspaceSceneFingerprintsRef.current.clear();
       commitWorkspaceIndex(workspace.index);
-      applyWorkspaceDocument(workspace.document);
+      commitPresentationIndex(presentations.index);
+      if (presentationCanvasOpenRef.current) {
+        applyPresentationDocument(presentations.document);
+      } else {
+        applyWorkspaceDocument(workspace.document);
+      }
       setWorkspaceSyncStatus(workspaceSync ? "synced" : "local");
     }).catch((error) => {
       WorkspaceStore.setScope(previousScope);
+      PresentationStore.setScope(previousPresentationScope);
       console.error("Failed to switch workspace account", error);
       setWorkspaceSyncStatus("error");
+      setPresentationSyncStatus("error");
       setErrorMessage("Couldn't load your Drawsy workspace.");
     });
   }, [
     applyWorkspaceDocument,
+    applyPresentationDocument,
     collabAPI,
     commitWorkspaceIndex,
+    commitPresentationIndex,
     drawsyAuth.status,
     drawsyAuth.user,
     excalidrawAPI,
     initialWorkspaceLoadComplete,
     queueWorkspaceOperation,
+    persistPresentationScene,
+    presentationSync,
     workspaceSync,
   ]);
 
@@ -3602,6 +3762,102 @@ const ExcalidrawWrapper = () => {
     ],
   );
 
+  const syncPresentationsNow = useCallback(
+    async (flushEditor = false, pullRemote = false) => {
+      if (
+        !presentationSync ||
+        !drawsyAuth.user ||
+        presentationScopeRef.current !== drawsyAuth.user.uid ||
+        collabAPI?.isCollaborating()
+      ) {
+        return;
+      }
+      if (
+        flushEditor &&
+        presentationCanvasOpenRef.current &&
+        presentationSceneRef.current
+      ) {
+        await persistPresentationScene(presentationSceneRef.current);
+      }
+      if (presentationSyncInFlightRef.current) {
+        return presentationSyncInFlightRef.current;
+      }
+
+      const sync = async () => {
+        const currentIndex = presentationIndexRef.current;
+        if (!currentIndex) {
+          return;
+        }
+        setPresentationSyncStatus("syncing");
+        const previousActive = currentIndex.presentations.find(
+          (presentation) =>
+            presentation.id === currentIndex.activePresentationId,
+        );
+        const synchronized = pullRemote
+          ? await presentationSync.synchronize(currentIndex)
+          : {
+              index: await presentationSync.push(currentIndex),
+              document: undefined,
+            };
+        const syncedIndex = synchronized.index;
+        commitPresentationIndex(syncedIndex);
+        if (synchronized.document && presentationCanvasOpenRef.current) {
+          const contentChanged =
+            synchronized.document.id !== previousActive?.id ||
+            synchronized.document.sync.remoteContentHash !==
+              previousActive?.sync.remoteContentHash;
+          if (contentChanged) {
+            applyPresentationDocument(synchronized.document);
+          } else if (synchronized.document.title !== previousActive?.title) {
+            excalidrawAPI?.updateScene({
+              appState: { name: synchronized.document.title },
+              captureUpdate: CaptureUpdateAction.NEVER,
+            });
+          }
+        }
+        const stillDirty =
+          syncedIndex.pendingDeletes.length > 0 ||
+          syncedIndex.presentations.some(
+            (presentation) => presentation.sync.dirty,
+          );
+        setPresentationSyncStatus(stillDirty ? "pending" : "synced");
+        if (presentationSyncRetryTimerRef.current !== null) {
+          window.clearTimeout(presentationSyncRetryTimerRef.current);
+          presentationSyncRetryTimerRef.current = null;
+        }
+      };
+
+      const operation = sync()
+        .catch((error) => {
+          console.error("Presentation sync failed", error);
+          setPresentationSyncStatus("error");
+          excalidrawAPI?.setToast({
+            message: "Presentation saved locally. Cloud sync will retry.",
+          });
+          if (presentationSyncRetryTimerRef.current === null) {
+            presentationSyncRetryTimerRef.current = window.setTimeout(() => {
+              presentationSyncRetryTimerRef.current = null;
+              setPresentationSyncRetry((value) => value + 1);
+            }, WORKSPACE_SYNC_RETRY_TIMEOUT);
+          }
+        })
+        .finally(() => {
+          presentationSyncInFlightRef.current = null;
+        });
+      presentationSyncInFlightRef.current = operation;
+      return operation;
+    },
+    [
+      applyPresentationDocument,
+      collabAPI,
+      commitPresentationIndex,
+      drawsyAuth.user,
+      excalidrawAPI,
+      persistPresentationScene,
+      presentationSync,
+    ],
+  );
+
   useEffect(() => {
     if (
       !workspaceSync ||
@@ -3652,6 +3908,54 @@ const ExcalidrawWrapper = () => {
   }, [syncWorkspaceNow]);
 
   useEffect(() => {
+    if (
+      !presentationSync ||
+      !presentationIndex ||
+      !drawsyAuth.user ||
+      presentationScopeRef.current !== drawsyAuth.user.uid ||
+      collabAPI?.isCollaborating()
+    ) {
+      return;
+    }
+    const hasPendingWork =
+      presentationIndex.pendingDeletes.length > 0 ||
+      presentationIndex.presentations.some(
+        (presentation) => presentation.sync.dirty,
+      );
+    if (!hasPendingWork) {
+      setPresentationSyncStatus("synced");
+      return;
+    }
+    if (presentationSyncTimerRef.current !== null) {
+      window.clearTimeout(presentationSyncTimerRef.current);
+    }
+    setPresentationSyncStatus("pending");
+    presentationSyncTimerRef.current = window.setTimeout(() => {
+      presentationSyncTimerRef.current = null;
+      void syncPresentationsNow();
+    }, WORKSPACE_SYNC_IDLE_TIMEOUT);
+    return () => {
+      if (presentationSyncTimerRef.current !== null) {
+        window.clearTimeout(presentationSyncTimerRef.current);
+        presentationSyncTimerRef.current = null;
+      }
+    };
+  }, [
+    collabAPI,
+    drawsyAuth.user,
+    presentationIndex,
+    presentationSync,
+    presentationSyncRetry,
+    syncPresentationsNow,
+  ]);
+
+  useEffect(() => {
+    const retryPresentationSync = () => void syncPresentationsNow(false, true);
+    window.addEventListener("online", retryPresentationSync);
+    return () => window.removeEventListener("online", retryPresentationSync);
+  }, [syncPresentationsNow]);
+
+  useEffect(() => {
     const flushWorkspace = () => {
       if (document.visibilityState === "hidden") {
         void syncWorkspaceNow(true);
@@ -3665,6 +3969,21 @@ const ExcalidrawWrapper = () => {
       window.removeEventListener("pagehide", flushWorkspaceOnPageHide);
     };
   }, [syncWorkspaceNow]);
+
+  useEffect(() => {
+    const flushPresentations = () => {
+      if (document.visibilityState === "hidden") {
+        void syncPresentationsNow(true);
+      }
+    };
+    const flushPresentationsOnPageHide = () => void syncPresentationsNow(true);
+    document.addEventListener(EVENT.VISIBILITY_CHANGE, flushPresentations);
+    window.addEventListener("pagehide", flushPresentationsOnPageHide);
+    return () => {
+      document.removeEventListener(EVENT.VISIBILITY_CHANGE, flushPresentations);
+      window.removeEventListener("pagehide", flushPresentationsOnPageHide);
+    };
+  }, [syncPresentationsNow]);
 
   useEffect(() => {
     if (typeof BroadcastChannel === "undefined") {
@@ -3736,6 +4055,59 @@ const ExcalidrawWrapper = () => {
     commitWorkspaceIndex,
     excalidrawAPI,
     queueWorkspaceOperation,
+  ]);
+
+  useEffect(() => {
+    if (typeof BroadcastChannel === "undefined") {
+      return;
+    }
+    const channel = new BroadcastChannel(PRESENTATION_SYNC_CHANNEL);
+    channel.onmessage = (event: MessageEvent) => {
+      const message = event.data as { source?: string; scope?: string };
+      if (
+        message.source === PRESENTATION_CLIENT_ID ||
+        message.scope !== PresentationStore.getScope()
+      ) {
+        return;
+      }
+      void queuePresentationOperation(async () => {
+        const currentIndex = presentationIndexRef.current;
+        const latestIndex = await PresentationStore.getIndex();
+        if (!currentIndex || !latestIndex) {
+          return;
+        }
+        const currentId = currentIndex.activePresentationId;
+        const currentStillExists = latestIndex.presentations.some(
+          (presentation) => presentation.id === currentId,
+        );
+        const nextIndex: PresentationIndex = {
+          ...latestIndex,
+          activePresentationId: currentStillExists
+            ? currentId
+            : latestIndex.activePresentationId,
+        };
+        commitPresentationIndex(nextIndex);
+        if (presentationCanvasOpenRef.current && !currentStillExists) {
+          const document = await PresentationStore.getDocument(
+            nextIndex.activePresentationId,
+          );
+          if (document) {
+            applyPresentationDocument(document);
+          }
+        }
+        setPresentationSyncRetry((value) => value + 1);
+      }).catch((error) => {
+        console.error(
+          "Failed to refresh presentations from another tab",
+          error,
+        );
+      });
+    };
+    return () => channel.close();
+  }, [
+    applyPresentationDocument,
+    commitPresentationIndex,
+    queuePresentationOperation,
   ]);
 
   useEffect(() => {
@@ -4122,12 +4494,9 @@ const ExcalidrawWrapper = () => {
         ...currentScene,
         presentation: nextMetadata,
       };
-      presentationSceneRef.current = nextScene;
-      if (presentationIdRef.current) {
-        PresentationStore.saveScene(presentationIdRef.current, nextScene);
-      }
+      schedulePresentationSave(nextScene);
     },
-    [excalidrawAPI],
+    [excalidrawAPI, schedulePresentationSave],
   );
 
   const addPresentationBuild = useCallback(
@@ -4622,10 +4991,7 @@ const ExcalidrawWrapper = () => {
         files: excalidrawAPI.getFiles(),
         presentation: presentationAnimationMetadataRef.current,
       };
-      presentationSceneRef.current = restoredScene;
-      if (presentationIdRef.current) {
-        PresentationStore.saveScene(presentationIdRef.current, restoredScene);
-      }
+      schedulePresentationSave(restoredScene);
       setPresentationElements(excalidrawAPI.getSceneElements());
       setPresentationAppState(excalidrawAPI.getAppState());
       setPresentationFiles(excalidrawAPI.getFiles());
@@ -4641,7 +5007,7 @@ const ExcalidrawWrapper = () => {
     if (document.fullscreenElement) {
       void document.exitFullscreen().catch(() => undefined);
     }
-  }, [commitFramePresenter, excalidrawAPI]);
+  }, [commitFramePresenter, excalidrawAPI, schedulePresentationSave]);
 
   const startFramePresentation = useCallback(() => {
     if (!excalidrawAPI) {
@@ -5399,8 +5765,11 @@ const ExcalidrawWrapper = () => {
               displayName:
                 drawsyAuth.user?.displayName || drawsyAuth.user?.email || null,
               isBusy: drawsyAuth.isBusy,
-              syncStatus: workspaceSyncStatus,
-              onSync: () => void syncWorkspaceNow(true, true),
+              syncStatus: cloudSyncStatus,
+              onSync: () => {
+                void syncWorkspaceNow(true, true);
+                void syncPresentationsNow(true, true);
+              },
               onSignIn: () => {
                 void drawsyAuth.signIn().catch(() => undefined);
               },
