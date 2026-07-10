@@ -2927,7 +2927,13 @@ const ExcalidrawWrapper = () => {
       appState.openSidebar?.tab === "presentation"
     ) {
       setPresentationElements(elements);
-      setPresentationAppState(appState);
+      setPresentationAppState((currentAppState) =>
+        currentAppState.selectedElementIds === appState.selectedElementIds &&
+        currentAppState.viewBackgroundColor === appState.viewBackgroundColor &&
+        currentAppState.exportWithDarkMode === appState.exportWithDarkMode
+          ? currentAppState
+          : appState,
+      );
       setPresentationFiles(files);
     }
 
@@ -5618,6 +5624,7 @@ const ExcalidrawWrapper = () => {
                 ? "Presentation"
                 : activeCanvas?.title || "Canvas"
             }
+            presentationId={activePresentation?.id || null}
             isCollaborating={isCollaborating}
             comments={comments}
             presentationElements={presentationElements}
