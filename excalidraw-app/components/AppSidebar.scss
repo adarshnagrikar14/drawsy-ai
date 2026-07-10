@@ -297,7 +297,11 @@
     overflow-y: auto;
     overscroll-behavior: contain;
     padding: 0.1rem 0.55rem 1rem 0.75rem;
-    scrollbar-color: color-mix(in srgb, var(--color-muted-darker) 40%, transparent)
+    scrollbar-color: color-mix(
+        in srgb,
+        var(--color-muted-darker) 40%,
+        transparent
+      )
       transparent;
     scrollbar-width: thin;
 
@@ -360,9 +364,7 @@
     max-width: 100%;
     color: inherit;
     text-align: left;
-    transition:
-      border-color 120ms ease,
-      background 120ms ease,
+    transition: border-color 120ms ease, background 120ms ease,
       opacity 120ms ease;
 
     &:hover {
@@ -493,12 +495,9 @@
     span {
       width: 0.66rem;
       height: 0.82rem;
-      background-image:
-        radial-gradient(currentColor 1px, transparent 1px),
+      background-image: radial-gradient(currentColor 1px, transparent 1px),
         radial-gradient(currentColor 1px, transparent 1px);
-      background-position:
-        0 0,
-        0.3rem 0;
+      background-position: 0 0, 0.3rem 0;
       background-size: 0.3rem 0.28rem;
       opacity: 0.8;
     }
@@ -971,11 +970,7 @@
       right: 18%;
       bottom: 0.45rem;
       height: 1px;
-      background: color-mix(
-        in srgb,
-        var(--color-on-surface) 36%,
-        transparent
-      );
+      background: color-mix(in srgb, var(--color-on-surface) 36%, transparent);
     }
   }
 
@@ -1130,14 +1125,7 @@
         var(--template-tone, var(--color-primary)) 46%,
         transparent
       );
-      clip-path: polygon(
-        0 76%,
-        34% 38%,
-        66% 52%,
-        100% 14%,
-        100% 100%,
-        0 100%
-      );
+      clip-path: polygon(0 76%, 34% 38%, 66% 52%, 100% 14%, 100% 100%, 0 100%);
       content: "";
     }
   }
@@ -1244,6 +1232,270 @@
     }
   }
 
+  .presentation-animation {
+    display: flex;
+    min-height: min-content;
+    flex-direction: column;
+    padding: 0.35rem 0 1.25rem;
+  }
+
+  .presentation-animation__section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--sidebar-border-color);
+  }
+
+  .presentation-animation__heading {
+    display: flex;
+    min-height: 1.35rem;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+
+    span {
+      color: var(--color-muted-darker);
+      font: 760 0.67rem/1 var(--ui-font);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    strong {
+      overflow: hidden;
+      color: var(--color-on-surface);
+      font: 800 0.95rem/1.1 var(--ui-font);
+      text-align: right;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
+  .presentation-animation__control-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+
+    > span {
+      color: var(--color-on-surface);
+      font: 760 0.75rem/1 var(--ui-font);
+    }
+  }
+
+  .presentation-animation__segmented,
+  .presentation-animation__direction-grid,
+  .presentation-animation__trigger-grid {
+    display: grid;
+    gap: 0.25rem;
+    padding: 0.25rem;
+    border-radius: 0.5rem;
+    background: var(--color-surface-high);
+  }
+
+  .presentation-animation__segmented,
+  .presentation-animation__trigger-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .presentation-animation__transition .presentation-animation__segmented {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .presentation-animation__direction-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .presentation-animation__segmented button,
+  .presentation-animation__direction-grid button,
+  .presentation-animation__trigger-grid button {
+    min-width: 0;
+    min-height: 2.25rem;
+    padding: 0.35rem 0.3rem;
+    border: 0 !important;
+    border-radius: 0.4rem;
+    background: transparent;
+    color: var(--color-on-surface);
+    font: 740 0.68rem/1.08 var(--ui-font);
+    opacity: 0.64;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      background: color-mix(
+        in srgb,
+        var(--color-primary) 16%,
+        var(--color-surface-highest)
+      );
+      opacity: 1;
+    }
+
+    &[data-active="true"] {
+      background: var(--color-primary);
+      color: var(--color-gray-10);
+      opacity: 1;
+    }
+
+    &:disabled {
+      cursor: default;
+      opacity: 0.32;
+    }
+  }
+
+  .presentation-animation__add {
+    display: inline-flex;
+    min-height: 2.6rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    padding: 0.55rem 0.8rem;
+    border: 0 !important;
+    border-radius: 0.5rem;
+    background: var(--color-primary);
+    color: var(--color-gray-10);
+    font: 800 0.8rem/1 var(--ui-font);
+    cursor: pointer;
+
+    svg {
+      width: 1rem;
+      height: 1rem;
+    }
+
+    &:hover {
+      background: color-mix(in srgb, var(--color-primary) 84%, #ffffff);
+    }
+
+    &:disabled {
+      background: var(--color-surface-highest);
+      color: var(--color-muted-darker);
+      cursor: default;
+    }
+  }
+
+  .presentation-animation__empty {
+    display: flex;
+    min-height: 11.5rem;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 0.55rem;
+    margin-top: 0.65rem;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    background: var(--color-surface-high);
+
+    strong {
+      color: var(--color-on-surface);
+      font: 800 0.9rem/1.1 var(--ui-font);
+    }
+
+    span {
+      color: var(--color-muted-darker);
+      font: 650 0.73rem/1.35 var(--ui-font);
+    }
+  }
+
+  .presentation-animation__empty-art {
+    display: block;
+    width: auto;
+    height: 10.5rem;
+    max-width: 100%;
+    margin: 0.1rem auto 0.45rem;
+    object-fit: contain;
+  }
+
+  .presentation-animation__builds {
+    ol {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    li {
+      display: grid;
+      grid-template-columns: 1.75rem minmax(0, 1fr) 2rem;
+      min-height: 3.15rem;
+      align-items: center;
+      gap: 0.55rem;
+      padding: 0.35rem 0.35rem 0.35rem 0.65rem;
+      border-radius: 0.5rem;
+      background: var(--color-surface-high);
+
+      > span {
+        display: grid;
+        width: 1.55rem;
+        height: 1.55rem;
+        place-items: center;
+        border-radius: 50%;
+        background: color-mix(
+          in srgb,
+          var(--color-primary) 20%,
+          var(--color-surface-highest)
+        );
+        color: var(--color-on-surface);
+        font: 800 0.68rem/1 var(--ui-font);
+      }
+
+      div {
+        display: flex;
+        min-width: 0;
+        flex-direction: column;
+        gap: 0.2rem;
+      }
+
+      strong,
+      small {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      strong {
+        color: var(--color-on-surface);
+        font: 780 0.77rem/1.1 var(--ui-font);
+      }
+
+      small {
+        color: var(--color-muted-darker);
+        font: 650 0.67rem/1.1 var(--ui-font);
+      }
+
+      button {
+        display: grid;
+        width: 2rem;
+        height: 2rem;
+        place-items: center;
+        padding: 0;
+        border: 0 !important;
+        border-radius: 0.4rem;
+        background: transparent;
+        color: var(--color-danger);
+        cursor: pointer;
+
+        svg {
+          width: 0.95rem;
+          height: 0.95rem;
+        }
+
+        &:hover {
+          background: color-mix(
+            in srgb,
+            var(--color-danger) 14%,
+            var(--color-surface-highest)
+          );
+        }
+      }
+    }
+
+    > p {
+      margin: 0;
+      color: var(--color-muted-darker);
+      font: 650 0.75rem/1.35 var(--ui-font);
+    }
+  }
+
   .presentation-resource-editor {
     display: flex;
     min-height: min-content;
@@ -1340,8 +1592,7 @@
       color: var(--color-on-surface);
       font: 850 1.08rem/1.15 var(--ui-font);
       outline: 0;
-      box-shadow: inset 0 -1px
-        color-mix(in srgb, var(--color-muted-darker) 58%, transparent) !important;
+      box-shadow: inset 0 -1px color-mix(in srgb, var(--color-muted-darker) 58%, transparent) !important;
       padding: 0.25rem 0 0.5rem;
 
       &:focus {
@@ -1476,8 +1727,7 @@
       border: 0 !important;
       border-radius: 0;
       background: transparent !important;
-      box-shadow: inset 0 -1px
-        color-mix(in srgb, var(--color-muted-darker) 44%, transparent) !important;
+      box-shadow: inset 0 -1px color-mix(in srgb, var(--color-muted-darker) 44%, transparent) !important;
       color: var(--color-on-surface);
       font: 700 0.82rem/1.2 var(--ui-font);
       outline: 0;
@@ -1949,7 +2199,11 @@
 
   &.theme--dark {
     .presentation-resource-style button[data-active="true"],
-    .presentation-resource-insert {
+    .presentation-resource-insert,
+    .presentation-animation__segmented button[data-active="true"],
+    .presentation-animation__direction-grid button[data-active="true"],
+    .presentation-animation__trigger-grid button[data-active="true"],
+    .presentation-animation__add:not(:disabled) {
       background: color-mix(
         in srgb,
         var(--color-primary) 64%,
