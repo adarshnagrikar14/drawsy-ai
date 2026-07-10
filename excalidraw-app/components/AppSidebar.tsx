@@ -2,7 +2,7 @@ import {
   DefaultSidebar,
   Sidebar,
   THEME,
-  exportToCanvas,
+  exportToBlob,
 } from "@excalidraw/excalidraw";
 import {
   MagicIcon,
@@ -20,12 +20,18 @@ import {
 } from "@excalidraw/excalidraw/components/icons";
 import { useUIAppState } from "@excalidraw/excalidraw/context/ui-appState";
 import {
-  getFrameChildren,
   getNonDeletedElements,
   getSelectedElements,
   isFrameLikeElement,
 } from "@excalidraw/element";
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import {
+  memo,
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import type { AppState, BinaryFiles } from "@excalidraw/excalidraw/types";
 import type {
@@ -44,6 +50,7 @@ import {
   type PresentationBuildTrigger,
   type PresentationSlideTransition,
 } from "../presentation/animations";
+import { getPresentationSlideDescriptors } from "../presentation/slides";
 
 import "./AppSidebar.scss";
 
@@ -387,64 +394,241 @@ const parseResourceRows = (content: string) =>
     })
     .filter((row) => row.label || row.value);
 
-const sortFramesForSlides = (frames: readonly ExcalidrawFrameLikeElement[]) => {
-  return [...frames].sort((a, b) => {
-    const rowTolerance = Math.max(80, Math.min(a.height, b.height) * 0.2);
-    if (Math.abs(a.y - b.y) > rowTolerance) {
-      return a.y - b.y;
-    }
-    return a.x - b.x;
-  });
+type PresentationThumbnailCacheEntry = {
+  revision: string;
+  url: string;
 };
 
-const PresentationSlideThumbnail = ({
+type PresentationThumbnailTask = {
+  cancelled: boolean;
+  run: () => Promise<void>;
+};
+
+const PRESENTATION_THUMBNAIL_CACHE_LIMIT = 240;
+const presentationThumbnailCache = new Map<
+  string,
+  PresentationThumbnailCacheEntry
+>();
+const presentationThumbnailQueue: PresentationThumbnailTask[] = [];
+let presentationThumbnailQueueRunning = false;
+let presentationThumbnailObserver: IntersectionObserver | null = null;
+const presentationThumbnailVisibilityCallbacks = new Map<
+  Element,
+  (visible: boolean) => void
+>();
+
+const waitForPresentationThumbnailIdle = () =>
+  new Promise<void>((resolve) => {
+    if (typeof window.requestIdleCallback === "function") {
+      window.requestIdleCallback(() => resolve(), { timeout: 250 });
+      return;
+    }
+    window.setTimeout(resolve, 16);
+  });
+
+const drainPresentationThumbnailQueue = async () => {
+  if (presentationThumbnailQueueRunning) {
+    return;
+  }
+
+  presentationThumbnailQueueRunning = true;
+  try {
+    while (presentationThumbnailQueue.length) {
+      const task = presentationThumbnailQueue.shift()!;
+      if (task.cancelled) {
+        continue;
+      }
+
+      await waitForPresentationThumbnailIdle();
+      if (!task.cancelled) {
+        await task.run().catch(() => undefined);
+      }
+    }
+  } finally {
+    presentationThumbnailQueueRunning = false;
+  }
+};
+
+const queuePresentationThumbnail = (run: () => Promise<void>) => {
+  const task: PresentationThumbnailTask = { cancelled: false, run };
+  presentationThumbnailQueue.push(task);
+  void drainPresentationThumbnailQueue();
+  return () => {
+    task.cancelled = true;
+  };
+};
+
+const observePresentationThumbnail = (
+  element: Element,
+  onVisibilityChange: (visible: boolean) => void,
+) => {
+  if (typeof IntersectionObserver === "undefined") {
+    onVisibilityChange(true);
+    return () => undefined;
+  }
+
+  if (!presentationThumbnailObserver) {
+    presentationThumbnailObserver = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          presentationThumbnailVisibilityCallbacks.get(entry.target)?.(
+            entry.isIntersecting,
+          );
+        }
+      },
+      { rootMargin: "240px 0px" },
+    );
+  }
+
+  presentationThumbnailVisibilityCallbacks.set(element, onVisibilityChange);
+  presentationThumbnailObserver.observe(element);
+
+  return () => {
+    presentationThumbnailObserver?.unobserve(element);
+    presentationThumbnailVisibilityCallbacks.delete(element);
+    if (!presentationThumbnailVisibilityCallbacks.size) {
+      presentationThumbnailObserver?.disconnect();
+      presentationThumbnailObserver = null;
+    }
+  };
+};
+
+const setPresentationThumbnailCacheEntry = (
+  cacheKey: string,
+  entry: PresentationThumbnailCacheEntry,
+) => {
+  const previousEntry = presentationThumbnailCache.get(cacheKey);
+  if (previousEntry?.url !== entry.url) {
+    previousEntry && URL.revokeObjectURL(previousEntry.url);
+  }
+  presentationThumbnailCache.delete(cacheKey);
+  presentationThumbnailCache.set(cacheKey, entry);
+
+  while (presentationThumbnailCache.size > PRESENTATION_THUMBNAIL_CACHE_LIMIT) {
+    const oldestKey = presentationThumbnailCache.keys().next().value;
+    if (!oldestKey) {
+      break;
+    }
+    const oldestEntry = presentationThumbnailCache.get(oldestKey);
+    oldestEntry && URL.revokeObjectURL(oldestEntry.url);
+    presentationThumbnailCache.delete(oldestKey);
+  }
+};
+
+const prunePresentationThumbnailCache = (
+  scope: string,
+  activeFrameIds: ReadonlySet<string>,
+) => {
+  const scopePrefix = `${scope}:`;
+  for (const [cacheKey, entry] of presentationThumbnailCache) {
+    if (
+      cacheKey.startsWith(scopePrefix) &&
+      !activeFrameIds.has(cacheKey.slice(scopePrefix.length))
+    ) {
+      URL.revokeObjectURL(entry.url);
+      presentationThumbnailCache.delete(cacheKey);
+    }
+  }
+};
+
+const PresentationSlideThumbnailComponent = ({
   index,
+  scope,
+  revision,
   frame,
   elements,
   appState,
   files,
 }: {
   index: number;
+  scope: string;
+  revision: string;
   frame: ExcalidrawFrameLikeElement;
   elements: readonly OrderedExcalidrawElement[];
   appState: PresentationExportAppState;
   files: BinaryFiles;
 }) => {
-  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
+  const cacheKey = `${scope}:${frame.id}`;
+  const cachedThumbnail = presentationThumbnailCache.get(cacheKey);
+  const [thumbnail, setThumbnail] = useState<{
+    cacheKey: string;
+    url: string | null;
+  }>(() => ({
+    cacheKey,
+    url: cachedThumbnail?.revision === revision ? cachedThumbnail.url : null,
+  }));
+  const [nearViewport, setNearViewport] = useState(false);
+  const previewRef = useRef<HTMLDivElement | null>(null);
+  const thumbnailUrl =
+    thumbnail.cacheKey === cacheKey ? thumbnail.url : cachedThumbnail?.url;
 
   useEffect(() => {
-    let cancelled = false;
+    const preview = previewRef.current;
+    return preview
+      ? observePresentationThumbnail(preview, setNearViewport)
+      : undefined;
+  }, []);
 
-    exportToCanvas({
-      elements: getNonDeletedElements(elements),
-      appState: {
-        ...appState,
-        exportBackground: true,
-        exportScale: 1,
+  useEffect(() => {
+    const cachedEntry = presentationThumbnailCache.get(cacheKey);
+    if (cachedEntry?.revision === revision) {
+      setThumbnail({ cacheKey, url: cachedEntry.url });
+      return;
+    }
+
+    if (!nearViewport) {
+      return;
+    }
+
+    let cancelled = false;
+    let cancelQueuedRender: () => void = () => undefined;
+    const debounceTimer = window.setTimeout(
+      () => {
+        cancelQueuedRender = queuePresentationThumbnail(async () => {
+          if (cancelled) {
+            return;
+          }
+
+          const currentEntry = presentationThumbnailCache.get(cacheKey);
+          if (currentEntry?.revision === revision) {
+            setThumbnail({ cacheKey, url: currentEntry.url });
+            return;
+          }
+
+          const blob = await exportToBlob({
+            elements,
+            appState,
+            files,
+            maxWidthOrHeight: 220,
+            exportPadding: 0,
+            exportingFrame: frame,
+          });
+          if (cancelled) {
+            return;
+          }
+
+          const url = URL.createObjectURL(blob);
+          if (cancelled) {
+            URL.revokeObjectURL(url);
+            return;
+          }
+
+          setPresentationThumbnailCacheEntry(cacheKey, { revision, url });
+          setThumbnail({ cacheKey, url });
+        });
       },
-      files,
-      maxWidthOrHeight: 220,
-      exportPadding: 0,
-      exportingFrame: frame,
-    })
-      .then((canvas) => {
-        if (!cancelled) {
-          setThumbnailUrl(canvas.toDataURL("image/png"));
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setThumbnailUrl(null);
-        }
-      });
+      cachedEntry ? 180 : 0,
+    );
 
     return () => {
       cancelled = true;
+      window.clearTimeout(debounceTimer);
+      cancelQueuedRender();
     };
-  }, [appState, elements, files, frame]);
+  }, [appState, cacheKey, elements, files, frame, nearViewport, revision]);
 
   return (
-    <div className="presentation-slide-card__preview">
+    <div className="presentation-slide-card__preview" ref={previewRef}>
       {thumbnailUrl ? (
         <img alt="" src={thumbnailUrl} />
       ) : (
@@ -454,7 +638,16 @@ const PresentationSlideThumbnail = ({
   );
 };
 
+const PresentationSlideThumbnail = memo(
+  PresentationSlideThumbnailComponent,
+  (previous, next) =>
+    previous.index === next.index &&
+    previous.scope === next.scope &&
+    previous.revision === next.revision,
+);
+
 const PresentationPanel = ({
+  presentationId,
   elements,
   appState,
   files,
@@ -471,6 +664,7 @@ const PresentationPanel = ({
   onPresentationBuildDelete,
   onPresentationSlideTransitionChange,
 }: {
+  presentationId: string | null;
   elements: readonly OrderedExcalidrawElement[];
   appState: PresentationExportAppState;
   files: BinaryFiles;
@@ -516,25 +710,48 @@ const PresentationPanel = ({
   const [animationDirection, setAnimationDirection] =
     useState<PresentationBuildDirection>("left");
   const resourceImportInputRef = useRef<HTMLInputElement | null>(null);
+  const slides = useMemo(
+    () => getPresentationSlideDescriptors(elements),
+    [elements],
+  );
+  const frames = useMemo(() => slides.map((slide) => slide.frame), [slides]);
+  const thumbnailScope = presentationId || "presentation";
+  const thumbnailAppState = useMemo<PresentationExportAppState>(
+    () => ({
+      exportBackground: true,
+      exportScale: 1,
+      exportWithDarkMode: appState.exportWithDarkMode,
+      viewBackgroundColor: appState.viewBackgroundColor,
+    }),
+    [appState.exportWithDarkMode, appState.viewBackgroundColor],
+  );
+  const thumbnailRevisions = useMemo(() => {
+    const themeRevision = `${thumbnailAppState.viewBackgroundColor || ""}:${
+      thumbnailAppState.exportWithDarkMode ? "dark" : "light"
+    }`;
 
-  const { frames, childCountByFrameId } = useMemo(() => {
-    const nonDeletedElements = getNonDeletedElements(elements);
-    const frames = sortFramesForSlides(
-      nonDeletedElements.filter(
-        isFrameLikeElement,
-      ) as ExcalidrawFrameLikeElement[],
+    return new Map(
+      slides.map((slide) => {
+        const fileRevision = slide.fileIds
+          .map((fileId) => {
+            const file = files[fileId];
+            return `${fileId}:${file?.version || 0}:${file?.created || 0}`;
+          })
+          .join("|");
+        return [
+          slide.frame.id,
+          `${slide.revision}:${themeRevision}:${fileRevision}`,
+        ];
+      }),
     );
-    const childCountByFrameId = new Map<string, number>();
+  }, [files, slides, thumbnailAppState]);
 
-    for (const frame of frames) {
-      childCountByFrameId.set(
-        frame.id,
-        getFrameChildren(nonDeletedElements, frame.id).length,
-      );
-    }
-
-    return { frames, childCountByFrameId };
-  }, [elements]);
+  useEffect(() => {
+    prunePresentationThumbnailCache(
+      thumbnailScope,
+      new Set(frames.map((frame) => frame.id)),
+    );
+  }, [frames, thumbnailScope]);
 
   const renderSlides = () => {
     if (!frames.length) {
@@ -562,9 +779,10 @@ const PresentationPanel = ({
             {frames.length} {frames.length === 1 ? "Slide" : "Slides"}
           </span>
         </div>
-        {frames.map((frame, index) => {
+        {slides.map((slide, index) => {
+          const frame = slide.frame;
           const title = frame.name?.trim() || `Slide ${index + 1}`;
-          const childCount = childCountByFrameId.get(frame.id) || 0;
+          const childCount = slide.childCount;
           const isEditing = editingFrameId === frame.id;
           const finishRename = () => {
             const nextName = editingSlideName.trim();
@@ -626,9 +844,11 @@ const PresentationPanel = ({
               >
                 <PresentationSlideThumbnail
                   index={index}
+                  scope={thumbnailScope}
+                  revision={thumbnailRevisions.get(frame.id)!}
                   frame={frame}
-                  elements={elements}
-                  appState={appState}
+                  elements={slide.elements}
+                  appState={thumbnailAppState}
                   files={files}
                 />
                 <div className="presentation-slide-card__body">
@@ -1298,6 +1518,7 @@ export const AppSidebar = ({
   authStatus,
   displayName,
   canvasTitle,
+  presentationId,
   isCollaborating,
   comments,
   presentationElements,
@@ -1323,6 +1544,7 @@ export const AppSidebar = ({
   authStatus: "loading" | "anonymous" | "authenticated";
   displayName: string;
   canvasTitle: string;
+  presentationId: string | null;
   isCollaborating: boolean;
   comments: CanvasCommentsController;
   presentationElements: readonly OrderedExcalidrawElement[];
@@ -1394,6 +1616,7 @@ export const AppSidebar = ({
       </Sidebar.Tab>
       <Sidebar.Tab tab="presentation">
         <PresentationPanel
+          presentationId={presentationId}
           elements={presentationElements}
           appState={presentationAppState}
           files={presentationFiles}
