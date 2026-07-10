@@ -130,11 +130,7 @@
       text-align: left;
 
       &:hover {
-        background: color-mix(
-          in srgb,
-          var(--color-primary) 10%,
-          transparent
-        );
+        background: color-mix(in srgb, var(--color-primary) 10%, transparent);
       }
     }
   }
@@ -241,11 +237,25 @@
     }
   }
 
+  .frame-presenter-transition {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    background: var(--default-bg-color);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 160ms ease;
+
+    &[data-active="true"] {
+      opacity: 1;
+    }
+  }
+
   .frame-presenter-controls {
     position: fixed;
     left: 50%;
     bottom: 1.25rem;
-    z-index: 20;
+    z-index: 21;
     display: flex;
     align-items: center;
     gap: 0.55rem;
@@ -306,11 +316,7 @@
         color: var(--color-danger);
 
         &:hover {
-          background: color-mix(
-            in srgb,
-            var(--color-danger) 14%,
-            transparent
-          );
+          background: color-mix(in srgb, var(--color-danger) 14%, transparent);
         }
       }
     }
