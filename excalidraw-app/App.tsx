@@ -141,6 +141,7 @@ import {
   getPresentationBuildSequence,
   getPresentationBuilds,
   getPreviousPresentationBuildCount,
+  getPresentationTargetFrameId,
   sanitizePresentationAnimationMetadata,
   type PresentationAnimationMetadata,
   type PresentationBuild,
@@ -3915,7 +3916,7 @@ const ExcalidrawWrapper = () => {
           !!target &&
           !target.isDeleted &&
           !isFrameLikeElement(target) &&
-          target.frameId === build.frameId
+          getPresentationTargetFrameId(target, elements) === build.frameId
         );
       });
 
