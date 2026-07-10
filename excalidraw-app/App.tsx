@@ -36,6 +36,7 @@ import {
   DEFAULT_SIDEBAR,
   THEME,
   FONT_FAMILY,
+  randomId,
   sceneCoordsToViewportCoords,
   viewportCoordsToSceneCoords,
 } from "@excalidraw/common";
@@ -129,7 +130,22 @@ import { useDrawsyAuth } from "./auth/useDrawsyAuth";
 import { WorkspaceApi } from "./data/WorkspaceApi";
 import { WorkspaceSync } from "./data/WorkspaceSync";
 import { KanbanApi } from "./data/KanbanApi";
-import { PresentationStore } from "./data/PresentationStore";
+import {
+  PresentationStore,
+  type PresentationScene,
+} from "./data/PresentationStore";
+import {
+  arePresentationAnimationMetadataEqual,
+  createPresentationAnimationMetadata,
+  getHiddenPresentationBuildTargetIds,
+  getPresentationBuildSequence,
+  getPresentationBuilds,
+  getPreviousPresentationBuildCount,
+  sanitizePresentationAnimationMetadata,
+  type PresentationAnimationMetadata,
+  type PresentationBuild,
+  type PresentationSlideTransition,
+} from "./presentation/animations";
 
 import {
   KanbanBoardSelectionRequiredError,
@@ -379,6 +395,29 @@ const getPresentationFrames = (elements: readonly ExcalidrawElement[]) => {
       return a.x - b.x;
     }) as ExcalidrawFrameLikeElement[];
 };
+
+const PRESENTATION_BUILD_DURATION_MS = 320;
+const PRESENTATION_SLIDE_FADE_DURATION_MS = 160;
+
+type FramePresenterState = {
+  frameIds: string[];
+  index: number;
+  completedBuildCount: number;
+  previousView: Pick<
+    AppState,
+    | "scrollX"
+    | "scrollY"
+    | "zoom"
+    | "openSidebar"
+    | "openMenu"
+    | "viewModeEnabled"
+    | "activeTool"
+    | "frameRendering"
+  >;
+};
+
+const waitForPresentationDuration = (durationMs: number) =>
+  new Promise<void>((resolve) => window.setTimeout(resolve, durationMs));
 
 const PRESENTATION_TEMPLATE_SIZE = {
   width: 960,
@@ -2055,22 +2094,15 @@ const ExcalidrawWrapper = () => {
     Partial<Omit<AppState, "offsetTop" | "offsetLeft">>
   >(() => getDefaultAppState());
   const [presentationFiles, setPresentationFiles] = useState<BinaryFiles>({});
-  const [framePresenter, setFramePresenter] = useState<{
-    frameIds: string[];
-    index: number;
-    previousView: Pick<
-      AppState,
-      | "scrollX"
-      | "scrollY"
-      | "zoom"
-      | "openSidebar"
-      | "openMenu"
-      | "viewModeEnabled"
-      | "activeTool"
-      | "frameRendering"
-    >;
-  } | null>(null);
+  const [presentationAnimationMetadata, setPresentationAnimationMetadata] =
+    useState<PresentationAnimationMetadata>(
+      createPresentationAnimationMetadata,
+    );
+  const [framePresenter, setFramePresenter] =
+    useState<FramePresenterState | null>(null);
   const [presentationLaserActive, setPresentationLaserActive] = useState(false);
+  const [presentationTransitionActive, setPresentationTransitionActive] =
+    useState(false);
   const [presentationFrameRect, setPresentationFrameRect] = useState<{
     left: number;
     top: number;
@@ -2079,13 +2111,37 @@ const ExcalidrawWrapper = () => {
   } | null>(null);
   const presentationCanvasOpenRef = useRef(presentationCanvasOpen);
   const presentationLoadingWorkspaceRef = useRef(false);
-  const presentationSceneRef = useRef<CanvasScene | null>(null);
+  const presentationSceneRef = useRef<PresentationScene | null>(null);
   const presentationCanvasEmptyRef = useRef(presentationCanvasEmpty);
+  const presentationAnimationMetadataRef = useRef(
+    presentationAnimationMetadata,
+  );
+  const presentationRuntimeActiveRef = useRef(false);
+  const presentationRuntimeBaselineRef = useRef<
+    readonly OrderedExcalidrawElement[]
+  >([]);
+  const presentationPlaybackGenerationRef = useRef(0);
+  const presentationAnimationRunningRef = useRef(false);
+  const framePresenterRef = useRef<FramePresenterState | null>(null);
   const presentationSlideCount = useMemo(
     () => getPresentationFrames(presentationElements).length,
     [presentationElements],
   );
   const isPresentationCanvasActive = presentationCanvasOpen && !kanbanOpen;
+  const currentPresentationBuildCount = framePresenter
+    ? getPresentationBuilds(
+        presentationAnimationMetadata,
+        framePresenter.frameIds[framePresenter.index] || "",
+      ).length
+    : 0;
+
+  useEffect(() => {
+    presentationAnimationMetadataRef.current = presentationAnimationMetadata;
+  }, [presentationAnimationMetadata]);
+
+  useEffect(() => {
+    framePresenterRef.current = framePresenter;
+  }, [framePresenter]);
 
   useEffect(() => {
     if (kanbanInvitationToken && drawsyAuth.status === "anonymous") {
@@ -2535,8 +2591,10 @@ const ExcalidrawWrapper = () => {
               name: "Presentation",
             },
             files: {},
+            presentation: createPresentationAnimationMetadata(),
           };
           presentationSceneRef.current = presentationScene;
+          setPresentationAnimationMetadata(presentationScene.presentation);
           updatePresentationCanvasEmpty(presentationScene.elements);
           data.scene = presentationScene;
         } else {
@@ -2583,16 +2641,22 @@ const ExcalidrawWrapper = () => {
         const fallback = await WorkspaceStore.initialize(fallbackScene);
         workspaceScopeRef.current = drawsyAuth.user?.uid || null;
         commitWorkspaceIndex(fallback.index);
-        data.scene = presentationCanvasOpenRef.current
-          ? (await PresentationStore.loadScene()) || {
-              elements: [],
-              appState: {
-                ...getDefaultAppState(),
-                name: "Presentation",
-              },
-              files: {},
-            }
-          : fallback.document.scene;
+        if (presentationCanvasOpenRef.current) {
+          const presentationScene = (await PresentationStore.loadScene()) || {
+            elements: [],
+            appState: {
+              ...getDefaultAppState(),
+              name: "Presentation",
+            },
+            files: {},
+            presentation: createPresentationAnimationMetadata(),
+          };
+          presentationSceneRef.current = presentationScene;
+          setPresentationAnimationMetadata(presentationScene.presentation);
+          data.scene = presentationScene;
+        } else {
+          data.scene = fallback.document.scene;
+        }
         if (presentationCanvasOpenRef.current) {
           updatePresentationCanvasEmpty(data.scene.elements || []);
         }
@@ -2818,11 +2882,28 @@ const ExcalidrawWrapper = () => {
 
     if (presentationCanvasOpenRef.current) {
       updatePresentationCanvasEmpty(elements);
-      if (!presentationLoadingWorkspaceRef.current) {
-        const scene = {
+      if (
+        !presentationLoadingWorkspaceRef.current &&
+        !presentationRuntimeActiveRef.current
+      ) {
+        const nextMetadata = sanitizePresentationAnimationMetadata(
+          presentationAnimationMetadataRef.current,
+          elements,
+        );
+        if (
+          !arePresentationAnimationMetadataEqual(
+            presentationAnimationMetadataRef.current,
+            nextMetadata,
+          )
+        ) {
+          presentationAnimationMetadataRef.current = nextMetadata;
+          setPresentationAnimationMetadata(nextMetadata);
+        }
+        const scene: PresentationScene = {
           elements,
           appState,
           files,
+          presentation: nextMetadata,
         };
         presentationSceneRef.current = scene;
         PresentationStore.saveScene(scene);
@@ -2950,8 +3031,10 @@ const ExcalidrawWrapper = () => {
           ...blankScene.appState,
           name: "Presentation",
         },
+        presentation: createPresentationAnimationMetadata(),
       };
     presentationSceneRef.current = scene;
+    setPresentationAnimationMetadata(scene.presentation);
     updatePresentationCanvasEmpty(scene.elements);
     PresentationStore.saveScene(scene);
 
@@ -3784,6 +3867,122 @@ const ExcalidrawWrapper = () => {
     [excalidrawAPI, updatePresentationFrameMask],
   );
 
+  const savePresentationAnimationMetadata = useCallback(
+    (metadata: PresentationAnimationMetadata) => {
+      if (!presentationCanvasOpenRef.current) {
+        return;
+      }
+
+      const elements =
+        excalidrawAPI?.getSceneElementsIncludingDeleted() ||
+        presentationSceneRef.current?.elements ||
+        [];
+      const nextMetadata = sanitizePresentationAnimationMetadata(
+        metadata,
+        elements,
+      );
+      presentationAnimationMetadataRef.current = nextMetadata;
+      setPresentationAnimationMetadata(nextMetadata);
+
+      const currentScene = presentationSceneRef.current;
+      if (!currentScene) {
+        return;
+      }
+
+      const nextScene: PresentationScene = {
+        ...currentScene,
+        presentation: nextMetadata,
+      };
+      presentationSceneRef.current = nextScene;
+      PresentationStore.saveScene(nextScene);
+    },
+    [excalidrawAPI],
+  );
+
+  const addPresentationBuild = useCallback(
+    (build: Omit<PresentationBuild, "id">) => {
+      if (!excalidrawAPI || !presentationCanvasOpenRef.current) {
+        return;
+      }
+
+      const elements = excalidrawAPI.getSceneElementsIncludingDeleted();
+      const elementById = new Map(
+        elements.map((element) => [element.id, element]),
+      );
+      const targetIds = [...new Set(build.targetIds)].filter((targetId) => {
+        const target = elementById.get(targetId);
+        return (
+          !!target &&
+          !target.isDeleted &&
+          !isFrameLikeElement(target) &&
+          target.frameId === build.frameId
+        );
+      });
+
+      if (!targetIds.length) {
+        return;
+      }
+
+      const existingBuilds = getPresentationBuilds(
+        presentationAnimationMetadataRef.current,
+        build.frameId,
+      );
+      const existingTargetIds = new Set(
+        existingBuilds.flatMap((existingBuild) => existingBuild.targetIds),
+      );
+      if (targetIds.some((targetId) => existingTargetIds.has(targetId))) {
+        excalidrawAPI.setToast({
+          message: "Each object can have one entrance build.",
+        });
+        return;
+      }
+      const nextBuild: PresentationBuild = {
+        ...build,
+        id: randomId(),
+        targetIds,
+        trigger: existingBuilds.length === 0 ? "on-click" : build.trigger,
+      };
+
+      savePresentationAnimationMetadata({
+        ...presentationAnimationMetadataRef.current,
+        builds: [...presentationAnimationMetadataRef.current.builds, nextBuild],
+      });
+    },
+    [excalidrawAPI, savePresentationAnimationMetadata],
+  );
+
+  const deletePresentationBuild = useCallback(
+    (buildId: string) => {
+      savePresentationAnimationMetadata({
+        ...presentationAnimationMetadataRef.current,
+        builds: presentationAnimationMetadataRef.current.builds.filter(
+          (build) => build.id !== buildId,
+        ),
+      });
+    },
+    [savePresentationAnimationMetadata],
+  );
+
+  const setPresentationSlideTransition = useCallback(
+    (frameId: string, transition: PresentationSlideTransition) => {
+      const transitions = {
+        ...presentationAnimationMetadataRef.current.transitions,
+      };
+
+      if (transition === "none") {
+        delete transitions[frameId];
+      } else {
+        transitions[frameId] = transition;
+      }
+
+      savePresentationAnimationMetadata({
+        ...presentationAnimationMetadataRef.current,
+        transitions,
+      });
+    },
+    [savePresentationAnimationMetadata],
+  );
+
   const arrangePresentationFrames = useCallback(
     (layout: PresentationLayout) => {
       if (!excalidrawAPI || layout === "freeform") {
@@ -4004,26 +4203,212 @@ const ExcalidrawWrapper = () => {
     [excalidrawAPI],
   );
 
-  const endFramePresentation = useCallback(() => {
-    setFramePresenter((currentPresenter) => {
-      if (currentPresenter && excalidrawAPI) {
-        excalidrawAPI.updateFrameRendering(
-          currentPresenter.previousView.frameRendering,
-        );
+  const commitFramePresenter = useCallback(
+    (nextPresenter: FramePresenterState | null) => {
+      framePresenterRef.current = nextPresenter;
+      setFramePresenter(nextPresenter);
+    },
+    [],
+  );
+
+  const applyPresentationBuildState = useCallback(
+    (frameId: string, completedBuildCount: number) => {
+      if (!excalidrawAPI) {
+        return;
+      }
+
+      const baseline = presentationRuntimeBaselineRef.current;
+      if (!baseline.length) {
+        return;
+      }
+
+      const hiddenTargetIds = getHiddenPresentationBuildTargetIds(
+        presentationAnimationMetadataRef.current,
+        frameId,
+        completedBuildCount,
+      );
+      excalidrawAPI.updateScene({
+        elements: baseline.map((element) =>
+          hiddenTargetIds.has(element.id)
+            ? newElementWith(element, { opacity: 0 })
+            : element,
+        ),
+        captureUpdate: CaptureUpdateAction.NEVER,
+      });
+    },
+    [excalidrawAPI],
+  );
+
+  const runPresentationBuild = useCallback(
+    async (build: PresentationBuild) => {
+      if (!excalidrawAPI) {
+        return;
+      }
+
+      const baselineById = new Map(
+        presentationRuntimeBaselineRef.current.map((element) => [
+          element.id,
+          element,
+        ]),
+      );
+      const targetIds = build.targetIds.filter((targetId) =>
+        baselineById.has(targetId),
+      );
+
+      if (!targetIds.length) {
+        return;
+      }
+
+      const applyFrame = (progress: number) => {
+        const easedProgress = 1 - (1 - progress) ** 3;
+        const currentElements =
+          excalidrawAPI.getSceneElementsIncludingDeleted();
         excalidrawAPI.updateScene({
-          appState: currentPresenter.previousView,
+          elements: currentElements.map((element) => {
+            const baselineElement = baselineById.get(element.id);
+            if (!baselineElement || !targetIds.includes(element.id)) {
+              return element;
+            }
+
+            if (progress === 1) {
+              return baselineElement;
+            }
+
+            const travel = Math.min(
+              180,
+              Math.max(
+                48,
+                Math.max(baselineElement.width, baselineElement.height) * 0.2,
+              ),
+            );
+            const offset =
+              build.effect === "fly"
+                ? {
+                    left: { x: -travel, y: 0 },
+                    right: { x: travel, y: 0 },
+                    up: { x: 0, y: -travel },
+                    down: { x: 0, y: travel },
+                  }[build.direction]
+                : { x: 0, y: 0 };
+
+            return newElementWith(element, {
+              x: baselineElement.x + offset.x * (1 - easedProgress),
+              y: baselineElement.y + offset.y * (1 - easedProgress),
+              opacity: baselineElement.opacity * easedProgress,
+            });
+          }),
           captureUpdate: CaptureUpdateAction.NEVER,
         });
+      };
+
+      if (build.effect === "appear") {
+        applyFrame(1);
+        return;
       }
-      return null;
-    });
+
+      const generation = presentationPlaybackGenerationRef.current;
+      await new Promise<void>((resolve) => {
+        const startedAt = performance.now();
+        const animate = (timestamp: number) => {
+          if (generation !== presentationPlaybackGenerationRef.current) {
+            resolve();
+            return;
+          }
+
+          const progress = Math.min(
+            1,
+            (timestamp - startedAt) / PRESENTATION_BUILD_DURATION_MS,
+          );
+          applyFrame(progress);
+
+          if (progress === 1) {
+            resolve();
+            return;
+          }
+          requestAnimationFrame(animate);
+        };
+
+        requestAnimationFrame(animate);
+      });
+    },
+    [excalidrawAPI],
+  );
+
+  const transitionToPresentationSlide = useCallback(
+    async (
+      currentPresenter: FramePresenterState,
+      index: number,
+      completedBuildCount: number,
+    ) => {
+      const frameId = currentPresenter.frameIds[index];
+      if (!frameId) {
+        return;
+      }
+
+      const transition =
+        presentationAnimationMetadataRef.current.transitions[frameId] || "none";
+      if (transition === "fade") {
+        setPresentationTransitionActive(true);
+        await waitForPresentationDuration(PRESENTATION_SLIDE_FADE_DURATION_MS);
+      }
+
+      applyPresentationBuildState(frameId, completedBuildCount);
+      focusPresentationSlide(frameId, transition !== "fade", 1);
+      commitFramePresenter({
+        ...currentPresenter,
+        index,
+        completedBuildCount,
+      });
+
+      if (transition === "fade") {
+        requestAnimationFrame(() => setPresentationTransitionActive(false));
+      }
+    },
+    [applyPresentationBuildState, commitFramePresenter, focusPresentationSlide],
+  );
+
+  const endFramePresentation = useCallback(() => {
+    presentationPlaybackGenerationRef.current += 1;
+    presentationAnimationRunningRef.current = false;
+    const currentPresenter = framePresenterRef.current;
+    const baseline = presentationRuntimeBaselineRef.current;
+
+    if (currentPresenter && excalidrawAPI) {
+      excalidrawAPI.updateFrameRendering(
+        currentPresenter.previousView.frameRendering,
+      );
+      excalidrawAPI.updateScene({
+        elements: baseline.length ? baseline : undefined,
+        appState: currentPresenter.previousView,
+        captureUpdate: CaptureUpdateAction.NEVER,
+      });
+
+      const restoredScene: PresentationScene = {
+        elements: baseline.length
+          ? baseline
+          : excalidrawAPI.getSceneElementsIncludingDeleted(),
+        appState: excalidrawAPI.getAppState(),
+        files: excalidrawAPI.getFiles(),
+        presentation: presentationAnimationMetadataRef.current,
+      };
+      presentationSceneRef.current = restoredScene;
+      PresentationStore.saveScene(restoredScene);
+      setPresentationElements(excalidrawAPI.getSceneElements());
+      setPresentationAppState(excalidrawAPI.getAppState());
+      setPresentationFiles(excalidrawAPI.getFiles());
+    }
+
+    presentationRuntimeActiveRef.current = false;
+    presentationRuntimeBaselineRef.current = [];
+    commitFramePresenter(null);
     setPresentationLaserActive(false);
+    setPresentationTransitionActive(false);
     setPresentationFrameRect(null);
 
     if (document.fullscreenElement) {
       void document.exitFullscreen().catch(() => undefined);
     }
-  }, [excalidrawAPI]);
+  }, [commitFramePresenter, excalidrawAPI]);
 
   const startFramePresentation = useCallback(() => {
     if (!excalidrawAPI) {
@@ -4039,9 +4424,10 @@ const ExcalidrawWrapper = () => {
     }
 
     const appState = excalidrawAPI.getAppState();
-    setFramePresenter({
+    const currentPresenter: FramePresenterState = {
       frameIds: frames.map((frame) => frame.id),
       index: 0,
+      completedBuildCount: 0,
       previousView: {
         scrollX: appState.scrollX,
         scrollY: appState.scrollY,
@@ -4052,7 +4438,13 @@ const ExcalidrawWrapper = () => {
         activeTool: appState.activeTool,
         frameRendering: appState.frameRendering,
       },
-    });
+    };
+    presentationRuntimeBaselineRef.current =
+      excalidrawAPI.getSceneElementsIncludingDeleted();
+    presentationPlaybackGenerationRef.current += 1;
+    presentationRuntimeActiveRef.current = true;
+    presentationAnimationRunningRef.current = false;
+    commitFramePresenter(currentPresenter);
     excalidrawAPI.updateFrameRendering({
       enabled: true,
       clip: true,
@@ -4067,6 +4459,7 @@ const ExcalidrawWrapper = () => {
       },
       captureUpdate: CaptureUpdateAction.NEVER,
     });
+    applyPresentationBuildState(frames[0].id, 0);
     const focusFirstFrame = () =>
       focusPresentationSlide(frames[0].id, false, 1);
     focusFirstFrame();
@@ -4076,7 +4469,12 @@ const ExcalidrawWrapper = () => {
         .then(() => requestAnimationFrame(focusFirstFrame))
         .catch(() => undefined);
     }
-  }, [excalidrawAPI, focusPresentationSlide]);
+  }, [
+    applyPresentationBuildState,
+    commitFramePresenter,
+    excalidrawAPI,
+    focusPresentationSlide,
+  ]);
 
   const exportPresentation = useCallback(
     async (format: PresentationExportFormat) => {
@@ -4172,29 +4570,87 @@ const ExcalidrawWrapper = () => {
   );
 
   const goToPresentationStep = useCallback(
-    (direction: -1 | 1) => {
-      setFramePresenter((currentPresenter) => {
-        if (!currentPresenter) {
-          return currentPresenter;
+    async (direction: -1 | 1) => {
+      const currentPresenter = framePresenterRef.current;
+      if (!currentPresenter || presentationAnimationRunningRef.current) {
+        return;
+      }
+
+      const frameId = currentPresenter.frameIds[currentPresenter.index];
+      const builds = getPresentationBuilds(
+        presentationAnimationMetadataRef.current,
+        frameId,
+      );
+
+      if (direction === -1) {
+        if (currentPresenter.completedBuildCount > 0) {
+          const previousBuildCount = getPreviousPresentationBuildCount(
+            builds,
+            currentPresenter.completedBuildCount,
+          );
+          applyPresentationBuildState(frameId, previousBuildCount);
+          commitFramePresenter({
+            ...currentPresenter,
+            completedBuildCount: previousBuildCount,
+          });
+          return;
         }
 
-        const nextIndex = Math.min(
-          Math.max(currentPresenter.index + direction, 0),
-          currentPresenter.frameIds.length - 1,
+        const previousIndex = currentPresenter.index - 1;
+        if (previousIndex < 0) {
+          return;
+        }
+
+        const previousFrameId = currentPresenter.frameIds[previousIndex];
+        const previousBuilds = getPresentationBuilds(
+          presentationAnimationMetadataRef.current,
+          previousFrameId,
         );
+        await transitionToPresentationSlide(
+          currentPresenter,
+          previousIndex,
+          previousBuilds.length,
+        );
+        return;
+      }
 
-        if (nextIndex === currentPresenter.index) {
-          return currentPresenter;
+      const sequence = getPresentationBuildSequence(
+        builds,
+        currentPresenter.completedBuildCount,
+      );
+      if (sequence) {
+        presentationAnimationRunningRef.current = true;
+        try {
+          for (const stage of sequence.stages) {
+            await Promise.all(
+              stage.map((build) => runPresentationBuild(build)),
+            );
+          }
+          if (framePresenterRef.current === currentPresenter) {
+            commitFramePresenter({
+              ...currentPresenter,
+              completedBuildCount: sequence.completedBuildCount,
+            });
+          }
+        } finally {
+          presentationAnimationRunningRef.current = false;
         }
+        return;
+      }
 
-        focusPresentationSlide(currentPresenter.frameIds[nextIndex], true, 1);
-        return {
-          ...currentPresenter,
-          index: nextIndex,
-        };
-      });
+      const nextIndex = currentPresenter.index + 1;
+      if (nextIndex >= currentPresenter.frameIds.length) {
+        return;
+      }
+
+      await transitionToPresentationSlide(currentPresenter, nextIndex, 0);
     },
-    [focusPresentationSlide],
+    [
+      applyPresentationBuildState,
+      commitFramePresenter,
+      runPresentationBuild,
+      transitionToPresentationSlide,
+    ],
   );
 
   const togglePresentationTheme = useCallback(() => {
@@ -4264,11 +4720,11 @@ const ExcalidrawWrapper = () => {
       ) {
         event.preventDefault();
         event.stopPropagation();
-        goToPresentationStep(1);
+        void goToPresentationStep(1);
       } else if (event.key === "ArrowLeft" || event.key === "PageUp") {
         event.preventDefault();
         event.stopPropagation();
-        goToPresentationStep(-1);
+        void goToPresentationStep(-1);
       } else {
         event.stopPropagation();
         if (!event.metaKey && !event.ctrlKey && !event.altKey) {
@@ -4800,6 +5256,10 @@ const ExcalidrawWrapper = () => {
             onPresentationSlideRename={renamePresentationSlide}
             onPresentationSlideDelete={deletePresentationSlide}
             onPresentationSlideReorder={reorderPresentationSlide}
+            presentationAnimationMetadata={presentationAnimationMetadata}
+            onPresentationBuildAdd={addPresentationBuild}
+            onPresentationBuildDelete={deletePresentationBuild}
+            onPresentationSlideTransitionChange={setPresentationSlideTransition}
             onSignIn={() => void drawsyAuth.signIn().catch(() => undefined)}
             onStartPlacement={
               isPresentationCanvasActive || kanbanOpen
@@ -4966,6 +5426,13 @@ const ExcalidrawWrapper = () => {
           </div>
         )}
         {framePresenter && (
+          <div
+            className="frame-presenter-transition"
+            data-active={presentationTransitionActive}
+            aria-hidden="true"
+          />
+        )}
+        {framePresenter && (
           <div className="frame-presenter-controls" role="toolbar">
             <button
               className="frame-presenter-controls__button"
@@ -4987,23 +5454,30 @@ const ExcalidrawWrapper = () => {
             <button
               className="frame-presenter-controls__button frame-presenter-controls__button--previous"
               type="button"
-              onClick={() => goToPresentationStep(-1)}
-              disabled={framePresenter.index === 0}
-              aria-label="Previous slide"
+              onClick={() => void goToPresentationStep(-1)}
+              disabled={
+                framePresenter.index === 0 &&
+                framePresenter.completedBuildCount === 0
+              }
+              aria-label="Previous build or slide"
             >
               {ArrowRightIcon}
             </button>
             <span className="frame-presenter-controls__count">
               {framePresenter.index + 1}/{framePresenter.frameIds.length} Slides
+              {currentPresentationBuildCount > 0 &&
+                ` · ${framePresenter.completedBuildCount}/${currentPresentationBuildCount} Builds`}
             </span>
             <button
               className="frame-presenter-controls__button"
               type="button"
-              onClick={() => goToPresentationStep(1)}
+              onClick={() => void goToPresentationStep(1)}
               disabled={
-                framePresenter.index === framePresenter.frameIds.length - 1
+                framePresenter.index === framePresenter.frameIds.length - 1 &&
+                framePresenter.completedBuildCount >=
+                  currentPresentationBuildCount
               }
-              aria-label="Next slide"
+              aria-label="Next build or slide"
             >
               {ArrowRightIcon}
             </button>
