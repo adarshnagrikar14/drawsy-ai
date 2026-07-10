@@ -1272,6 +1272,20 @@
     }
   }
 
+  .presentation-animation__status {
+    color: var(--color-muted-darker) !important;
+    font: 760 0.74rem/1 var(--ui-font) !important;
+  }
+
+  .presentation-animation__composer {
+    .presentation-animation__control-group
+      + .presentation-animation__control-group {
+      padding-top: 0.8rem;
+      border-top: 1px solid
+        color-mix(in srgb, var(--sidebar-border-color) 72%, transparent);
+    }
+  }
+
   .presentation-animation__control-group {
     display: flex;
     flex-direction: column;
@@ -1303,7 +1317,53 @@
   }
 
   .presentation-animation__direction-grid {
+    position: relative;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0;
+    padding: 0.2rem;
+    overflow: hidden;
+    background: var(--color-surface-high);
+    isolation: isolate;
+
+    &::before,
+    &::after {
+      position: absolute;
+      z-index: 0;
+      background: color-mix(
+        in srgb,
+        var(--sidebar-border-color) 88%,
+        var(--color-muted)
+      );
+      content: "";
+      pointer-events: none;
+    }
+
+    &::before {
+      top: 0.45rem;
+      bottom: 0.45rem;
+      left: 50%;
+      width: 1px;
+      transform: translateX(-0.5px);
+    }
+
+    &::after {
+      right: 0.45rem;
+      bottom: 50%;
+      left: 0.45rem;
+      height: 1px;
+      transform: translateY(0.5px);
+    }
+
+    button {
+      position: relative;
+      z-index: 1;
+    }
+
+    button[data-active="true"] {
+      margin: 0.12rem;
+      box-shadow: 0 0.2rem 0.55rem
+        color-mix(in srgb, var(--color-primary) 22%, transparent);
+    }
   }
 
   .presentation-animation__segmented button,
@@ -1396,9 +1456,9 @@
 
   .presentation-animation__empty-art {
     display: block;
-    width: auto;
-    height: 10.5rem;
-    max-width: 100%;
+    width: min(100%, 14.5rem);
+    height: auto;
+    max-height: 8rem;
     margin: 0.1rem auto 0.45rem;
     object-fit: contain;
   }
