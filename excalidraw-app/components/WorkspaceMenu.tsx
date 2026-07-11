@@ -34,9 +34,11 @@ type WorkspaceHistoryItem =
 type Props = {
   index: WorkspaceIndex | null;
   kanbanActive?: boolean;
+  jiraWorkspaceActive?: boolean;
   disabled: boolean;
   onCreateCanvas: () => void;
   onCreateProject: () => void;
+  onOpenJiraWorkspace: () => void;
   onOpenKanban: () => void;
   presentationIndex?: PresentationIndex | null;
   presentationActive?: boolean;
@@ -228,9 +230,11 @@ const HistoryPanel = ({
 export const WorkspaceMenu = ({
   index,
   kanbanActive = false,
+  jiraWorkspaceActive = false,
   disabled,
   onCreateCanvas,
   onCreateProject,
+  onOpenJiraWorkspace,
   onOpenKanban,
   presentationIndex = null,
   presentationActive = false,
@@ -467,12 +471,40 @@ export const WorkspaceMenu = ({
         </button>
       </div>
 
-      {Array.from({ length: 2 }, (_, index) => (
-        <div
-          className="add-menu-card workspace-create-placeholder"
-          key={index}
-        />
-      ))}
+      <div
+        className={`workspace-create-card add-menu-card workspace-jira-card ${
+          jiraWorkspaceActive ? "is-current" : ""
+        }`}
+      >
+        <button
+          type="button"
+          className="workspace-create-action"
+          onClick={onOpenJiraWorkspace}
+          disabled={interactionDisabled}
+          aria-current={jiraWorkspaceActive ? "page" : undefined}
+        >
+          <span
+            className="workspace-menu-icon workspace-jira-icon"
+            aria-hidden="true"
+          >
+            <svg viewBox="0 0 1600 1600">
+              <path d="M766 170h685c35 0 64 29 64 64v682c-172 0-312-139-312-310V482h-125c-172 0-312-139-312-312ZM426 513h685c35 0 64 29 64 64v682c-172 0-312-139-312-310V825H738c-172 0-312-139-312-312ZM85 856h685c35 0 64 29 64 64v682c-172 0-312-139-312-310v-124H397c-172 0-312-139-312-312Z" />
+            </svg>
+          </span>
+          <span>Jira Workspace</span>
+        </button>
+        <button
+          type="button"
+          className="workspace-branch-trigger"
+          aria-label="Open Jira workspace"
+          onClick={onOpenJiraWorkspace}
+          disabled={interactionDisabled}
+        >
+          {ArrowRightIcon}
+        </button>
+      </div>
+
+      <div className="add-menu-card workspace-create-placeholder" />
 
       {branch === "canvases" && (
         <HistoryPanel

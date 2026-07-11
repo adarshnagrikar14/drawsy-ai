@@ -155,6 +155,7 @@ describe("WorkspaceMenu", () => {
         disabled={false}
         onCreateCanvas={onCreateCanvas}
         onCreateProject={vi.fn()}
+        onOpenJiraWorkspace={vi.fn()}
         onOpenKanban={vi.fn()}
         onCreateProjectCanvas={vi.fn()}
         onOpenCanvas={onOpenCanvas}
@@ -181,6 +182,7 @@ describe("WorkspaceMenu", () => {
         disabled={false}
         onCreateCanvas={vi.fn()}
         onCreateProject={vi.fn()}
+        onOpenJiraWorkspace={vi.fn()}
         onOpenKanban={vi.fn()}
         onCreateProjectCanvas={onCreateProjectCanvas}
         onOpenCanvas={onOpenCanvas}
@@ -250,6 +252,7 @@ describe("WorkspaceMenu", () => {
         disabled={false}
         onCreateCanvas={vi.fn()}
         onCreateProject={vi.fn()}
+        onOpenJiraWorkspace={vi.fn()}
         onOpenKanban={vi.fn()}
         onCreateProjectCanvas={vi.fn()}
         onOpenCanvas={vi.fn()}
@@ -280,6 +283,7 @@ describe("WorkspaceMenu", () => {
         disabled={false}
         onCreateCanvas={vi.fn()}
         onCreateProject={vi.fn()}
+        onOpenJiraWorkspace={vi.fn()}
         onOpenKanban={vi.fn()}
         onCreateProjectCanvas={vi.fn()}
         onOpenCanvas={vi.fn()}
@@ -312,6 +316,7 @@ describe("WorkspaceMenu", () => {
         disabled={false}
         onCreateCanvas={vi.fn()}
         onCreateProject={vi.fn()}
+        onOpenJiraWorkspace={vi.fn()}
         onOpenKanban={vi.fn()}
         onCreateProjectCanvas={vi.fn()}
         onOpenCanvas={vi.fn()}
@@ -354,6 +359,7 @@ describe("WorkspaceMenu", () => {
         disabled={false}
         onCreateCanvas={vi.fn()}
         onCreateProject={vi.fn()}
+        onOpenJiraWorkspace={vi.fn()}
         onOpenKanban={vi.fn()}
         onCreateProjectCanvas={vi.fn()}
         onOpenCanvas={onOpenCanvas}
@@ -370,6 +376,7 @@ describe("WorkspaceMenu", () => {
         loadingCanvasId="standalone-2"
         onCreateCanvas={vi.fn()}
         onCreateProject={vi.fn()}
+        onOpenJiraWorkspace={vi.fn()}
         onOpenKanban={vi.fn()}
         onCreateProjectCanvas={vi.fn()}
         onOpenCanvas={onOpenCanvas}
@@ -395,6 +402,7 @@ describe("WorkspaceMenu", () => {
         disabled={false}
         onCreateCanvas={vi.fn()}
         onCreateProject={vi.fn()}
+        onOpenJiraWorkspace={vi.fn()}
         onOpenKanban={vi.fn()}
         onCreateProjectCanvas={vi.fn()}
         onOpenCanvas={onOpenCanvas}
@@ -412,6 +420,7 @@ describe("WorkspaceMenu", () => {
         disabled={true}
         onCreateCanvas={vi.fn()}
         onCreateProject={vi.fn()}
+        onOpenJiraWorkspace={vi.fn()}
         onOpenKanban={vi.fn()}
         onCreateProjectCanvas={vi.fn()}
         onOpenCanvas={onOpenCanvas}
@@ -434,6 +443,7 @@ describe("WorkspaceMenu", () => {
         disabled={false}
         onCreateCanvas={vi.fn()}
         onCreateProject={vi.fn()}
+        onOpenJiraWorkspace={vi.fn()}
         onOpenKanban={onOpenKanban}
         onCreateProjectCanvas={vi.fn()}
         onOpenCanvas={vi.fn()}
@@ -446,6 +456,31 @@ describe("WorkspaceMenu", () => {
     expect(onOpenKanban).toHaveBeenCalledTimes(1);
   });
 
+  it("opens the singleton Jira workspace from the Jira card", () => {
+    const onOpenJiraWorkspace = vi.fn();
+    render(
+      <WorkspaceMenu
+        index={index}
+        jiraWorkspaceActive
+        disabled={false}
+        onCreateCanvas={vi.fn()}
+        onCreateProject={vi.fn()}
+        onOpenJiraWorkspace={onOpenJiraWorkspace}
+        onOpenKanban={vi.fn()}
+        onCreateProjectCanvas={vi.fn()}
+        onOpenCanvas={vi.fn()}
+        onDeleteCanvas={vi.fn()}
+        onDeleteProject={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Jira Workspace"));
+    expect(onOpenJiraWorkspace).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByText("Jira Workspace").closest("button"),
+    ).toHaveAttribute("aria-current", "page");
+  });
+
   it("creates and opens local presentations from the card below Kanban", () => {
     const onCreatePresentation = vi.fn();
     const onOpenPresentation = vi.fn();
@@ -455,6 +490,7 @@ describe("WorkspaceMenu", () => {
         disabled={false}
         onCreateCanvas={vi.fn()}
         onCreateProject={vi.fn()}
+        onOpenJiraWorkspace={vi.fn()}
         onOpenKanban={vi.fn()}
         presentationIndex={presentationIndex}
         onCreatePresentation={onCreatePresentation}

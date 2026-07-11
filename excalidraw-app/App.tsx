@@ -129,6 +129,7 @@ import {
 import { useDrawsyAuth } from "./auth/useDrawsyAuth";
 import { WorkspaceApi } from "./data/WorkspaceApi";
 import { WorkspaceSync } from "./data/WorkspaceSync";
+import { JiraWorkspaceStore } from "./data/JiraWorkspaceStore";
 import { KanbanApi } from "./data/KanbanApi";
 import { PresentationApi } from "./data/PresentationApi";
 import { PresentationSync } from "./data/PresentationSync";
@@ -319,6 +320,7 @@ const TopRightToolbar = ({
   isPlacingComment,
   isKanbanOpen,
   isPresentationOpen,
+  isJiraWorkspaceOpen,
   onCollabDialogOpen,
 }: {
   onShareSelect: () => void;
@@ -327,8 +329,15 @@ const TopRightToolbar = ({
   isPlacingComment: boolean;
   isKanbanOpen: boolean;
   isPresentationOpen: boolean;
+  isJiraWorkspaceOpen: boolean;
   onCollabDialogOpen: () => void;
 }) => {
+  if (isJiraWorkspaceOpen) {
+    return (
+      <ExcalidrawPlusPromoBanner isSignedIn={isExcalidrawPlusSignedUser} />
+    );
+  }
+
   if (isKanbanOpen) {
     return (
       <>
@@ -2082,6 +2091,7 @@ const ExcalidrawWrapper = () => {
   const workspaceOperationRef = useRef<Promise<void>>(Promise.resolve());
   const presentationOperationRef = useRef<Promise<void>>(Promise.resolve());
   const workspaceSaveTimerRef = useRef<number | null>(null);
+  const jiraWorkspaceSaveTimerRef = useRef<number | null>(null);
   const workspaceSyncTimerRef = useRef<number | null>(null);
   const workspaceSyncRetryTimerRef = useRef<number | null>(null);
   const workspaceSyncInFlightRef = useRef<Promise<void> | null>(null);
@@ -2128,6 +2138,11 @@ const ExcalidrawWrapper = () => {
   const [kanbanOpen, setKanbanOpen] = useState(() =>
     loadKanbanWorkspaceActive(),
   );
+  const [jiraWorkspaceOpen, setJiraWorkspaceOpen] = useState(() =>
+    JiraWorkspaceStore.loadActive(),
+  );
+  const jiraWorkspaceOpenRef = useRef(jiraWorkspaceOpen);
+  const jiraWorkspaceSceneRef = useRef<CanvasScene | null>(null);
   const [presentationCanvasOpen, setPresentationCanvasOpen] = useState(() =>
     PresentationStore.loadActive(),
   );
@@ -2178,7 +2193,8 @@ const ExcalidrawWrapper = () => {
     () => getPresentationFrames(presentationElements).length,
     [presentationElements],
   );
-  const isPresentationCanvasActive = presentationCanvasOpen && !kanbanOpen;
+  const isPresentationCanvasActive =
+    presentationCanvasOpen && !kanbanOpen && !jiraWorkspaceOpen;
   const activePresentation = useMemo(
     () =>
       presentationIndex?.presentations.find(
@@ -2401,6 +2417,12 @@ const ExcalidrawWrapper = () => {
     window.dispatchEvent(new CustomEvent("kanbanToggle", { detail: active }));
   }, []);
 
+  const setJiraWorkspaceActive = useCallback((active: boolean) => {
+    jiraWorkspaceOpenRef.current = active;
+    JiraWorkspaceStore.saveActive(active);
+    setJiraWorkspaceOpen(active);
+  }, []);
+
   const setPresentationCanvasActive = useCallback((active: boolean) => {
     presentationCanvasOpenRef.current = active;
     PresentationStore.saveActive(active);
@@ -2422,16 +2444,32 @@ const ExcalidrawWrapper = () => {
     const disabledSurfaces = document.querySelectorAll<HTMLElement>(
       ".layer-ui__wrapper__footer",
     );
+    const workspaceSurfaceOpen = kanbanOpen || jiraWorkspaceOpen;
     disabledSurfaces.forEach((element) => {
-      element.inert = kanbanOpen;
-      if (kanbanOpen) {
+      element.inert = workspaceSurfaceOpen;
+      if (workspaceSurfaceOpen) {
         element.setAttribute("aria-disabled", "true");
       } else {
         element.removeAttribute("aria-disabled");
       }
     });
     return () => disabledSurfaces.forEach((element) => (element.inert = false));
-  }, [kanbanOpen]);
+  }, [jiraWorkspaceOpen, kanbanOpen]);
+
+  useEffect(() => {
+    const jiraDisabledSurfaces =
+      document.querySelectorAll<HTMLElement>(".shapes-section");
+    jiraDisabledSurfaces.forEach((element) => {
+      element.inert = jiraWorkspaceOpen;
+      if (jiraWorkspaceOpen) {
+        element.setAttribute("aria-disabled", "true");
+      } else {
+        element.removeAttribute("aria-disabled");
+      }
+    });
+    return () =>
+      jiraDisabledSurfaces.forEach((element) => (element.inert = false));
+  }, [jiraWorkspaceOpen]);
 
   const commitWorkspaceIndex = useCallback((index: WorkspaceIndex) => {
     workspaceIndexRef.current = index;
@@ -2528,6 +2566,9 @@ const ExcalidrawWrapper = () => {
       files: BinaryFiles,
     ) => {
       if (presentationCanvasOpenRef.current) {
+        return;
+      }
+      if (jiraWorkspaceOpenRef.current) {
         return;
       }
 
@@ -2897,6 +2938,7 @@ const ExcalidrawWrapper = () => {
         // don't sync if local state is newer or identical to browser state
         if (
           !presentationCanvasOpenRef.current &&
+          !jiraWorkspaceOpenRef.current &&
           isBrowserStorageStateNewer(STORAGE_KEYS.VERSION_DATA_STATE)
         ) {
           const localDataState = importFromLocalStorage();
@@ -2949,6 +2991,10 @@ const ExcalidrawWrapper = () => {
     }, SYNC_BROWSER_TABS_TIMEOUT);
 
     const onUnload = () => {
+      if (jiraWorkspaceOpenRef.current && jiraWorkspaceSceneRef.current) {
+        void JiraWorkspaceStore.save(jiraWorkspaceSceneRef.current);
+        return;
+      }
       if (presentationCanvasOpenRef.current && presentationSceneRef.current) {
         void persistPresentationScene(presentationSceneRef.current);
         return;
@@ -2958,7 +3004,12 @@ const ExcalidrawWrapper = () => {
 
     const visibilityChange = (event: FocusEvent | Event) => {
       if (event.type === EVENT.BLUR || document.hidden) {
-        if (presentationCanvasOpenRef.current && presentationSceneRef.current) {
+        if (jiraWorkspaceOpenRef.current && jiraWorkspaceSceneRef.current) {
+          void JiraWorkspaceStore.save(jiraWorkspaceSceneRef.current);
+        } else if (
+          presentationCanvasOpenRef.current &&
+          presentationSceneRef.current
+        ) {
           void persistPresentationScene(presentationSceneRef.current);
         } else {
           LocalData.flushSave();
@@ -3002,7 +3053,12 @@ const ExcalidrawWrapper = () => {
 
   useEffect(() => {
     const unloadHandler = (event: BeforeUnloadEvent) => {
-      if (presentationCanvasOpenRef.current && presentationSceneRef.current) {
+      if (jiraWorkspaceOpenRef.current && jiraWorkspaceSceneRef.current) {
+        void JiraWorkspaceStore.save(jiraWorkspaceSceneRef.current);
+      } else if (
+        presentationCanvasOpenRef.current &&
+        presentationSceneRef.current
+      ) {
         void persistPresentationScene(presentationSceneRef.current);
       } else {
         LocalData.flushSave();
@@ -3079,6 +3135,23 @@ const ExcalidrawWrapper = () => {
       return;
     }
 
+    if (jiraWorkspaceOpenRef.current) {
+      const scene: CanvasScene = { elements, appState, files };
+      jiraWorkspaceSceneRef.current = scene;
+      if (jiraWorkspaceSaveTimerRef.current !== null) {
+        window.clearTimeout(jiraWorkspaceSaveTimerRef.current);
+      }
+      jiraWorkspaceSaveTimerRef.current = window.setTimeout(() => {
+        jiraWorkspaceSaveTimerRef.current = null;
+        void JiraWorkspaceStore.save(scene).catch(() => {
+          setErrorMessage(
+            "The Jira workspace couldn't be saved in this browser.",
+          );
+        });
+      }, SAVE_TO_LOCAL_STORAGE_TIMEOUT);
+      return;
+    }
+
     if (collabAPI?.isCollaborating()) {
       collabAPI.syncElements(elements);
     }
@@ -3119,6 +3192,9 @@ const ExcalidrawWrapper = () => {
     if (activeCanvasId && !collabAPI?.isCollaborating()) {
       if (workspaceSaveTimerRef.current !== null) {
         window.clearTimeout(workspaceSaveTimerRef.current);
+      }
+      if (jiraWorkspaceSaveTimerRef.current !== null) {
+        window.clearTimeout(jiraWorkspaceSaveTimerRef.current);
       }
       workspaceSaveTimerRef.current = window.setTimeout(() => {
         workspaceSaveTimerRef.current = null;
@@ -3196,6 +3272,22 @@ const ExcalidrawWrapper = () => {
     if (!excalidrawAPI || presentationCanvasOpenRef.current) {
       return true;
     }
+    if (jiraWorkspaceOpenRef.current) {
+      const scene =
+        jiraWorkspaceSceneRef.current ||
+        ({
+          elements: excalidrawAPI.getSceneElementsIncludingDeleted(),
+          appState: excalidrawAPI.getAppState(),
+          files: excalidrawAPI.getFiles(),
+        } as CanvasScene);
+      await JiraWorkspaceStore.save(scene);
+      if (jiraWorkspaceSaveTimerRef.current !== null) {
+        window.clearTimeout(jiraWorkspaceSaveTimerRef.current);
+        jiraWorkspaceSaveTimerRef.current = null;
+      }
+      setJiraWorkspaceActive(false);
+      return true;
+    }
     const activeCanvasId = workspaceIndexRef.current?.activeCanvasId;
     if (!activeCanvasId) {
       return true;
@@ -3217,7 +3309,7 @@ const ExcalidrawWrapper = () => {
       setErrorMessage("Couldn't save the current canvas before presentation.");
       return false;
     }
-  }, [excalidrawAPI, saveWorkspaceCanvas]);
+  }, [excalidrawAPI, saveWorkspaceCanvas, setJiraWorkspaceActive]);
 
   const applyPresentationDocument = useCallback(
     (document: PresentationDocument) => {
@@ -3464,6 +3556,160 @@ const ExcalidrawWrapper = () => {
     [excalidrawAPI],
   );
 
+  const applyJiraWorkspaceScene = useCallback(
+    (scene: CanvasScene) => {
+      if (!excalidrawAPI) {
+        return;
+      }
+      LocalData.pauseSave("workspace-switch");
+      try {
+        const restoredElements = restoreElements(scene.elements, null, {
+          repairBindings: true,
+        });
+        const restoredAppState = {
+          ...restoreAppState(scene.appState, null),
+          name: "Jira Workspace",
+          isLoading: false,
+          openMenu: null,
+          openSidebar: null,
+        };
+        const files = scene.files || {};
+        const restoredScene: CanvasScene = {
+          elements: restoredElements,
+          appState: restoredAppState,
+          files,
+        };
+        jiraWorkspaceSceneRef.current = restoredScene;
+        excalidrawAPI.resetScene({ resetLoadingState: true });
+        excalidrawAPI.updateScene({
+          elements: restoredElements,
+          appState: restoredAppState,
+          captureUpdate: CaptureUpdateAction.NEVER,
+        });
+        excalidrawAPI.replaceFiles(files);
+        excalidrawAPI.history.clear();
+      } finally {
+        LocalData.resumeSave("workspace-switch");
+      }
+    },
+    [excalidrawAPI],
+  );
+
+  const persistJiraWorkspace = useCallback(async () => {
+    if (!jiraWorkspaceOpenRef.current || !excalidrawAPI) {
+      return;
+    }
+    if (jiraWorkspaceSaveTimerRef.current !== null) {
+      window.clearTimeout(jiraWorkspaceSaveTimerRef.current);
+      jiraWorkspaceSaveTimerRef.current = null;
+    }
+    const scene =
+      jiraWorkspaceSceneRef.current ||
+      ({
+        elements: excalidrawAPI.getSceneElementsIncludingDeleted(),
+        appState: excalidrawAPI.getAppState(),
+        files: excalidrawAPI.getFiles(),
+      } as CanvasScene);
+    jiraWorkspaceSceneRef.current = scene;
+    await JiraWorkspaceStore.save(scene);
+  }, [excalidrawAPI]);
+
+  const openJiraWorkspace = useCallback(async () => {
+    if (!excalidrawAPI || collabAPI?.isCollaborating()) {
+      excalidrawAPI?.setToast({
+        message: "Leave collaboration before opening Jira Workspace.",
+      });
+      return;
+    }
+    if (jiraWorkspaceOpenRef.current) {
+      excalidrawAPI.updateScene({ appState: { openMenu: null } });
+      return;
+    }
+
+    if (presentationCanvasOpenRef.current) {
+      await flushCurrentPresentation();
+    } else if (!(await saveCurrentWorkspaceBeforePresentation())) {
+      return;
+    }
+
+    const scene = await JiraWorkspaceStore.load({
+      ...createBlankScene(),
+      appState: {
+        ...createBlankScene().appState,
+        name: "Jira Workspace",
+      },
+    });
+    setKanbanWorkspaceActive(false);
+    setPresentationCanvasActive(false);
+    setCommentsSidebarOpen(false);
+    setJiraWorkspaceActive(true);
+    applyJiraWorkspaceScene(scene);
+  }, [
+    applyJiraWorkspaceScene,
+    collabAPI,
+    createBlankScene,
+    excalidrawAPI,
+    flushCurrentPresentation,
+    saveCurrentWorkspaceBeforePresentation,
+    setJiraWorkspaceActive,
+    setKanbanWorkspaceActive,
+    setPresentationCanvasActive,
+  ]);
+
+  const closeJiraWorkspace = useCallback(
+    async (restoreWorkspace: boolean) => {
+      if (!jiraWorkspaceOpenRef.current) {
+        return;
+      }
+      await persistJiraWorkspace();
+      setJiraWorkspaceActive(false);
+      if (restoreWorkspace) {
+        const activeCanvasId = workspaceIndexRef.current?.activeCanvasId;
+        if (activeCanvasId) {
+          const document = await WorkspaceStore.getDocument(activeCanvasId);
+          if (document) {
+            applyWorkspaceDocument(document);
+          }
+        }
+      }
+    },
+    [applyWorkspaceDocument, persistJiraWorkspace, setJiraWorkspaceActive],
+  );
+
+  useEffect(() => {
+    if (
+      !initialWorkspaceLoadComplete ||
+      !jiraWorkspaceOpen ||
+      jiraWorkspaceSceneRef.current
+    ) {
+      return;
+    }
+    let active = true;
+    void JiraWorkspaceStore.load({
+      ...createBlankScene(),
+      appState: {
+        ...createBlankScene().appState,
+        name: "Jira Workspace",
+      },
+    }).then((scene) => {
+      if (active) {
+        setKanbanWorkspaceActive(false);
+        setPresentationCanvasActive(false);
+        applyJiraWorkspaceScene(scene);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [
+    applyJiraWorkspaceScene,
+    createBlankScene,
+    initialWorkspaceLoadComplete,
+    jiraWorkspaceOpen,
+    setKanbanWorkspaceActive,
+    setPresentationCanvasActive,
+  ]);
+
   const runWorkspaceSwitch = useCallback(
     async (
       operation: (index: WorkspaceIndex) => Promise<{
@@ -3493,7 +3739,24 @@ const ExcalidrawWrapper = () => {
             return null;
           }
 
-          if (!presentationCanvasOpenRef.current) {
+          const wasJiraWorkspaceOpen = jiraWorkspaceOpenRef.current;
+          if (wasJiraWorkspaceOpen) {
+            const scene =
+              jiraWorkspaceSceneRef.current ||
+              ({
+                elements: excalidrawAPI.getSceneElementsIncludingDeleted(),
+                appState: excalidrawAPI.getAppState(),
+                files: excalidrawAPI.getFiles(),
+              } as CanvasScene);
+            await JiraWorkspaceStore.save(scene);
+            if (jiraWorkspaceSaveTimerRef.current !== null) {
+              window.clearTimeout(jiraWorkspaceSaveTimerRef.current);
+              jiraWorkspaceSaveTimerRef.current = null;
+            }
+            setJiraWorkspaceActive(false);
+          }
+
+          if (!presentationCanvasOpenRef.current && !wasJiraWorkspaceOpen) {
             LocalData.flushSave();
             const activeCanvasId = index.activeCanvasId;
             const elements = excalidrawAPI.getSceneElementsIncludingDeleted();
@@ -3549,6 +3812,7 @@ const ExcalidrawWrapper = () => {
       commitWorkspaceIndex,
       excalidrawAPI,
       queueWorkspaceOperation,
+      setJiraWorkspaceActive,
     ],
   );
 
@@ -3573,7 +3837,11 @@ const ExcalidrawWrapper = () => {
         await persistPresentationScene(presentationSceneRef.current);
       }
       const currentIndex = workspaceIndexRef.current;
-      if (currentIndex && !presentationCanvasOpenRef.current) {
+      if (
+        currentIndex &&
+        !presentationCanvasOpenRef.current &&
+        !jiraWorkspaceOpenRef.current
+      ) {
         await WorkspaceStore.saveCanvas(
           currentIndex,
           currentIndex.activeCanvasId,
@@ -3586,18 +3854,21 @@ const ExcalidrawWrapper = () => {
       }
 
       const currentScene: CanvasScene = {
-        elements: presentationCanvasOpenRef.current
-          ? []
-          : excalidrawAPI.getSceneElementsIncludingDeleted(),
-        appState: presentationCanvasOpenRef.current
-          ? {
-              ...getDefaultAppState(),
-              name: "Untitled",
-            }
-          : excalidrawAPI.getAppState(),
-        files: presentationCanvasOpenRef.current
-          ? {}
-          : excalidrawAPI.getFiles(),
+        elements:
+          presentationCanvasOpenRef.current || jiraWorkspaceOpenRef.current
+            ? []
+            : excalidrawAPI.getSceneElementsIncludingDeleted(),
+        appState:
+          presentationCanvasOpenRef.current || jiraWorkspaceOpenRef.current
+            ? {
+                ...getDefaultAppState(),
+                name: "Untitled",
+              }
+            : excalidrawAPI.getAppState(),
+        files:
+          presentationCanvasOpenRef.current || jiraWorkspaceOpenRef.current
+            ? {}
+            : excalidrawAPI.getFiles(),
       };
       setWorkspaceSyncStatus(workspaceSync ? "syncing" : "local");
       setPresentationSyncStatus(presentationSync ? "syncing" : "local");
@@ -3633,7 +3904,9 @@ const ExcalidrawWrapper = () => {
       workspaceSceneFingerprintsRef.current.clear();
       commitWorkspaceIndex(workspace.index);
       commitPresentationIndex(presentations.index);
-      if (presentationCanvasOpenRef.current) {
+      if (jiraWorkspaceOpenRef.current && jiraWorkspaceSceneRef.current) {
+        applyJiraWorkspaceScene(jiraWorkspaceSceneRef.current);
+      } else if (presentationCanvasOpenRef.current) {
         applyPresentationDocument(presentations.document);
       } else {
         applyWorkspaceDocument(workspace.document);
@@ -3649,6 +3922,7 @@ const ExcalidrawWrapper = () => {
     });
   }, [
     applyWorkspaceDocument,
+    applyJiraWorkspaceScene,
     applyPresentationDocument,
     collabAPI,
     commitWorkspaceIndex,
@@ -3673,7 +3947,12 @@ const ExcalidrawWrapper = () => {
       ) {
         return;
       }
-      if (flushEditor && excalidrawAPI && !presentationCanvasOpenRef.current) {
+      if (
+        flushEditor &&
+        excalidrawAPI &&
+        !presentationCanvasOpenRef.current &&
+        !jiraWorkspaceOpenRef.current
+      ) {
         LocalData.flushSave();
         const canvasId = workspaceIndexRef.current?.activeCanvasId;
         if (canvasId) {
@@ -4158,7 +4437,10 @@ const ExcalidrawWrapper = () => {
         excalidrawAPI?.updateScene({ appState: { openMenu: null } });
         return;
       }
-      if (canvasId === workspaceIndexRef.current?.activeCanvasId) {
+      if (
+        canvasId === workspaceIndexRef.current?.activeCanvasId &&
+        !jiraWorkspaceOpenRef.current
+      ) {
         if (!presentationCanvasOpenRef.current) {
           excalidrawAPI?.updateScene({ appState: { openMenu: null } });
           return;
@@ -4288,8 +4570,15 @@ const ExcalidrawWrapper = () => {
   );
   const comments = useCanvasComments({
     auth: drawsyAuth,
-    canvasId: isPresentationCanvasActive ? null : activeCanvas?.id || null,
-    enabled: !!activeCanvas && !isCollaborating && !isPresentationCanvasActive,
+    canvasId:
+      isPresentationCanvasActive || jiraWorkspaceOpen
+        ? null
+        : activeCanvas?.id || null,
+    enabled:
+      !!activeCanvas &&
+      !isCollaborating &&
+      !isPresentationCanvasActive &&
+      !jiraWorkspaceOpen,
     sidebarOpen: commentsSidebarOpen,
   });
   const {
@@ -5652,6 +5941,7 @@ const ExcalidrawWrapper = () => {
       className={clsx("excalidraw-app", {
         "is-collaborating": isCollaborating,
         "is-kanban-open": kanbanOpen,
+        "is-jira-workspace-open": jiraWorkspaceOpen,
         "is-frame-presenter-open": !!framePresenter,
       })}
     >
@@ -5704,7 +5994,9 @@ const ExcalidrawWrapper = () => {
           if (
             framePresenter ||
             isMobile ||
-            (!kanbanOpen && (!collabAPI || isCollabDisabled))
+            (!jiraWorkspaceOpen &&
+              !kanbanOpen &&
+              (!collabAPI || isCollabDisabled))
           ) {
             return null;
           }
@@ -5722,6 +6014,7 @@ const ExcalidrawWrapper = () => {
                   isPlacingComment={isPlacingComment}
                   isKanbanOpen={kanbanOpen}
                   isPresentationOpen={isPresentationCanvasActive}
+                  isJiraWorkspaceOpen={jiraWorkspaceOpen}
                   onCollabDialogOpen={() => {
                     if (!kanbanOpen) {
                       onCollabDialogOpen();
@@ -5778,6 +6071,7 @@ const ExcalidrawWrapper = () => {
               <WorkspaceMenu
                 index={workspaceIndex}
                 kanbanActive={kanbanOpen}
+                jiraWorkspaceActive={jiraWorkspaceOpen}
                 presentationIndex={presentationIndex}
                 presentationActive={isPresentationCanvasActive}
                 disabled={
@@ -5791,6 +6085,9 @@ const ExcalidrawWrapper = () => {
                   setKanbanWorkspaceActive(false);
                   createWorkspaceProject();
                 }}
+                onOpenJiraWorkspace={() => {
+                  void openJiraWorkspace();
+                }}
                 onOpenKanban={() => {
                   setCommentPlacement(false);
                   setCommentDraftAnchor(null);
@@ -5798,8 +6095,10 @@ const ExcalidrawWrapper = () => {
                   excalidrawAPI?.updateScene({
                     appState: { openSidebar: null, openMenu: null },
                   });
-                  setPresentationCanvasActive(false);
-                  setKanbanWorkspaceActive(true);
+                  void closeJiraWorkspace(true).then(() => {
+                    setPresentationCanvasActive(false);
+                    setKanbanWorkspaceActive(true);
+                  });
                 }}
                 onCreatePresentation={() => {
                   setCommentPlacement(false);
@@ -5831,7 +6130,18 @@ const ExcalidrawWrapper = () => {
               />
             }
             header={
-              kanbanOpen ? (
+              jiraWorkspaceOpen ? (
+                <WorkspaceTitle
+                  canvasTitle="Jira Workspace"
+                  projectTitle={null}
+                  focusProjectTitle={false}
+                  itemLabel="Workspace"
+                  readOnly
+                  onCanvasTitleChange={() => undefined}
+                  onProjectTitleChange={() => undefined}
+                  onProjectTitleFocused={() => undefined}
+                />
+              ) : kanbanOpen ? (
                 <WorkspaceTitle
                   canvasTitle={kanbanBoardReady ? kanbanBoard.title : "Kanban"}
                   projectTitle={null}
@@ -5887,8 +6197,12 @@ const ExcalidrawWrapper = () => {
             onOpenCanvas={openKanbanCanvasLink}
           />
         )}
+        {jiraWorkspaceOpen && (
+          <div className="jira-workspace-surface" aria-label="Jira Workspace" />
+        )}
         <DefaultSidebar.Trigger style={{ display: "none" }} />
         {!kanbanOpen &&
+          !jiraWorkspaceOpen &&
           (!isPresentationCanvasActive || presentationCanvasEmpty) && (
             <AppWelcomeScreen
               onCollabDialogOpen={onCollabDialogOpen}
@@ -5939,26 +6253,28 @@ const ExcalidrawWrapper = () => {
             setErrorMessage={setErrorMessage}
           />
         )}
-        {excalidrawAPI && !isCollabDisabled && (
+        {excalidrawAPI && !isCollabDisabled && !jiraWorkspaceOpen && (
           <Collab excalidrawAPI={excalidrawAPI} />
         )}
 
-        <ShareDialog
-          collabAPI={collabAPI}
-          onExportToBackend={async () => {
-            if (excalidrawAPI) {
-              try {
-                await onExportToBackend(
-                  excalidrawAPI.getSceneElements(),
-                  excalidrawAPI.getAppState(),
-                  excalidrawAPI.getFiles(),
-                );
-              } catch (error: any) {
-                setErrorMessage(error.message);
+        {!jiraWorkspaceOpen && (
+          <ShareDialog
+            collabAPI={collabAPI}
+            onExportToBackend={async () => {
+              if (excalidrawAPI) {
+                try {
+                  await onExportToBackend(
+                    excalidrawAPI.getSceneElements(),
+                    excalidrawAPI.getAppState(),
+                    excalidrawAPI.getFiles(),
+                  );
+                } catch (error: any) {
+                  setErrorMessage(error.message);
+                }
               }
-            }
-          }}
-        />
+            }}
+          />
+        )}
 
         {kanbanApi && kanbanInvitationToken && (
           <KanbanShareDialog
@@ -5978,7 +6294,7 @@ const ExcalidrawWrapper = () => {
           />
         )}
 
-        {!framePresenter && (
+        {!framePresenter && !jiraWorkspaceOpen && (
           <AppSidebar
             authStatus={drawsyAuth.status}
             displayName={
@@ -6285,187 +6601,195 @@ const ExcalidrawWrapper = () => {
           </ErrorDialog>
         )}
 
-        <CommandPalette
-          customCommandPaletteItems={[
-            {
-              label: t("labels.liveCollaboration"),
-              category: DEFAULT_CATEGORIES.app,
-              keywords: [
-                "team",
-                "multiplayer",
-                "share",
-                "public",
-                "session",
-                "invite",
-              ],
-              icon: usersIcon,
-              perform: () => {
-                setShareDialogState({
-                  isOpen: true,
-                  type: "collaborationOnly",
-                });
-              },
-            },
-            {
-              label: t("roomDialog.button_stopSession"),
-              category: DEFAULT_CATEGORIES.app,
-              predicate: () => !!collabAPI?.isCollaborating(),
-              keywords: [
-                "stop",
-                "session",
-                "end",
-                "leave",
-                "close",
-                "exit",
-                "collaboration",
-              ],
-              perform: () => {
-                if (collabAPI) {
-                  collabAPI.stopCollaboration();
-                  if (!collabAPI.isCollaborating()) {
-                    setShareDialogState({ isOpen: false });
-                  }
-                }
-              },
-            },
-            {
-              label: t("labels.share"),
-              category: DEFAULT_CATEGORIES.app,
-              predicate: true,
-              icon: share,
-              keywords: [
-                "link",
-                "shareable",
-                "readonly",
-                "export",
-                "publish",
-                "snapshot",
-                "url",
-                "collaborate",
-                "invite",
-              ],
-              perform: async () => {
-                setShareDialogState({ isOpen: true, type: "share" });
-              },
-            },
-            {
-              label: "GitHub",
-              icon: GithubIcon,
-              category: DEFAULT_CATEGORIES.links,
-              predicate: true,
-              keywords: [
-                "issues",
-                "bugs",
-                "requests",
-                "report",
-                "features",
-                "social",
-                "community",
-              ],
-              perform: () => {
-                window.open(
-                  "https://github.com/excalidraw/excalidraw",
-                  "_blank",
-                  "noopener noreferrer",
-                );
-              },
-            },
-            {
-              label: t("labels.followUs"),
-              icon: XBrandIcon,
-              category: DEFAULT_CATEGORIES.links,
-              predicate: true,
-              keywords: ["twitter", "contact", "social", "community"],
-              perform: () => {
-                window.open(
-                  "https://x.com/excalidraw",
-                  "_blank",
-                  "noopener noreferrer",
-                );
-              },
-            },
-            {
-              label: t("labels.discordChat"),
-              category: DEFAULT_CATEGORIES.links,
-              predicate: true,
-              icon: DiscordIcon,
-              keywords: [
-                "chat",
-                "talk",
-                "contact",
-                "bugs",
-                "requests",
-                "report",
-                "feedback",
-                "suggestions",
-                "social",
-                "community",
-              ],
-              perform: () => {
-                window.open(
-                  "https://discord.gg/UexuTaE",
-                  "_blank",
-                  "noopener noreferrer",
-                );
-              },
-            },
-            {
-              label: "YouTube",
-              icon: youtubeIcon,
-              category: DEFAULT_CATEGORIES.links,
-              predicate: true,
-              keywords: ["features", "tutorials", "howto", "help", "community"],
-              perform: () => {
-                window.open(
-                  "https://youtube.com/@excalidraw",
-                  "_blank",
-                  "noopener noreferrer",
-                );
-              },
-            },
-            ...(isExcalidrawPlusSignedUser
-              ? [
-                  {
-                    ...ExcalidrawPlusAppCommand,
-                    label: "Sign in / Go to Excalidraw+",
-                  },
-                ]
-              : [ExcalidrawPlusCommand, ExcalidrawPlusAppCommand]),
-
-            {
-              label: t("overwriteConfirm.action.excalidrawPlus.button"),
-              category: DEFAULT_CATEGORIES.export,
-              icon: exportToPlus,
-              predicate: true,
-              keywords: ["plus", "export", "save", "backup"],
-              perform: () => {
-                if (excalidrawAPI) {
-                  exportToExcalidrawPlus(
-                    excalidrawAPI.getSceneElements(),
-                    excalidrawAPI.getAppState(),
-                    excalidrawAPI.getFiles(),
-                    excalidrawAPI.getName(),
-                  );
-                }
-              },
-            },
-            {
-              label: t("labels.installPWA"),
-              category: DEFAULT_CATEGORIES.app,
-              predicate: () => !!pwaEvent,
-              perform: () => {
-                if (pwaEvent) {
-                  pwaEvent.prompt();
-                  pwaEvent.userChoice.then(() => {
-                    // event cannot be reused, but we'll hopefully
-                    // grab new one as the event should be fired again
-                    pwaEvent = null;
+        {!jiraWorkspaceOpen && (
+          <CommandPalette
+            customCommandPaletteItems={[
+              {
+                label: t("labels.liveCollaboration"),
+                category: DEFAULT_CATEGORIES.app,
+                keywords: [
+                  "team",
+                  "multiplayer",
+                  "share",
+                  "public",
+                  "session",
+                  "invite",
+                ],
+                icon: usersIcon,
+                perform: () => {
+                  setShareDialogState({
+                    isOpen: true,
+                    type: "collaborationOnly",
                   });
-                }
+                },
               },
-            },
-          ]}
-        />
+              {
+                label: t("roomDialog.button_stopSession"),
+                category: DEFAULT_CATEGORIES.app,
+                predicate: () => !!collabAPI?.isCollaborating(),
+                keywords: [
+                  "stop",
+                  "session",
+                  "end",
+                  "leave",
+                  "close",
+                  "exit",
+                  "collaboration",
+                ],
+                perform: () => {
+                  if (collabAPI) {
+                    collabAPI.stopCollaboration();
+                    if (!collabAPI.isCollaborating()) {
+                      setShareDialogState({ isOpen: false });
+                    }
+                  }
+                },
+              },
+              {
+                label: t("labels.share"),
+                category: DEFAULT_CATEGORIES.app,
+                predicate: true,
+                icon: share,
+                keywords: [
+                  "link",
+                  "shareable",
+                  "readonly",
+                  "export",
+                  "publish",
+                  "snapshot",
+                  "url",
+                  "collaborate",
+                  "invite",
+                ],
+                perform: async () => {
+                  setShareDialogState({ isOpen: true, type: "share" });
+                },
+              },
+              {
+                label: "GitHub",
+                icon: GithubIcon,
+                category: DEFAULT_CATEGORIES.links,
+                predicate: true,
+                keywords: [
+                  "issues",
+                  "bugs",
+                  "requests",
+                  "report",
+                  "features",
+                  "social",
+                  "community",
+                ],
+                perform: () => {
+                  window.open(
+                    "https://github.com/excalidraw/excalidraw",
+                    "_blank",
+                    "noopener noreferrer",
+                  );
+                },
+              },
+              {
+                label: t("labels.followUs"),
+                icon: XBrandIcon,
+                category: DEFAULT_CATEGORIES.links,
+                predicate: true,
+                keywords: ["twitter", "contact", "social", "community"],
+                perform: () => {
+                  window.open(
+                    "https://x.com/excalidraw",
+                    "_blank",
+                    "noopener noreferrer",
+                  );
+                },
+              },
+              {
+                label: t("labels.discordChat"),
+                category: DEFAULT_CATEGORIES.links,
+                predicate: true,
+                icon: DiscordIcon,
+                keywords: [
+                  "chat",
+                  "talk",
+                  "contact",
+                  "bugs",
+                  "requests",
+                  "report",
+                  "feedback",
+                  "suggestions",
+                  "social",
+                  "community",
+                ],
+                perform: () => {
+                  window.open(
+                    "https://discord.gg/UexuTaE",
+                    "_blank",
+                    "noopener noreferrer",
+                  );
+                },
+              },
+              {
+                label: "YouTube",
+                icon: youtubeIcon,
+                category: DEFAULT_CATEGORIES.links,
+                predicate: true,
+                keywords: [
+                  "features",
+                  "tutorials",
+                  "howto",
+                  "help",
+                  "community",
+                ],
+                perform: () => {
+                  window.open(
+                    "https://youtube.com/@excalidraw",
+                    "_blank",
+                    "noopener noreferrer",
+                  );
+                },
+              },
+              ...(isExcalidrawPlusSignedUser
+                ? [
+                    {
+                      ...ExcalidrawPlusAppCommand,
+                      label: "Sign in / Go to Excalidraw+",
+                    },
+                  ]
+                : [ExcalidrawPlusCommand, ExcalidrawPlusAppCommand]),
+
+              {
+                label: t("overwriteConfirm.action.excalidrawPlus.button"),
+                category: DEFAULT_CATEGORIES.export,
+                icon: exportToPlus,
+                predicate: true,
+                keywords: ["plus", "export", "save", "backup"],
+                perform: () => {
+                  if (excalidrawAPI) {
+                    exportToExcalidrawPlus(
+                      excalidrawAPI.getSceneElements(),
+                      excalidrawAPI.getAppState(),
+                      excalidrawAPI.getFiles(),
+                      excalidrawAPI.getName(),
+                    );
+                  }
+                },
+              },
+              {
+                label: t("labels.installPWA"),
+                category: DEFAULT_CATEGORIES.app,
+                predicate: () => !!pwaEvent,
+                perform: () => {
+                  if (pwaEvent) {
+                    pwaEvent.prompt();
+                    pwaEvent.userChoice.then(() => {
+                      // event cannot be reused, but we'll hopefully
+                      // grab new one as the event should be fired again
+                      pwaEvent = null;
+                    });
+                  }
+                },
+              },
+            ]}
+          />
+        )}
         {isVisualDebuggerEnabled() && excalidrawAPI && (
           <DebugCanvas
             appState={excalidrawAPI.getAppState()}
