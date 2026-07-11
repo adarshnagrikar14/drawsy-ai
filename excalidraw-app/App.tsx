@@ -116,6 +116,7 @@ import CustomStats from "./CustomStats";
 import { WorkspaceMenu } from "./components/WorkspaceMenu";
 import { WorkspaceTitle } from "./components/WorkspaceTitle";
 import { KanbanWorkspace } from "./components/KanbanWorkspace";
+import { JiraWorkspacePlaceholder } from "./components/JiraWorkspacePlaceholder";
 import { KanbanShareDialog } from "./components/KanbanShareDialog";
 import {
   loadKanbanWorkspaceActive,
@@ -2138,9 +2139,8 @@ const ExcalidrawWrapper = () => {
   const [kanbanOpen, setKanbanOpen] = useState(() =>
     loadKanbanWorkspaceActive(),
   );
-  const [jiraWorkspaceOpen, setJiraWorkspaceOpen] = useState(() =>
-    JiraWorkspaceStore.loadActive(),
-  );
+  const [jiraWorkspaceOpen, setJiraWorkspaceOpen] = useState(false);
+  const jiraWorkspaceRestoreRef = useRef(JiraWorkspaceStore.loadActive());
   const jiraWorkspaceOpenRef = useRef(jiraWorkspaceOpen);
   const jiraWorkspaceSceneRef = useRef<CanvasScene | null>(null);
   const [presentationCanvasOpen, setPresentationCanvasOpen] = useState(() =>
@@ -2418,6 +2418,7 @@ const ExcalidrawWrapper = () => {
   }, []);
 
   const setJiraWorkspaceActive = useCallback((active: boolean) => {
+    jiraWorkspaceRestoreRef.current = false;
     jiraWorkspaceOpenRef.current = active;
     JiraWorkspaceStore.saveActive(active);
     setJiraWorkspaceOpen(active);
@@ -2470,6 +2471,15 @@ const ExcalidrawWrapper = () => {
     return () =>
       jiraDisabledSurfaces.forEach((element) => (element.inert = false));
   }, [jiraWorkspaceOpen]);
+
+  useEffect(() => {
+    if (jiraWorkspaceOpen) {
+      excalidrawAPI?.updateScene({
+        appState: { isLoading: false },
+        captureUpdate: CaptureUpdateAction.NEVER,
+      });
+    }
+  }, [excalidrawAPI, jiraWorkspaceOpen]);
 
   const commitWorkspaceIndex = useCallback((index: WorkspaceIndex) => {
     workspaceIndexRef.current = index;
@@ -3622,7 +3632,9 @@ const ExcalidrawWrapper = () => {
       return;
     }
     if (jiraWorkspaceOpenRef.current) {
-      excalidrawAPI.updateScene({ appState: { openMenu: null } });
+      excalidrawAPI.updateScene({
+        appState: { openMenu: null, isLoading: false },
+      });
       return;
     }
 
@@ -3679,7 +3691,7 @@ const ExcalidrawWrapper = () => {
   useEffect(() => {
     if (
       !initialWorkspaceLoadComplete ||
-      !jiraWorkspaceOpen ||
+      (!jiraWorkspaceOpen && !jiraWorkspaceRestoreRef.current) ||
       jiraWorkspaceSceneRef.current
     ) {
       return;
@@ -3693,8 +3705,10 @@ const ExcalidrawWrapper = () => {
       },
     }).then((scene) => {
       if (active) {
+        jiraWorkspaceRestoreRef.current = false;
         setKanbanWorkspaceActive(false);
         setPresentationCanvasActive(false);
+        setJiraWorkspaceActive(true);
         applyJiraWorkspaceScene(scene);
       }
     });
@@ -3706,6 +3720,7 @@ const ExcalidrawWrapper = () => {
     createBlankScene,
     initialWorkspaceLoadComplete,
     jiraWorkspaceOpen,
+    setJiraWorkspaceActive,
     setKanbanWorkspaceActive,
     setPresentationCanvasActive,
   ]);
@@ -6197,9 +6212,7 @@ const ExcalidrawWrapper = () => {
             onOpenCanvas={openKanbanCanvasLink}
           />
         )}
-        {jiraWorkspaceOpen && (
-          <div className="jira-workspace-surface" aria-label="Jira Workspace" />
-        )}
+        {jiraWorkspaceOpen && <JiraWorkspacePlaceholder />}
         <DefaultSidebar.Trigger style={{ display: "none" }} />
         {!kanbanOpen &&
           !jiraWorkspaceOpen &&
