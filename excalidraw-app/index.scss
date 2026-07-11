@@ -1453,7 +1453,901 @@
     position: absolute;
     inset: 0;
     z-index: 3;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    padding: 5.25rem 1.5rem 1.5rem;
+    overflow: hidden;
     background: var(--color-surface-lowest);
+    color: var(--color-on-surface);
+    font-family: "Excalifont", "Virgil", var(--ui-font);
+  }
+
+  .jira-placeholder-heading {
+    display: flex;
+    min-height: 2.5rem;
+    align-items: center;
+    gap: 0.625rem;
+    padding: 0 0.25rem 0.875rem;
+    border-bottom: 1px solid
+      color-mix(in srgb, var(--color-on-surface) 12%, transparent);
+
+    > strong {
+      font-size: 0.875rem;
+      font-weight: 650;
+      letter-spacing: -0.01em;
+    }
+
+    > span:last-child {
+      margin-left: auto;
+      color: var(--color-gray-60);
+      font-size: 0.75rem;
+      font-weight: 550;
+    }
+  }
+
+  .jira-placeholder-heading__mark {
+    display: grid;
+    width: 1.125rem;
+    height: 1.125rem;
+    place-items: center;
+
+    svg {
+      width: 0.875rem;
+      height: 0.875rem;
+      fill: currentColor;
+    }
+  }
+
+  .jira-placeholder-stage {
+    display: grid;
+    width: min(58rem, 100%);
+    flex: 1;
+    grid-template-columns: minmax(18rem, 1.15fr) minmax(15rem, 0.85fr);
+    align-items: center;
+    gap: clamp(2rem, 6vw, 6rem);
+    margin: 0 auto;
+  }
+
+  .jira-placeholder-visual {
+    position: relative;
+    height: min(25rem, 52vh);
+    min-height: 19rem;
+  }
+
+  .jira-placeholder-route {
+    position: absolute;
+    top: 12%;
+    bottom: 12%;
+    left: 23%;
+    width: 45%;
+    border: 1px dashed
+      color-mix(in srgb, var(--color-on-surface) 22%, transparent);
+    border-width: 1px 1px 1px 0;
+    border-radius: 0 5rem 5rem 0;
+    transform: rotate(-9deg);
+  }
+
+  .jira-placeholder-watermark {
+    position: absolute;
+    top: 50%;
+    left: 46%;
+    display: grid;
+    width: 12rem;
+    height: 12rem;
+    place-items: center;
+    border-radius: 50%;
+    background: color-mix(
+      in srgb,
+      var(--color-primary) 8%,
+      var(--color-surface-lowest)
+    );
+    color: color-mix(in srgb, var(--color-primary) 36%, transparent);
+    transform: translate(-50%, -50%);
+
+    svg {
+      width: 6rem;
+      fill: currentColor;
+      transform: rotate(-7deg);
+    }
+  }
+
+  .jira-placeholder-issues {
+    position: absolute;
+    inset: 0;
+  }
+
+  .jira-placeholder-issue {
+    --jira-issue-index: 0;
+
+    position: absolute;
+    top: calc(9% + var(--jira-issue-index) * 31%);
+    left: calc(2% + var(--jira-issue-index) * 18%);
+    box-sizing: border-box;
+    display: grid;
+    width: min(18rem, 68%);
+    min-height: 5rem;
+    grid-template-columns: 1.75rem 1fr auto;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.875rem 1rem;
+    border: 1px solid
+      color-mix(in srgb, var(--color-on-surface) 16%, transparent);
+    border-radius: 0.8rem 0.68rem 0.9rem 0.72rem;
+    background: color-mix(
+      in srgb,
+      var(--color-surface-lowest) 94%,
+      var(--color-primary)
+    );
+    box-shadow: 0 0.45rem 1.5rem rgb(0 0 0 / 8%);
+    transform: rotate(calc((var(--jira-issue-index) - 1) * 1.5deg));
+
+    > div {
+      display: flex;
+      min-width: 0;
+      flex-direction: column;
+      gap: 0.38rem;
+    }
+
+    b {
+      color: var(--color-gray-60);
+      font: 650 0.6875rem/1 var(--ui-font);
+      letter-spacing: 0.04em;
+    }
+
+    i {
+      display: block;
+      width: 86%;
+      height: 0.35rem;
+      border-radius: 1rem;
+      background: color-mix(in srgb, var(--color-on-surface) 15%, transparent);
+    }
+  }
+
+  .jira-placeholder-issue__type {
+    display: grid;
+    width: 1.75rem;
+    height: 1.75rem;
+    place-items: center;
+    border-radius: 0.45rem;
+    background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+    color: var(--color-primary);
+
+    svg {
+      width: 0.85rem;
+      fill: currentColor;
+    }
+  }
+
+  .jira-placeholder-issue__status {
+    width: 0.55rem;
+    height: 0.55rem;
+    border: 2px solid var(--color-surface-lowest);
+    border-radius: 50%;
+    background: color-mix(
+      in srgb,
+      var(--color-primary) calc(35% + var(--jira-issue-index) * 22%),
+      var(--color-gray-40)
+    );
+    box-shadow: 0 0 0 1px
+      color-mix(in srgb, var(--color-on-surface) 12%, transparent);
+  }
+
+  .jira-placeholder-copy {
+    max-width: 24rem;
+
+    > span {
+      color: var(--color-primary);
+      font-size: 0.6875rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    h2 {
+      max-width: 18rem;
+      margin: 0.7rem 0 0.75rem;
+      color: var(--color-on-surface);
+      font-size: clamp(2rem, 4vw, 3.25rem);
+      font-weight: 650;
+      letter-spacing: -0.055em;
+      line-height: 0.98;
+    }
+
+    p {
+      margin: 0;
+      color: var(--color-gray-60);
+      font-size: 0.875rem;
+      font-weight: 550;
+      letter-spacing: 0.01em;
+    }
+  }
+
+  .jira-placeholder-stage {
+    width: min(64rem, 100%);
+    grid-template-columns: minmax(22rem, 1fr) minmax(18rem, 0.9fr);
+    gap: clamp(3rem, 8vw, 8rem);
+  }
+
+  .jira-placeholder-visual {
+    width: min(28rem, 42vw);
+    height: min(28rem, 55vh);
+    min-height: 23rem;
+    margin: 0 auto;
+  }
+
+  .jira-placeholder-logo {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    z-index: 2;
+    display: grid;
+    width: 10.5rem;
+    height: 10.5rem;
+    place-items: center;
+    border: 1px solid color-mix(in srgb, var(--color-primary) 26%, transparent);
+    border-radius: 2.4rem 2rem 2.65rem 2.15rem;
+    background: color-mix(
+      in srgb,
+      var(--color-primary) 12%,
+      var(--color-surface-lowest)
+    );
+    box-shadow: 0 1.25rem 4rem rgb(0 0 0 / 10%);
+    color: var(--color-primary);
+    transform: translate(-50%, -50%) rotate(-3deg);
+
+    svg {
+      width: 5.25rem;
+      fill: currentColor;
+    }
+  }
+
+  .jira-placeholder-orbit {
+    position: absolute;
+    inset: 7%;
+    border: 1px dashed
+      color-mix(in srgb, var(--color-on-surface) 20%, transparent);
+    border-radius: 50% 46% 52% 48%;
+    transform: rotate(7deg);
+  }
+
+  .jira-placeholder-orbit .jira-placeholder-issue {
+    display: flex;
+    width: auto;
+    min-width: 10.5rem;
+    min-height: auto;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.22rem;
+    padding: 0.75rem 0.9rem;
+    font-family: "Excalifont", "Virgil", var(--ui-font);
+    transform: rotate(-7deg);
+
+    > span {
+      color: var(--color-gray-60);
+      font-size: 0.68rem;
+      font-weight: 650;
+      letter-spacing: 0.03em;
+    }
+
+    > strong {
+      font-size: 0.9rem;
+      font-weight: 650;
+    }
+
+    > em {
+      margin-top: 0.25rem;
+      padding: 0.18rem 0.45rem;
+      border-radius: 2rem;
+      background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+      color: var(--color-primary);
+      font-size: 0.65rem;
+      font-style: normal;
+      font-weight: 650;
+    }
+  }
+
+  .jira-placeholder-issue--1 {
+    top: -0.75rem;
+    left: -0.75rem;
+  }
+
+  .jira-placeholder-issue--2 {
+    top: 43%;
+    right: -2.5rem;
+    left: auto;
+  }
+
+  .jira-placeholder-issue--3 {
+    top: auto;
+    bottom: -0.75rem;
+    left: 0.5rem;
+  }
+
+  .jira-placeholder-copy {
+    font-family: "Excalifont", "Virgil", var(--ui-font);
+
+    > span {
+      letter-spacing: 0.08em;
+    }
+
+    h2 {
+      max-width: 24rem;
+      font-family: inherit;
+      font-size: clamp(2.25rem, 4vw, 3.65rem);
+      font-weight: 500;
+      letter-spacing: -0.035em;
+      line-height: 1.02;
+    }
+
+    p {
+      max-width: 26rem;
+      font-family: inherit;
+      font-size: 1rem;
+      font-weight: 500;
+      line-height: 1.45;
+    }
+
+    button {
+      margin-top: 1.5rem;
+      padding: 0.72rem 1.15rem;
+      border: 1px solid var(--color-primary);
+      border-radius: 0.8rem 0.68rem 0.88rem 0.72rem;
+      background: var(--color-primary);
+      color: var(--color-surface-lowest);
+      cursor: pointer;
+      font: 600 0.95rem/1 "Excalifont", "Virgil", var(--ui-font);
+      transition: transform 140ms ease, box-shadow 140ms ease;
+
+      &:hover,
+      &:focus-visible {
+        box-shadow: 0 0.45rem 1.25rem
+          color-mix(in srgb, var(--color-primary) 24%, transparent);
+        transform: translateY(-1px) rotate(-0.5deg);
+      }
+    }
+  }
+
+  .HintViewer {
+    display: none;
+  }
+
+  .LoadingMessage {
+    display: none;
+  }
+
+  .jira-welcome-sketch {
+    position: absolute;
+    top: clamp(7.5rem, 15vh, 10rem);
+    left: 50%;
+    width: min(32rem, calc(100vw - 4rem));
+    height: 9rem;
+    color: color-mix(
+      in srgb,
+      var(--color-primary) 65%,
+      var(--color-on-surface)
+    );
+    transform: translateX(-50%);
+  }
+
+  .jira-welcome-path {
+    position: absolute;
+    inset: 0.5rem 2rem auto;
+    width: calc(100% - 4rem);
+    height: 7.5rem;
+    opacity: 0.58;
+  }
+
+  .jira-welcome-ticket {
+    position: absolute;
+    z-index: 2;
+    display: flex;
+    min-width: 7.5rem;
+    flex-direction: column;
+    gap: 0.2rem;
+    padding: 0.6rem 0.8rem;
+    border: 1.5px dashed color-mix(in srgb, currentColor 64%, transparent);
+    border-radius: 0.62rem 0.48rem 0.68rem 0.52rem;
+    background: color-mix(
+      in srgb,
+      var(--color-primary) 7%,
+      var(--color-surface-lowest)
+    );
+    color: var(--color-on-surface);
+    font-family: "Excalifont", "Virgil", var(--ui-font);
+    box-shadow: 0.2rem 0.35rem 0
+      color-mix(in srgb, var(--color-primary) 10%, transparent);
+
+    span {
+      color: var(--color-gray-60);
+      font-size: 0.62rem;
+    }
+
+    strong {
+      font-size: 0.86rem;
+      font-weight: 500;
+    }
+  }
+
+  .jira-welcome-ticket--backlog {
+    top: 3.25rem;
+    left: 0;
+    transform: rotate(-4deg);
+  }
+
+  .jira-welcome-ticket--done {
+    top: 0.4rem;
+    right: 0;
+    transform: rotate(3deg);
+  }
+
+  .jira-welcome-mark {
+    position: absolute;
+    top: 3.6rem;
+    left: 50%;
+    z-index: 3;
+    display: grid;
+    width: 3.5rem;
+    height: 3.5rem;
+    place-items: center;
+    border: 1.5px dashed color-mix(in srgb, currentColor 68%, transparent);
+    border-radius: 50% 46% 52% 48%;
+    background: color-mix(
+      in srgb,
+      var(--color-primary) 10%,
+      var(--color-surface-lowest)
+    );
+    transform: translateX(-50%) rotate(-5deg);
+
+    svg {
+      width: 1.5rem;
+      fill: currentColor;
+    }
+  }
+
+  .jira-welcome-panel {
+    position: absolute;
+    top: 61%;
+    left: 50%;
+    display: flex;
+    width: min(34rem, calc(100vw - 3rem));
+    flex-direction: column;
+    align-items: center;
+    gap: 0.85rem;
+    text-align: center;
+    transform: translate(-50%, -50%);
+
+    h2 {
+      margin: 0;
+      color: var(--color-on-surface);
+      font: 500 clamp(1.85rem, 4vw, 2.45rem) / 1.15 "Excalifont", "Virgil",
+        var(--ui-font);
+      letter-spacing: -0.025em;
+    }
+
+    p {
+      max-width: 31rem;
+      margin: 0;
+      color: var(--color-gray-60);
+      font: 500 1rem/1.48 "Excalifont", "Virgil", var(--ui-font);
+    }
+  }
+
+  .jira-welcome-connect {
+    display: inline-grid;
+    min-width: 16.5rem;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 1.2rem;
+    padding: 0.72rem 1rem;
+    border: 1.5px dashed
+      color-mix(in srgb, var(--color-primary) 74%, var(--color-on-surface));
+    border-radius: 0.76rem 0.64rem 0.82rem 0.68rem;
+    background: repeating-linear-gradient(
+        -28deg,
+        color-mix(in srgb, var(--color-primary) 24%, transparent) 0 1.5px,
+        transparent 1.5px 10px
+      ),
+      color-mix(in srgb, var(--color-primary) 9%, var(--color-surface-lowest));
+    color: var(--color-on-surface);
+    cursor: pointer;
+    font: 500 1.05rem/1 "Excalifont", "Virgil", var(--ui-font);
+    transition: background 140ms ease, transform 140ms ease;
+
+    &:hover,
+    &:focus-visible {
+      outline: none;
+      background: repeating-linear-gradient(
+          -28deg,
+          color-mix(in srgb, var(--color-primary) 38%, transparent) 0 1.5px,
+          transparent 1.5px 8px
+        ),
+        color-mix(
+          in srgb,
+          var(--color-primary) 15%,
+          var(--color-surface-lowest)
+        );
+      transform: translateY(-1px) rotate(-0.35deg);
+    }
+  }
+
+  .jira-welcome-connect__icon {
+    display: grid;
+    width: 2.65rem;
+    height: 1.85rem;
+    place-items: center;
+    border: 1.5px dashed color-mix(in srgb, currentColor 60%, transparent);
+    border-radius: 0.45rem;
+    color: var(--color-primary);
+
+    svg {
+      width: 0.95rem;
+      fill: currentColor;
+    }
+  }
+
+  .jira-ambient {
+    position: absolute;
+    z-index: 1;
+    box-sizing: border-box;
+    border: 1px solid
+      color-mix(in srgb, var(--color-on-surface) 14%, transparent);
+    border-radius: 0.65rem 0.52rem 0.72rem 0.56rem;
+    color: var(--color-on-surface);
+    font-family: "Excalifont", "Virgil", var(--ui-font);
+    opacity: 0.16;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .jira-ambient--table {
+    top: 16%;
+    left: 4%;
+    width: 13rem;
+    overflow: hidden;
+    transform: rotate(-2.5deg);
+
+    > div {
+      display: grid;
+      grid-template-columns: 1fr 0.8fr;
+      padding: 0.48rem 0.65rem;
+
+      + div {
+        border-top: 1px solid
+          color-mix(in srgb, var(--color-on-surface) 12%, transparent);
+      }
+    }
+
+    strong,
+    span {
+      font-size: 0.65rem;
+      font-weight: 500;
+    }
+  }
+
+  .jira-ambient--detail {
+    top: 22%;
+    right: 4.5%;
+    display: flex;
+    width: 12rem;
+    flex-direction: column;
+    gap: 0.28rem;
+    padding: 0.72rem 0.8rem;
+    transform: rotate(2deg);
+
+    span,
+    small {
+      color: var(--color-gray-60);
+      font-size: 0.62rem;
+    }
+
+    strong {
+      font-size: 0.76rem;
+      font-weight: 500;
+    }
+  }
+
+  .jira-ambient--sprint {
+    bottom: 10%;
+    left: 8%;
+    display: grid;
+    width: 11rem;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.65rem 0.75rem;
+    transform: rotate(1.5deg);
+
+    span,
+    small {
+      font-size: 0.62rem;
+      white-space: nowrap;
+    }
+
+    i {
+      height: 0.25rem;
+      overflow: hidden;
+      border-radius: 1rem;
+      background: color-mix(in srgb, var(--color-on-surface) 12%, transparent);
+    }
+
+    b {
+      display: block;
+      width: 58%;
+      height: 100%;
+      border-radius: inherit;
+      background: var(--color-primary);
+    }
+  }
+
+  .jira-connect-console {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    z-index: 2;
+    box-sizing: border-box;
+    width: min(62rem, calc(100vw - 4rem));
+    padding: clamp(1rem, 3vw, 2rem);
+    font-family: "Excalifont", "Virgil", var(--ui-font);
+    transform: translate(-50%, -48%);
+
+    > header {
+      max-width: 32rem;
+      margin: 0 auto;
+      text-align: center;
+
+      h2 {
+        margin: 0.45rem 0 0.6rem;
+        color: var(--color-on-surface);
+        font: 500 clamp(2rem, 4vw, 3rem) / 1.05 "Excalifont", "Virgil",
+          var(--ui-font);
+        letter-spacing: -0.035em;
+      }
+
+      p {
+        margin: 0;
+        color: var(--color-gray-60);
+        font: 500 1rem/1.4 "Excalifont", "Virgil", var(--ui-font);
+      }
+    }
+  }
+
+  .jira-connect-console__eyebrow {
+    color: var(--color-primary);
+    font-size: 0.7rem;
+    font-weight: 650;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .jira-connect-bridge {
+    display: grid;
+    grid-template-columns: auto minmax(12rem, 1fr) auto;
+    align-items: center;
+    gap: clamp(0.85rem, 3vw, 2rem);
+    margin: clamp(2rem, 5vh, 3.25rem) 0 2.25rem;
+  }
+
+  .jira-connect-endpoint {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    color: var(--color-on-surface);
+
+    > span {
+      display: grid;
+      width: 3rem;
+      height: 3rem;
+      place-items: center;
+      border: 1px solid
+        color-mix(in srgb, var(--color-on-surface) 18%, transparent);
+      border-radius: 0.9rem 0.72rem 1rem 0.78rem;
+      background: var(--color-surface-lowest);
+      font-size: 1.15rem;
+      font-weight: 650;
+    }
+
+    > strong {
+      font-size: 1rem;
+      font-weight: 550;
+    }
+  }
+
+  .jira-connect-endpoint--drawsy > span {
+    border-color: color-mix(in srgb, var(--color-primary) 48%, transparent);
+    transform: rotate(-3deg);
+
+    img {
+      width: 1.45rem;
+      height: 1.45rem;
+      object-fit: contain;
+      opacity: 0.82;
+    }
+  }
+
+  .jira-connect-endpoint--jira > span {
+    color: var(--color-on-surface);
+    transform: rotate(3deg);
+
+    svg {
+      width: 1.15rem;
+      fill: currentColor;
+    }
+  }
+
+  .jira-connect-track {
+    display: grid;
+    grid-template-columns: minmax(1rem, 1fr) auto minmax(1rem, 1fr);
+    align-items: center;
+
+    > i {
+      height: 1px;
+      background: repeating-linear-gradient(
+        90deg,
+        color-mix(in srgb, var(--color-primary) 62%, transparent) 0 5px,
+        transparent 5px 10px
+      );
+    }
+  }
+
+  .jira-connect-action {
+    display: inline-flex;
+    min-height: 3.2rem;
+    align-items: center;
+    gap: 1.2rem;
+    padding: 0.65rem 0.8rem 0.65rem 1.15rem;
+    border: 1px solid
+      color-mix(in srgb, var(--color-primary) 68%, var(--color-on-surface));
+    border-radius: 1.5rem 1.15rem 1.55rem 1.25rem;
+    background: var(--color-on-surface);
+    color: var(--color-surface-lowest);
+    cursor: pointer;
+    font: 550 0.95rem/1 "Excalifont", "Virgil", var(--ui-font);
+    box-shadow: 0 0.65rem 1.8rem rgb(0 0 0 / 12%);
+    transition: gap 160ms ease, transform 160ms ease;
+
+    svg {
+      width: 1.35rem;
+      height: 1.35rem;
+      padding: 0.35rem;
+      border-radius: 50%;
+      background: var(--color-primary);
+      stroke: var(--color-surface-lowest);
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    &:hover,
+    &:focus-visible {
+      gap: 1.5rem;
+      outline: 2px solid
+        color-mix(in srgb, var(--color-primary) 36%, transparent);
+      outline-offset: 3px;
+      transform: translateY(-1px);
+    }
+  }
+
+  .jira-connect-capabilities {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    border-top: 1px solid
+      color-mix(in srgb, var(--color-on-surface) 12%, transparent);
+
+    > span {
+      display: flex;
+      align-items: baseline;
+      gap: 0.45rem;
+      padding: 0.75rem;
+      color: var(--color-on-surface);
+      font-size: 0.82rem;
+      font-weight: 550;
+
+      + span {
+        position: relative;
+
+        &::before {
+          position: absolute;
+          top: 50%;
+          left: 0;
+          width: 2px;
+          height: 2px;
+          border-radius: 50%;
+          background: var(--color-gray-50);
+          content: "";
+        }
+      }
+    }
+
+    b {
+      color: var(--color-gray-50);
+      font-size: 0.58rem;
+      font-weight: 550;
+    }
+  }
+
+  &.theme--dark .jira-connect-endpoint--drawsy img {
+    filter: invert(1);
+  }
+
+  @media (max-width: 720px) {
+    .jira-workspace-surface {
+      padding: 5.75rem 0.75rem 0.75rem;
+    }
+
+    .jira-ambient {
+      display: none;
+    }
+
+    .jira-placeholder-stage {
+      grid-template-columns: 1fr;
+      align-content: center;
+      gap: 1.5rem;
+    }
+
+    .jira-placeholder-visual {
+      width: min(22rem, 82vw);
+      height: 20rem;
+      min-height: 20rem;
+    }
+
+    .jira-placeholder-copy {
+      margin: 0 auto;
+      text-align: center;
+
+      h2 {
+        margin-inline: auto;
+      }
+
+      p {
+        margin-inline: auto;
+      }
+    }
+
+    .jira-welcome-sketch {
+      top: 7rem;
+      width: min(25rem, calc(100vw - 2rem));
+    }
+
+    .jira-welcome-panel {
+      top: 62%;
+    }
+
+    .jira-connect-console {
+      width: calc(100vw - 1.5rem);
+      padding: 1.5rem 0.5rem;
+    }
+
+    .jira-connect-bridge {
+      grid-template-columns: 1fr;
+      justify-items: center;
+    }
+
+    .jira-connect-track {
+      width: min(18rem, 100%);
+      order: 3;
+    }
+
+    .jira-connect-endpoint {
+      display: none;
+    }
+
+    .jira-connect-capabilities {
+      grid-template-columns: repeat(2, 1fr);
+
+      > span:nth-child(3) {
+        &::before {
+          display: none;
+        }
+      }
+
+      > span:nth-child(4) {
+        &::before {
+          display: block;
+        }
+      }
+    }
   }
 }
 
