@@ -35,10 +35,12 @@ type Props = {
   index: WorkspaceIndex | null;
   kanbanActive?: boolean;
   jiraWorkspaceActive?: boolean;
+  connectorsActive?: boolean;
   disabled: boolean;
   onCreateCanvas: () => void;
   onCreateProject: () => void;
   onOpenJiraWorkspace: () => void;
+  onOpenConnectors?: () => void;
   onOpenKanban: () => void;
   presentationIndex?: PresentationIndex | null;
   presentationActive?: boolean;
@@ -231,10 +233,12 @@ export const WorkspaceMenu = ({
   index,
   kanbanActive = false,
   jiraWorkspaceActive = false,
+  connectorsActive = false,
   disabled,
   onCreateCanvas,
   onCreateProject,
   onOpenJiraWorkspace,
+  onOpenConnectors = () => undefined,
   onOpenKanban,
   presentationIndex = null,
   presentationActive = false,
@@ -504,7 +508,42 @@ export const WorkspaceMenu = ({
         </button>
       </div>
 
-      <div className="add-menu-card workspace-create-placeholder" />
+      <div
+        className={`workspace-create-card add-menu-card workspace-connectors-card ${
+          connectorsActive ? "is-current" : ""
+        }`}
+      >
+        <button
+          type="button"
+          className="workspace-create-action"
+          onClick={onOpenConnectors}
+          disabled={interactionDisabled}
+          aria-current={connectorsActive ? "page" : undefined}
+        >
+          <span
+            className="workspace-menu-icon workspace-connectors-icon"
+            aria-hidden="true"
+          >
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="M8 7.5h8M7.5 8v8M16.5 8v8M8 16.5h8" />
+              <circle cx="7" cy="7" r="2.25" />
+              <circle cx="17" cy="7" r="2.25" />
+              <circle cx="7" cy="17" r="2.25" />
+              <circle cx="17" cy="17" r="2.25" />
+            </svg>
+          </span>
+          <span>Connectors</span>
+        </button>
+        <button
+          type="button"
+          className="workspace-branch-trigger"
+          aria-label="Open connectors"
+          onClick={onOpenConnectors}
+          disabled={interactionDisabled}
+        >
+          {ArrowRightIcon}
+        </button>
+      </div>
 
       {branch === "canvases" && (
         <HistoryPanel

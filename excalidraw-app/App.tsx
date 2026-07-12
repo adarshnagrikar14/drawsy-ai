@@ -118,6 +118,7 @@ import { WorkspaceTitle } from "./components/WorkspaceTitle";
 import { KanbanWorkspace } from "./components/KanbanWorkspace";
 import { JiraWorkspacePlaceholder } from "./components/JiraWorkspacePlaceholder";
 import { JiraWorkspace } from "./components/JiraWorkspace";
+import { ConnectorsWorkspace } from "./components/ConnectorsWorkspace";
 import { KanbanShareDialog } from "./components/KanbanShareDialog";
 import {
   loadKanbanWorkspaceActive,
@@ -323,6 +324,7 @@ const TopRightToolbar = ({
   isKanbanOpen,
   isPresentationOpen,
   isJiraWorkspaceOpen,
+  isConnectorsOpen,
   onCollabDialogOpen,
 }: {
   onShareSelect: () => void;
@@ -332,9 +334,10 @@ const TopRightToolbar = ({
   isKanbanOpen: boolean;
   isPresentationOpen: boolean;
   isJiraWorkspaceOpen: boolean;
+  isConnectorsOpen: boolean;
   onCollabDialogOpen: () => void;
 }) => {
-  if (isJiraWorkspaceOpen) {
+  if (isJiraWorkspaceOpen || isConnectorsOpen) {
     return (
       <ExcalidrawPlusPromoBanner isSignedIn={isExcalidrawPlusSignedUser} />
     );
@@ -2141,6 +2144,7 @@ const ExcalidrawWrapper = () => {
     loadKanbanWorkspaceActive(),
   );
   const [jiraWorkspaceOpen, setJiraWorkspaceOpen] = useState(false);
+  const [connectorsOpen, setConnectorsOpen] = useState(false);
   const [jiraConnected, setJiraConnected] = useState(false);
   const jiraWorkspaceRestoreRef = useRef(JiraWorkspaceStore.loadActive());
   const jiraWorkspaceOpenRef = useRef(jiraWorkspaceOpen);
@@ -2447,7 +2451,8 @@ const ExcalidrawWrapper = () => {
     const disabledSurfaces = document.querySelectorAll<HTMLElement>(
       ".layer-ui__wrapper__footer",
     );
-    const workspaceSurfaceOpen = kanbanOpen || jiraWorkspaceOpen;
+    const workspaceSurfaceOpen =
+      kanbanOpen || jiraWorkspaceOpen || connectorsOpen;
     disabledSurfaces.forEach((element) => {
       element.inert = workspaceSurfaceOpen;
       if (workspaceSurfaceOpen) {
@@ -2457,7 +2462,7 @@ const ExcalidrawWrapper = () => {
       }
     });
     return () => disabledSurfaces.forEach((element) => (element.inert = false));
-  }, [jiraWorkspaceOpen, kanbanOpen]);
+  }, [connectorsOpen, jiraWorkspaceOpen, kanbanOpen]);
 
   useEffect(() => {
     const jiraDisabledSurfaces =
@@ -5969,6 +5974,7 @@ const ExcalidrawWrapper = () => {
         "is-collaborating": isCollaborating,
         "is-kanban-open": kanbanOpen,
         "is-jira-workspace-open": jiraWorkspaceOpen,
+        "is-connectors-open": connectorsOpen,
         "is-frame-presenter-open": !!framePresenter,
       })}
     >
@@ -6022,6 +6028,7 @@ const ExcalidrawWrapper = () => {
             framePresenter ||
             isMobile ||
             (!jiraWorkspaceOpen &&
+              !connectorsOpen &&
               !kanbanOpen &&
               (!collabAPI || isCollabDisabled))
           ) {
@@ -6042,6 +6049,7 @@ const ExcalidrawWrapper = () => {
                   isKanbanOpen={kanbanOpen}
                   isPresentationOpen={isPresentationCanvasActive}
                   isJiraWorkspaceOpen={jiraWorkspaceOpen}
+                  isConnectorsOpen={connectorsOpen}
                   onCollabDialogOpen={() => {
                     if (!kanbanOpen) {
                       onCollabDialogOpen();
@@ -6099,23 +6107,41 @@ const ExcalidrawWrapper = () => {
                 index={workspaceIndex}
                 kanbanActive={kanbanOpen}
                 jiraWorkspaceActive={jiraWorkspaceOpen}
+                connectorsActive={connectorsOpen}
                 presentationIndex={presentationIndex}
                 presentationActive={isPresentationCanvasActive}
                 disabled={
                   !workspaceIndex || !presentationIndex || isCollaborating
                 }
                 onCreateCanvas={() => {
+                  setConnectorsOpen(false);
                   setKanbanWorkspaceActive(false);
                   createWorkspaceCanvas();
                 }}
                 onCreateProject={() => {
+                  setConnectorsOpen(false);
                   setKanbanWorkspaceActive(false);
                   createWorkspaceProject();
                 }}
                 onOpenJiraWorkspace={() => {
+                  setConnectorsOpen(false);
                   void openJiraWorkspace();
                 }}
+                onOpenConnectors={() => {
+                  setCommentPlacement(false);
+                  setCommentDraftAnchor(null);
+                  setCommentsSidebarOpen(false);
+                  excalidrawAPI?.updateScene({
+                    appState: { openSidebar: null, openMenu: null },
+                  });
+                  void closeJiraWorkspace(true).then(() => {
+                    setPresentationCanvasActive(false);
+                    setKanbanWorkspaceActive(false);
+                    setConnectorsOpen(true);
+                  });
+                }}
                 onOpenKanban={() => {
+                  setConnectorsOpen(false);
                   setCommentPlacement(false);
                   setCommentDraftAnchor(null);
                   setCommentsSidebarOpen(false);
@@ -6128,6 +6154,7 @@ const ExcalidrawWrapper = () => {
                   });
                 }}
                 onCreatePresentation={() => {
+                  setConnectorsOpen(false);
                   setCommentPlacement(false);
                   setCommentDraftAnchor(null);
                   setCommentsSidebarOpen(false);
@@ -6135,6 +6162,7 @@ const ExcalidrawWrapper = () => {
                   void createPresentationCanvas();
                 }}
                 onOpenPresentation={(presentationId) => {
+                  setConnectorsOpen(false);
                   setCommentPlacement(false);
                   setCommentDraftAnchor(null);
                   setCommentsSidebarOpen(false);
@@ -6143,10 +6171,12 @@ const ExcalidrawWrapper = () => {
                 }}
                 onDeletePresentation={deletePresentationCanvas}
                 onCreateProjectCanvas={(projectId) => {
+                  setConnectorsOpen(false);
                   setKanbanWorkspaceActive(false);
                   createWorkspaceProjectCanvas(projectId);
                 }}
                 onOpenCanvas={(canvasId) => {
+                  setConnectorsOpen(false);
                   setKanbanWorkspaceActive(false);
                   openWorkspaceCanvas(canvasId);
                 }}
@@ -6157,7 +6187,18 @@ const ExcalidrawWrapper = () => {
               />
             }
             header={
-              jiraWorkspaceOpen ? (
+              connectorsOpen ? (
+                <WorkspaceTitle
+                  canvasTitle="Connectors"
+                  projectTitle={null}
+                  focusProjectTitle={false}
+                  itemLabel="Workspace"
+                  readOnly
+                  onCanvasTitleChange={() => undefined}
+                  onProjectTitleChange={() => undefined}
+                  onProjectTitleFocused={() => undefined}
+                />
+              ) : jiraWorkspaceOpen ? (
                 <WorkspaceTitle
                   canvasTitle="Jira Workspace"
                   projectTitle={null}
@@ -6232,9 +6273,11 @@ const ExcalidrawWrapper = () => {
               onConnect={() => setJiraConnected(true)}
             />
           ))}
+        {connectorsOpen && <ConnectorsWorkspace />}
         <DefaultSidebar.Trigger style={{ display: "none" }} />
         {!kanbanOpen &&
           !jiraWorkspaceOpen &&
+          !connectorsOpen &&
           (!isPresentationCanvasActive || presentationCanvasEmpty) && (
             <AppWelcomeScreen
               onCollabDialogOpen={onCollabDialogOpen}

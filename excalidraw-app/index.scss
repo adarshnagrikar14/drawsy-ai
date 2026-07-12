@@ -963,6 +963,24 @@
     );
   }
 
+  .workspace-connectors-icon svg {
+    width: 1.2rem;
+    height: 1.2rem;
+    stroke: currentColor;
+    stroke-width: 1.55;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    opacity: 0.78;
+  }
+
+  .workspace-connectors-card.is-current {
+    background: color-mix(
+      in srgb,
+      var(--color-primary) 10%,
+      var(--island-bg-color)
+    );
+  }
+
   .workspace-history-panel {
     --workspace-panel-top: 0rem;
 
@@ -1402,7 +1420,8 @@
   }
 }
 
-.excalidraw-app:is(.is-kanban-open, .is-jira-workspace-open) .excalidraw {
+.excalidraw-app:is(.is-kanban-open, .is-jira-workspace-open, .is-connectors-open)
+  .excalidraw {
   .shapes-section {
     pointer-events: none;
 
@@ -1439,6 +1458,13 @@
 
   .selected-shape-actions-container {
     display: none;
+  }
+}
+
+.excalidraw-app.is-connectors-open .excalidraw {
+  .App-toolbar-container,
+  .selected-shape-actions-container {
+    display: none !important;
   }
 }
 
