@@ -16,7 +16,11 @@ const Arrow = () => (
 
 const capabilities = ["Issues", "Boards", "Sprints", "Queues"];
 
-export const JiraWorkspacePlaceholder = () => {
+export const JiraWorkspacePlaceholder = ({
+  onConnect,
+}: {
+  onConnect: () => void;
+}) => {
   const appState = useUIAppState() || getDefaultAppState();
 
   return (
@@ -78,7 +82,11 @@ export const JiraWorkspacePlaceholder = () => {
 
           <div className="jira-connect-track">
             <i />
-            <button type="button" className="jira-connect-action">
+            <button
+              type="button"
+              className="jira-connect-action"
+              onClick={onConnect}
+            >
               <span>Connect Jira</span>
               <Arrow />
             </button>

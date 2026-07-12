@@ -117,6 +117,7 @@ import { WorkspaceMenu } from "./components/WorkspaceMenu";
 import { WorkspaceTitle } from "./components/WorkspaceTitle";
 import { KanbanWorkspace } from "./components/KanbanWorkspace";
 import { JiraWorkspacePlaceholder } from "./components/JiraWorkspacePlaceholder";
+import { JiraWorkspace } from "./components/JiraWorkspace";
 import { KanbanShareDialog } from "./components/KanbanShareDialog";
 import {
   loadKanbanWorkspaceActive,
@@ -2140,6 +2141,7 @@ const ExcalidrawWrapper = () => {
     loadKanbanWorkspaceActive(),
   );
   const [jiraWorkspaceOpen, setJiraWorkspaceOpen] = useState(false);
+  const [jiraConnected, setJiraConnected] = useState(false);
   const jiraWorkspaceRestoreRef = useRef(JiraWorkspaceStore.loadActive());
   const jiraWorkspaceOpenRef = useRef(jiraWorkspaceOpen);
   const jiraWorkspaceSceneRef = useRef<CanvasScene | null>(null);
@@ -5669,20 +5671,30 @@ const ExcalidrawWrapper = () => {
 
     const frameId = framePresenter.frameIds[framePresenter.index];
     updatePresentationFrameMask(frameId);
+    let resizeAnimationFrame = 0;
+    let refitAnimationFrame = 0;
 
-    const onResize = () => {
-      requestAnimationFrame(() => updatePresentationFrameMask(frameId));
+    const refitActiveSlide = () => {
+      window.cancelAnimationFrame(resizeAnimationFrame);
+      window.cancelAnimationFrame(refitAnimationFrame);
+      resizeAnimationFrame = window.requestAnimationFrame(() => {
+        refitAnimationFrame = window.requestAnimationFrame(() => {
+          focusPresentationSlide(frameId, false, 1);
+        });
+      });
     };
 
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
+    window.addEventListener("resize", refitActiveSlide);
+    document.addEventListener("fullscreenchange", refitActiveSlide);
+    return () => {
+      window.removeEventListener("resize", refitActiveSlide);
+      document.removeEventListener("fullscreenchange", refitActiveSlide);
+      window.cancelAnimationFrame(resizeAnimationFrame);
+      window.cancelAnimationFrame(refitAnimationFrame);
+    };
   }, [
+    focusPresentationSlide,
     framePresenter,
-    presentationAppState.height,
-    presentationAppState.scrollX,
-    presentationAppState.scrollY,
-    presentationAppState.width,
-    presentationAppState.zoom,
     updatePresentationFrameMask,
   ]);
 
@@ -6212,7 +6224,14 @@ const ExcalidrawWrapper = () => {
             onOpenCanvas={openKanbanCanvasLink}
           />
         )}
-        {jiraWorkspaceOpen && <JiraWorkspacePlaceholder />}
+        {jiraWorkspaceOpen &&
+          (jiraConnected ? (
+            <JiraWorkspace onDisconnect={() => setJiraConnected(false)} />
+          ) : (
+            <JiraWorkspacePlaceholder
+              onConnect={() => setJiraConnected(true)}
+            />
+          ))}
         <DefaultSidebar.Trigger style={{ display: "none" }} />
         {!kanbanOpen &&
           !jiraWorkspaceOpen &&

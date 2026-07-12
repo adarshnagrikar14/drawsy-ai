@@ -1443,10 +1443,12 @@
 }
 
 .excalidraw-app.is-jira-workspace-open .excalidraw {
-  .shapes-section .ToolIcon {
-    pointer-events: none;
-    opacity: 0.42;
-    filter: saturate(0.35);
+  .shapes-section {
+    visibility: hidden;
+  }
+
+  .App-toolbar__drawer-buttons {
+    display: none;
   }
 
   .jira-workspace-surface {

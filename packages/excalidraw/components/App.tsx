@@ -3337,6 +3337,7 @@ class App extends React.Component<AppProps, AppState> {
         },
         { passive: false },
       ),
+      addEventListener(window, EVENT.RESIZE, this.onResize, false),
     );
 
     if (this.state.viewModeEnabled) {
@@ -3358,7 +3359,6 @@ class App extends React.Component<AppProps, AppState> {
         passive: false,
       }),
       addEventListener(document, EVENT.CUT, this.onCut, { passive: false }),
-      addEventListener(window, EVENT.RESIZE, this.onResize, false),
       addEventListener(window, EVENT.UNLOAD, this.onUnload, false),
       addEventListener(window, EVENT.BLUR, this.onBlur, false),
       addEventListener(
