@@ -39,6 +39,47 @@
   text-transform: uppercase;
 }
 
+.connectors-feedback {
+  display: flex;
+  width: fit-content;
+  max-width: min(42rem, 100%);
+  gap: 0.65rem;
+  align-items: center;
+  margin: -0.75rem auto 1rem;
+  color: var(--color-on-surface);
+  font-family: var(--ui-font);
+  font-size: 0.72rem;
+
+  span {
+    opacity: 0.62;
+  }
+
+  button {
+    padding: 0.28rem 0.55rem;
+    border: 1px solid color-mix(in srgb, var(--color-primary) 42%, transparent);
+    border-radius: 0.45rem 0.55rem 0.48rem 0.6rem;
+    background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+    color: var(--color-primary);
+    cursor: pointer;
+    font: inherit;
+    font-weight: 600;
+  }
+
+  button:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--color-primary) 17%, transparent);
+  }
+
+  button:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+
+  button:disabled {
+    cursor: default;
+    opacity: 0.55;
+  }
+}
+
 .connectors-board {
   position: relative;
   display: grid;
@@ -109,7 +150,7 @@
 .connector-card {
   --connector-accent: var(--color-primary);
   display: grid;
-  grid-template-columns: 2.65rem minmax(0, 1fr);
+  grid-template-columns: 2.65rem minmax(0, 1fr) auto;
   gap: 0.75rem;
   align-items: center;
   min-height: 5.1rem;
@@ -121,14 +162,39 @@
   box-shadow: 1px 2px 0
     color-mix(in srgb, var(--color-on-surface) 6%, transparent);
 
-  > div {
+  &.is-connected {
+    border-color: color-mix(in srgb, var(--connector-accent) 38%, transparent);
+  }
+
+  .connector-card__copy {
     display: flex;
     min-width: 0;
+    overflow: hidden;
     flex-direction: column;
   }
+
+  .connector-card__copy.is-connected small {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   strong {
+    display: inline-flex;
+    gap: 0.42rem;
+    align-items: center;
     font-size: 0.98rem;
     font-weight: 500;
+  }
+  strong.is-connected::before {
+    width: 0.42rem;
+    height: 0.42rem;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    background: #2f9e68;
+    box-shadow: 0 0 0 2px color-mix(in srgb, #2f9e68 16%, transparent);
+    content: "";
   }
   small {
     margin-top: 0.15rem;
@@ -136,7 +202,79 @@
     font-size: 0.7rem;
     line-height: 1.35;
     opacity: 0.5;
+    overflow-wrap: anywhere;
   }
+}
+
+.connector-card__controls {
+  display: flex;
+  min-width: 4.7rem;
+  flex-direction: column;
+  gap: 0.3rem;
+  align-items: flex-end;
+
+  button {
+    min-width: 4.65rem;
+    padding: 0.34rem 0.58rem;
+    border: 0;
+    border-radius: 0.28rem;
+    cursor: pointer;
+    font-family: var(--ui-font);
+    font-size: 0.64rem;
+    font-weight: 650;
+    line-height: 1.2;
+    transition: background-color 120ms ease, color 120ms ease,
+      opacity 120ms ease;
+  }
+
+  .connector-card__connect {
+    background: #2f9e68;
+    color: #fff;
+  }
+
+  .connector-card__connect:hover:not(:disabled) {
+    background: #27875a;
+  }
+
+  .connector-card__disconnect {
+    background: color-mix(in srgb, #e35d5b 10%, transparent);
+    color: #d44f4d;
+  }
+
+  .connector-card__disconnect:hover:not(:disabled) {
+    background: #d94f4d;
+    color: #fff;
+  }
+
+  button:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+  }
+
+  button:disabled {
+    cursor: default;
+    opacity: 0.46;
+  }
+}
+
+.connector-card__state {
+  font-family: var(--ui-font);
+  font-size: 0.59rem;
+  font-weight: 600;
+}
+
+.connector-card__state--unavailable {
+  justify-self: end;
+  color: var(--color-on-surface);
+  font-weight: 500;
+  opacity: 0.4;
+}
+
+.connector-card__checking {
+  justify-self: end;
+  font-family: var(--ui-font);
+  font-size: 0.62rem;
+  opacity: 0.4;
 }
 
 .connector-card:nth-of-type(1) {
@@ -246,5 +384,18 @@
   .connector-card:nth-of-type(n) {
     grid-column: 1;
     grid-row: auto;
+  }
+}
+
+@media (max-width: 420px) {
+  .connector-card {
+    grid-template-columns: 2.65rem minmax(0, 1fr);
+  }
+  .connector-card__controls,
+  .connector-card__checking,
+  .connector-card__state--unavailable {
+    grid-column: 2;
+    align-items: flex-start;
+    justify-self: start;
   }
 }
