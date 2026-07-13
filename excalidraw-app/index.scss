@@ -2257,6 +2257,15 @@
     }
   }
 
+  .jira-connect-action.is-loading {
+    cursor: wait;
+
+    .jira-spinner {
+      width: 1rem;
+      height: 1rem;
+    }
+  }
+
   .jira-connect-capabilities {
     display: grid;
     grid-template-columns: repeat(4, 1fr);

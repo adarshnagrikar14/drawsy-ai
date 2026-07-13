@@ -135,6 +135,7 @@ import { WorkspaceSync } from "./data/WorkspaceSync";
 import { JiraWorkspaceStore } from "./data/JiraWorkspaceStore";
 import { KanbanApi } from "./data/KanbanApi";
 import { PresentationApi } from "./data/PresentationApi";
+import { JiraApi, type JiraConnection } from "./data/JiraApi";
 import { PresentationSync } from "./data/PresentationSync";
 import {
   PRESENTATION_CLIENT_ID,
@@ -2037,6 +2038,10 @@ const ExcalidrawWrapper = () => {
     () => (drawsyAuth.user ? new KanbanApi(drawsyAuth.getIdToken) : null),
     [drawsyAuth.getIdToken, drawsyAuth.user],
   );
+  const jiraApi = useMemo(
+    () => (drawsyAuth.user ? new JiraApi(drawsyAuth.getIdToken) : null),
+    [drawsyAuth.getIdToken, drawsyAuth.user],
+  );
 
   const [errorMessage, setErrorMessage] = useState("");
   const [workspaceSyncStatus, setWorkspaceSyncStatus] = useState<
@@ -2146,9 +2151,46 @@ const ExcalidrawWrapper = () => {
   const [jiraWorkspaceOpen, setJiraWorkspaceOpen] = useState(false);
   const [connectorsOpen, setConnectorsOpen] = useState(false);
   const [jiraConnected, setJiraConnected] = useState(false);
+  const [jiraConnections, setJiraConnections] = useState<JiraConnection[]>([]);
   const jiraWorkspaceRestoreRef = useRef(JiraWorkspaceStore.loadActive());
   const jiraWorkspaceOpenRef = useRef(jiraWorkspaceOpen);
   const jiraWorkspaceSceneRef = useRef<CanvasScene | null>(null);
+
+  useEffect(() => {
+    if (!jiraApi) {
+      setJiraConnections([]);
+      setJiraConnected(false);
+      return;
+    }
+    let cancelled = false;
+    void jiraApi
+      .listConnections()
+      .then((connections) => {
+        if (!cancelled) {
+          setJiraConnections(connections);
+          setJiraConnected(connections.length > 0);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setJiraConnections([]);
+          setJiraConnected(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [jiraApi]);
+
+  const connectJira = useCallback(async () => {
+    if (!drawsyAuth.user) {
+      await drawsyAuth.signIn();
+    }
+    const api = jiraApi || new JiraApi(drawsyAuth.getIdToken);
+    const connections = await api.connect();
+    setJiraConnections(connections);
+    setJiraConnected(connections.length > 0);
+  }, [drawsyAuth, jiraApi]);
   const [presentationCanvasOpen, setPresentationCanvasOpen] = useState(() =>
     PresentationStore.loadActive(),
   );
@@ -5264,7 +5306,7 @@ const ExcalidrawWrapper = () => {
       }
 
       applyPresentationBuildState(frameId, completedBuildCount);
-      focusPresentationSlide(frameId, transition !== "fade", 1);
+      focusPresentationSlide(frameId, false, 1);
       commitFramePresenter({
         ...currentPresenter,
         index,
@@ -5697,11 +5739,7 @@ const ExcalidrawWrapper = () => {
       window.cancelAnimationFrame(resizeAnimationFrame);
       window.cancelAnimationFrame(refitAnimationFrame);
     };
-  }, [
-    focusPresentationSlide,
-    framePresenter,
-    updatePresentationFrameMask,
-  ]);
+  }, [focusPresentationSlide, framePresenter, updatePresentationFrameMask]);
 
   useEffect(() => {
     if (!framePresenter) {
@@ -6266,11 +6304,32 @@ const ExcalidrawWrapper = () => {
           />
         )}
         {jiraWorkspaceOpen &&
-          (jiraConnected ? (
-            <JiraWorkspace onDisconnect={() => setJiraConnected(false)} />
+          (jiraConnected && jiraApi ? (
+            <JiraWorkspace
+              api={jiraApi}
+              connections={jiraConnections}
+              onConnectionsChange={setJiraConnections}
+              onDisconnect={async (connectionId) => {
+                await jiraApi.disconnect(connectionId);
+                const connections = await jiraApi.listConnections();
+                setJiraConnections(connections);
+                setJiraConnected(connections.length > 0);
+              }}
+            />
           ) : (
             <JiraWorkspacePlaceholder
-              onConnect={() => setJiraConnected(true)}
+              onConnect={async () => {
+                try {
+                  await connectJira();
+                } catch (error) {
+                  excalidrawAPI?.setToast({
+                    message:
+                      error instanceof Error
+                        ? error.message
+                        : "Couldn't connect Jira.",
+                  });
+                }
+              }}
             />
           ))}
         {connectorsOpen && <ConnectorsWorkspace />}
@@ -6877,11 +6936,27 @@ const ExcalidrawWrapper = () => {
   );
 };
 
+const JiraOAuthCompletion = () => {
+  useEffect(() => {
+    const status = new URLSearchParams(window.location.search).get("jira");
+    window.opener?.postMessage(
+      { type: "drawsy:jira-oauth", status },
+      window.location.origin,
+    );
+    window.setTimeout(() => window.close(), 50);
+  }, []);
+
+  return null;
+};
+
 const ExcalidrawApp = () => {
   const isCloudExportWindow =
     window.location.pathname === "/excalidraw-plus-export";
   if (isCloudExportWindow) {
     return <ExcalidrawPlusIframeExport />;
+  }
+  if (window.location.pathname.endsWith("/jira-oauth-complete.html")) {
+    return <JiraOAuthCompletion />;
   }
 
   return (
