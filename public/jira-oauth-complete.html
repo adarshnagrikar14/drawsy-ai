@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Jira connected</title>
+  </head>
+  <body>
+    <script>
+      const status = new URLSearchParams(window.location.search).get("jira");
+      if (window.opener) {
+        window.opener.postMessage(
+          { type: "drawsy:jira-oauth", status },
+          window.location.origin,
+        );
+        window.close();
+      }
+      document.body.textContent =
+        status === "connected"
+          ? "Jira is connected. You can close this window."
+          : "Jira could not be connected. You can close this window and try again.";
+    </script>
+  </body>
+</html>
