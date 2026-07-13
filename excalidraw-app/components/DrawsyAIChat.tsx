@@ -1,10 +1,26 @@
 import { useEffect, useRef, useState } from "react";
 
+import {
+  DrawsyAgentApi,
+  type DrawsyAgentMetadata,
+  type DrawsyBridgeEvent,
+  type DrawsyCanvasOperations,
+  type DrawsyCanvasSnapshot,
+} from "../data/DrawsyAgentApi";
+
 import "./DrawsyAIChat.scss";
 
 type DrawsyAIChatProps = {
+  isOpen: boolean;
   onClose: () => void;
   theme: "light" | "dark";
+  canvasId: string | null;
+  canvasName: string | null;
+  readCanvas: (expectedCanvasId: string) => DrawsyCanvasSnapshot;
+  applyCanvas: (
+    expectedCanvasId: string,
+    operations: DrawsyCanvasOperations,
+  ) => void;
 };
 
 type AgentEngine = "opencode" | "codex";
@@ -48,12 +64,69 @@ const DrawsyMark = () => (
   </svg>
 );
 
-export const DrawsyAIChat = ({ onClose, theme }: DrawsyAIChatProps) => {
+type ChatMessage = {
+  id: string;
+  role: "user" | "assistant" | "error";
+  text: string;
+};
+
+type ToolActivity = {
+  id: string;
+  tool: string;
+  status: "inProgress" | "completed" | "failed";
+  message?: string;
+  error?: string;
+};
+
+const toolActivityLabel = (activity: ToolActivity) => {
+  const labels =
+    activity.tool === "read_current_canvas"
+      ? { inProgress: "Reading current canvas", completed: "Canvas read" }
+      : activity.tool === "apply_canvas_changes"
+      ? { inProgress: "Updating canvas", completed: "Canvas updated" }
+      : { inProgress: "Working on canvas", completed: "Canvas tool finished" };
+
+  if (activity.status === "failed") {
+    return activity.error || "Canvas tool failed";
+  }
+  return activity.message || labels[activity.status];
+};
+
+type AgentSession = { id: string; token: string; folderName: string };
+
+export const DrawsyAIChat = ({
+  isOpen,
+  onClose,
+  theme,
+  canvasId,
+  canvasName,
+  readCanvas,
+  applyCanvas,
+}: DrawsyAIChatProps) => {
   const [draft, setDraft] = useState("");
-  const [messages, setMessages] = useState<string[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [engine, setEngine] = useState<AgentEngine>("codex");
   const [engineMenuOpen, setEngineMenuOpen] = useState(false);
+  const [folder, setFolder] = useState<{
+    selectionId: string;
+    name: string;
+  } | null>(null);
+  const [folderPicking, setFolderPicking] = useState(false);
+  const [sessionStatus, setSessionStatus] = useState<
+    "idle" | "starting" | "ready" | "error"
+  >("idle");
+  const [sessionError, setSessionError] = useState<string | null>(null);
+  const [turnRunning, setTurnRunning] = useState(false);
+  const [agentMetadata, setAgentMetadata] =
+    useState<DrawsyAgentMetadata | null>(null);
+  const [toolActivities, setToolActivities] = useState<ToolActivity[]>([]);
   const engineSwitcherRef = useRef<HTMLDivElement>(null);
+  const sessionRef = useRef<AgentSession | null>(null);
+  const canvasHandlersRef = useRef({ readCanvas, applyCanvas });
+
+  useEffect(() => {
+    canvasHandlersRef.current = { readCanvas, applyCanvas };
+  }, [applyCanvas, readCanvas]);
 
   useEffect(() => {
     if (!engineMenuOpen) {
@@ -79,21 +152,265 @@ export const DrawsyAIChat = ({ onClose, theme }: DrawsyAIChatProps) => {
     };
   }, [engineMenuOpen]);
 
-  const selectedEngine = agentEngines.find((option) => option.id === engine)!;
-
-  const submitDraft = () => {
-    const message = draft.trim();
-    if (!message) {
+  useEffect(() => {
+    if (engine !== "codex" || !folder || !canvasId) {
+      sessionRef.current = null;
+      setSessionStatus(folder && !canvasId ? "error" : "idle");
+      setSessionError(
+        folder && !canvasId ? "Open a canvas to start Codex." : null,
+      );
       return;
     }
-    setMessages((current) => [...current, message]);
+
+    let cancelled = false;
+    const controller = new AbortController();
+    let createdSession: AgentSession | null = null;
+    setSessionStatus("starting");
+    setSessionError(null);
+    setAgentMetadata(null);
+    setToolActivities([]);
+
+    const handleEvent = (event: DrawsyBridgeEvent) => {
+      if (event.type === "session.ready") {
+        setAgentMetadata(event.data.agent);
+        setSessionStatus("ready");
+        return;
+      }
+      if (event.type === "tool.status") {
+        setToolActivities((current) => {
+          const activity: ToolActivity = {
+            id: event.data.itemId,
+            tool: event.data.tool,
+            status: event.data.status,
+            message: event.data.message,
+            error: event.data.error,
+          };
+          const index = current.findIndex((item) => item.id === activity.id);
+          if (index < 0) {
+            return [...current, activity];
+          }
+          const next = [...current];
+          next[index] = { ...next[index], ...activity };
+          return next;
+        });
+        return;
+      }
+      if (event.type === "assistant.delta") {
+        setMessages((current) => {
+          const index = current.findIndex(
+            (message) => message.id === event.data.itemId,
+          );
+          if (index < 0) {
+            return [
+              ...current,
+              {
+                id: event.data.itemId,
+                role: "assistant",
+                text: event.data.delta,
+              },
+            ];
+          }
+          const next = [...current];
+          next[index] = {
+            ...next[index],
+            text: next[index].text + event.data.delta,
+          };
+          return next;
+        });
+        return;
+      }
+      if (event.type === "assistant.final") {
+        setMessages((current) => {
+          const index = current.findIndex(
+            (message) => message.id === event.data.itemId,
+          );
+          if (index < 0) {
+            return [
+              ...current,
+              {
+                id: event.data.itemId,
+                role: "assistant",
+                text: event.data.text,
+              },
+            ];
+          }
+          const next = [...current];
+          next[index] = { ...next[index], text: event.data.text };
+          return next;
+        });
+        return;
+      }
+      if (event.type === "turn.status") {
+        if (event.data.status !== "inProgress") {
+          setTurnRunning(false);
+        }
+        if (event.data.error) {
+          setMessages((current) => [
+            ...current,
+            { id: crypto.randomUUID(), role: "error", text: event.data.error! },
+          ]);
+        }
+        return;
+      }
+      if (event.type === "error") {
+        setTurnRunning(false);
+        setMessages((current) => [
+          ...current,
+          { id: crypto.randomUUID(), role: "error", text: event.data.message },
+        ]);
+        return;
+      }
+      if (event.type === "canvas.request" && createdSession) {
+        const session = createdSession;
+        void (async () => {
+          try {
+            if (event.data.canvasId !== canvasId) {
+              throw new Error("The active canvas changed. Please retry.");
+            }
+            const data =
+              event.data.action === "read"
+                ? canvasHandlersRef.current.readCanvas(event.data.canvasId)
+                : (canvasHandlersRef.current.applyCanvas(
+                    event.data.canvasId,
+                    event.data.operations || {
+                      upsertElements: [],
+                      deleteElementIds: [],
+                    },
+                  ),
+                  { ok: true });
+            await DrawsyAgentApi.respondToCanvas(session, {
+              requestId: event.data.requestId,
+              ok: true,
+              data,
+            });
+          } catch (error) {
+            await DrawsyAgentApi.respondToCanvas(session, {
+              requestId: event.data.requestId,
+              ok: false,
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "Canvas operation failed.",
+            });
+          }
+        })();
+      }
+    };
+
+    void DrawsyAgentApi.createSession({
+      selectionId: folder.selectionId,
+      canvasId,
+      canvasName: canvasName || "Untitled",
+    })
+      .then((session) => {
+        createdSession = session;
+        if (cancelled) {
+          return DrawsyAgentApi.closeSession(session);
+        }
+        sessionRef.current = session;
+        return DrawsyAgentApi.streamEvents(
+          session,
+          controller.signal,
+          handleEvent,
+        );
+      })
+      .catch((error) => {
+        if (cancelled || controller.signal.aborted) {
+          return;
+        }
+        setSessionStatus("error");
+        setSessionError(
+          error instanceof Error ? error.message : "Drawsy AI could not start.",
+        );
+      });
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+      sessionRef.current = null;
+      if (createdSession) {
+        void DrawsyAgentApi.closeSession(createdSession);
+      }
+    };
+  }, [canvasId, canvasName, engine, folder]);
+
+  const selectedEngine = agentEngines.find((option) => option.id === engine)!;
+
+  const chooseFolder = async () => {
+    if (folderPicking) {
+      return;
+    }
+    setFolderPicking(true);
+    setSessionError(null);
+    try {
+      const selection = await DrawsyAgentApi.pickFolder();
+      setFolder(selection);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Folder selection failed.";
+      if (!message.toLowerCase().includes("cancelled")) {
+        setSessionError(message);
+      }
+    } finally {
+      setFolderPicking(false);
+    }
+  };
+
+  const submitDraft = async () => {
+    const message = draft.trim();
+    if (!message || turnRunning) {
+      return;
+    }
+    if (engine !== "codex") {
+      setMessages((current) => [
+        ...current,
+        { id: crypto.randomUUID(), role: "user", text: message },
+        {
+          id: crypto.randomUUID(),
+          role: "error",
+          text: "OpenCode is not connected in this local Codex build.",
+        },
+      ]);
+      setDraft("");
+      return;
+    }
+    const session = sessionRef.current;
+    if (!session || sessionStatus !== "ready") {
+      if (!folder) {
+        void chooseFolder();
+      }
+      return;
+    }
+    setMessages((current) => [
+      ...current,
+      { id: crypto.randomUUID(), role: "user", text: message },
+    ]);
     setDraft("");
+    setTurnRunning(true);
+    setToolActivities([]);
+    try {
+      await DrawsyAgentApi.startTurn(session, message);
+    } catch (error) {
+      setTurnRunning(false);
+      setMessages((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          role: "error",
+          text:
+            error instanceof Error
+              ? error.message
+              : "Codex could not start the turn.",
+        },
+      ]);
+    }
   };
 
   return (
     <aside
       className={`drawsy-ai-chat drawsy-ai-chat--${theme}`}
       aria-label="Drawsy AI chat"
+      hidden={!isOpen}
     >
       <header className="drawsy-ai-chat__header">
         <div className="drawsy-ai-chat__identity">
@@ -180,14 +497,38 @@ export const DrawsyAIChat = ({ onClose, theme }: DrawsyAIChatProps) => {
           </div>
         ) : (
           <div className="drawsy-ai-chat__messages">
-            {messages.map((message, index) => (
+            {messages.map((message) => (
               <div
-                className="drawsy-ai-chat__message"
-                key={`${index}-${message}`}
+                className={`drawsy-ai-chat__message drawsy-ai-chat__message--${message.role}`}
+                key={message.id}
               >
-                {message}
+                {message.text}
               </div>
             ))}
+            {toolActivities.map((activity) => (
+              <div
+                className={`drawsy-ai-chat__activity drawsy-ai-chat__activity--${activity.status}`}
+                key={activity.id}
+              >
+                <span
+                  className="drawsy-ai-chat__activity-indicator"
+                  aria-hidden="true"
+                />
+                <span>{toolActivityLabel(activity)}</span>
+              </div>
+            ))}
+            {turnRunning &&
+              !toolActivities.some(
+                (activity) => activity.status === "inProgress",
+              ) && (
+                <div className="drawsy-ai-chat__activity drawsy-ai-chat__activity--inProgress">
+                  <span
+                    className="drawsy-ai-chat__activity-indicator"
+                    aria-hidden="true"
+                  />
+                  <span>Thinking</span>
+                </div>
+              )}
           </div>
         )}
       </div>
@@ -197,7 +538,7 @@ export const DrawsyAIChat = ({ onClose, theme }: DrawsyAIChatProps) => {
           className="drawsy-ai-chat__composer"
           onSubmit={(event) => {
             event.preventDefault();
-            submitDraft();
+            void submitDraft();
           }}
         >
           <textarea
@@ -206,54 +547,48 @@ export const DrawsyAIChat = ({ onClose, theme }: DrawsyAIChatProps) => {
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
-                submitDraft();
+                void submitDraft();
               }
             }}
             rows={1}
-            placeholder="Ask Drawsy anything…"
+            placeholder={
+              folder ? "Ask Drawsy anything…" : "Choose a folder to begin…"
+            }
             aria-label="Message Drawsy AI"
           />
           <div className="drawsy-ai-chat__composer-menu">
             <div className="drawsy-ai-chat__composer-options">
               <button
                 type="button"
-                className="drawsy-ai-chat__tool drawsy-ai-chat__tool--icon"
-                aria-label="Add context"
-                title="Add context"
+                className="drawsy-ai-chat__tool drawsy-ai-chat__folder"
+                aria-label={
+                  folder ? `Selected folder: ${folder.name}` : "Choose folder"
+                }
+                title={
+                  folder ? "Change working folder" : "Choose working folder"
+                }
+                onClick={() => void chooseFolder()}
+                disabled={folderPicking}
               >
                 <svg viewBox="0 0 20 20" aria-hidden="true">
-                  <path d="M10 4v12M4 10h12" />
+                  <path d="M3.5 6.5A1.5 1.5 0 0 1 5 5h3l1.4 1.6H15A1.5 1.5 0 0 1 16.5 8v6A1.5 1.5 0 0 1 15 15.5H5A1.5 1.5 0 0 1 3.5 14V6.5Z" />
+                  <path d="M3.8 8h12.4" />
                 </svg>
-              </button>
-              <button
-                type="button"
-                className="drawsy-ai-chat__tool"
-                aria-label="Canvas context"
-              >
-                <svg viewBox="0 0 20 20" aria-hidden="true">
-                  <rect x="4" y="4" width="12" height="12" rx="2" />
-                  <path d="M7 8h6M7 11h4" />
-                </svg>
-                <span>Canvas</span>
-              </button>
-              <button
-                type="button"
-                className="drawsy-ai-chat__tool"
-                aria-label="Connected sources"
-              >
-                <svg viewBox="0 0 20 20" aria-hidden="true">
-                  <circle cx="6" cy="6" r="2" />
-                  <circle cx="14" cy="6" r="2" />
-                  <circle cx="10" cy="14" r="2" />
-                  <path d="m7.5 7.5 1.4 4.2m3.6-4.2-1.4 4.2M8 6h4" />
-                </svg>
-                <span>Sources</span>
+                <span>
+                  {folderPicking
+                    ? "Choosing…"
+                    : folder?.name || "Choose folder"}
+                </span>
               </button>
             </div>
             <button
               type="submit"
               className="drawsy-ai-chat__send"
-              disabled={!draft.trim()}
+              disabled={
+                !draft.trim() ||
+                turnRunning ||
+                (engine === "codex" && sessionStatus !== "ready")
+              }
               aria-label="Send message"
             >
               <svg viewBox="0 0 20 20" aria-hidden="true">
@@ -262,7 +597,28 @@ export const DrawsyAIChat = ({ onClose, theme }: DrawsyAIChatProps) => {
             </button>
           </div>
         </form>
-        <p>Nothing changes on your canvas without your review.</p>
+        <div className="drawsy-ai-chat__session-meta">
+          <span
+            className={
+              sessionError ? "drawsy-ai-chat__status--error" : undefined
+            }
+          >
+            {sessionError ||
+              (sessionStatus === "starting"
+                ? "Starting local Codex…"
+                : sessionStatus === "ready" && folder
+                ? `${folder.name} · current canvas only`
+                : "Local Codex · no internet")}
+          </span>
+          {agentMetadata && !sessionError && (
+            <span>
+              {agentMetadata.model} ·{" "}
+              {agentMetadata.reasoningEffort
+                ? `${agentMetadata.reasoningEffort} reasoning`
+                : "default reasoning"}
+            </span>
+          )}
+        </div>
       </div>
     </aside>
   );

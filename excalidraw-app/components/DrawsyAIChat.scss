@@ -24,6 +24,10 @@
   box-shadow: -0.75rem 0 2.5rem rgb(34 31 48 / 6%);
 }
 
+.drawsy-ai-chat[hidden] {
+  display: none;
+}
+
 .drawsy-ai-chat--dark {
   --chat-bg: #18181b;
   --chat-surface: #222226;
@@ -296,15 +300,98 @@
   overflow-wrap: anywhere;
 }
 
+.drawsy-ai-chat__message--assistant {
+  align-self: flex-start;
+  border-radius: 0.9rem 0.9rem 0.9rem 0.25rem;
+  background: transparent;
+  padding-inline: 0;
+}
+
+.drawsy-ai-chat__message--error {
+  align-self: flex-start;
+  border-radius: 0.6rem;
+  background: color-mix(in srgb, #e03131 9%, transparent);
+  color: color-mix(in srgb, #e03131 74%, var(--chat-text));
+}
+
+.drawsy-ai-chat__activity {
+  display: inline-flex;
+  max-width: 90%;
+  align-items: center;
+  align-self: flex-start;
+  gap: 0.45rem;
+  color: var(--chat-muted);
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.drawsy-ai-chat__activity-indicator {
+  position: relative;
+  width: 0.68rem;
+  height: 0.68rem;
+  flex: 0 0 0.68rem;
+  border: 1.5px solid color-mix(in srgb, var(--chat-muted) 35%, transparent);
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+
+.drawsy-ai-chat__activity--inProgress .drawsy-ai-chat__activity-indicator {
+  border-top-color: var(--chat-primary);
+  animation: drawsy-ai-activity-spin 850ms linear infinite;
+}
+
+.drawsy-ai-chat__activity--completed .drawsy-ai-chat__activity-indicator {
+  border-color: color-mix(in srgb, #2f9e68 55%, var(--chat-muted));
+
+  &::after {
+    position: absolute;
+    width: 0.24rem;
+    height: 0.12rem;
+    border-bottom: 1px solid currentColor;
+    border-left: 1px solid currentColor;
+    color: color-mix(in srgb, #2f9e68 68%, var(--chat-text));
+    content: "";
+    left: 0.16rem;
+    top: 0.17rem;
+    transform: rotate(-45deg);
+  }
+}
+
+.drawsy-ai-chat__activity--failed {
+  color: color-mix(in srgb, #e03131 72%, var(--chat-muted));
+
+  .drawsy-ai-chat__activity-indicator {
+    border-color: currentColor;
+    background: currentColor;
+  }
+}
+
 .drawsy-ai-chat__composer-wrap {
   padding: 0 0.75rem 0.45rem;
+}
 
-  > p {
-    margin: 0.3rem 0 0;
-    color: var(--chat-muted);
-    font-size: 0.58rem;
-    line-height: 1.2;
-    text-align: center;
+.drawsy-ai-chat__session-meta {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  margin: 0.3rem 0 0;
+  color: var(--chat-muted);
+  font-size: 0.58rem;
+  line-height: 1.2;
+
+  span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  span + span::before {
+    margin-right: 0.35rem;
+    content: "·";
   }
 }
 
@@ -384,9 +471,26 @@
     color: var(--chat-text);
   }
 
+  &:disabled {
+    cursor: wait;
+    opacity: 0.65;
+  }
+
   &:focus-visible {
     outline: 2px solid var(--chat-primary);
     outline-offset: 1px;
+  }
+}
+
+.drawsy-ai-chat__folder {
+  max-width: 10.5rem;
+  justify-content: flex-start;
+
+  span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }
 
@@ -436,8 +540,22 @@
   }
 }
 
+.drawsy-ai-chat__status--error {
+  color: color-mix(in srgb, #e03131 72%, var(--chat-muted)) !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .drawsy-ai-chat__empty {
     transform: none;
+  }
+
+  .drawsy-ai-chat__activity--inProgress .drawsy-ai-chat__activity-indicator {
+    animation: none;
+  }
+}
+
+@keyframes drawsy-ai-activity-spin {
+  to {
+    transform: rotate(360deg);
   }
 }
