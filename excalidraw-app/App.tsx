@@ -10,6 +10,7 @@ import {
 } from "@excalidraw/excalidraw";
 import { trackEvent } from "@excalidraw/excalidraw/analytics";
 import {
+  clearAppStateForDatabase,
   clearAppStateForLocalStorage,
   getDefaultAppState,
 } from "@excalidraw/excalidraw/appState";
@@ -120,6 +121,7 @@ import { JiraWorkspacePlaceholder } from "./components/JiraWorkspacePlaceholder"
 import { JiraWorkspace } from "./components/JiraWorkspace";
 import { ConnectorsWorkspace } from "./components/ConnectorsWorkspace";
 import { DrawsyAIChat } from "./components/DrawsyAIChat";
+
 import { KanbanShareDialog } from "./components/KanbanShareDialog";
 import {
   loadKanbanWorkspaceActive,
@@ -254,6 +256,10 @@ import { useCanvasComments } from "./comments/useCanvasComments";
 
 import type { CollabAPI } from "./collab/Collab";
 import type { CanvasComment } from "./comments/types";
+import type {
+  DrawsyCanvasOperations,
+  DrawsyCanvasSnapshot,
+} from "./data/DrawsyAgentApi";
 import type { RemoteKanbanRole } from "./data/KanbanApi";
 
 polyfill();
@@ -4655,6 +4661,158 @@ const ExcalidrawWrapper = () => {
   const activeProject = workspaceIndex?.projects.find(
     (project) => project.id === activeCanvas?.projectId,
   );
+  const drawsyCanvasId =
+    !kanbanOpen &&
+    !jiraWorkspaceOpen &&
+    !connectorsOpen &&
+    !isPresentationCanvasActive
+      ? activeCanvas?.id || null
+      : null;
+  const readDrawsyCanvas = useCallback(
+    (expectedCanvasId: string): DrawsyCanvasSnapshot => {
+      if (
+        !excalidrawAPI ||
+        !activeCanvas ||
+        workspaceIndexRef.current?.activeCanvasId !== expectedCanvasId ||
+        activeCanvas.id !== expectedCanvasId ||
+        kanbanOpen ||
+        jiraWorkspaceOpen ||
+        connectorsOpen ||
+        isPresentationCanvasActive
+      ) {
+        throw new Error("The active canvas changed. Please retry.");
+      }
+      const files = Object.fromEntries(
+        Object.entries(excalidrawAPI.getFiles()).map(([id, file]) => [
+          id,
+          {
+            mimeType: file.mimeType,
+            created: file.created,
+            lastRetrieved: file.lastRetrieved,
+          },
+        ]),
+      );
+      return {
+        canvasId: expectedCanvasId,
+        canvasName: activeCanvas.title,
+        elements: excalidrawAPI.getSceneElementsIncludingDeleted(),
+        appState: clearAppStateForDatabase(excalidrawAPI.getAppState()),
+        files,
+      };
+    },
+    [
+      activeCanvas,
+      connectorsOpen,
+      excalidrawAPI,
+      isPresentationCanvasActive,
+      jiraWorkspaceOpen,
+      kanbanOpen,
+    ],
+  );
+  const applyDrawsyCanvas = useCallback(
+    (expectedCanvasId: string, operations: DrawsyCanvasOperations) => {
+      if (
+        !excalidrawAPI ||
+        !activeCanvas ||
+        workspaceIndexRef.current?.activeCanvasId !== expectedCanvasId ||
+        activeCanvas.id !== expectedCanvasId ||
+        kanbanOpen ||
+        jiraWorkspaceOpen ||
+        connectorsOpen ||
+        isPresentationCanvasActive
+      ) {
+        throw new Error("The active canvas changed. Please retry.");
+      }
+
+      const current = excalidrawAPI.getSceneElementsIncludingDeleted();
+      const currentById = new Map(
+        current.map((element) => [element.id, element]),
+      );
+      const upserts = new Map<string, ExcalidrawElement>();
+      const newElements: ExcalidrawElement[] = [];
+      const seen = new Set<string>();
+
+      for (const raw of operations.upsertElements) {
+        if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+          throw new Error("Every canvas upsert must be an element object.");
+        }
+        const incoming = raw as Partial<ExcalidrawElement> & {
+          id?: unknown;
+          type?: unknown;
+        };
+        if (
+          typeof incoming.id !== "string" ||
+          !incoming.id.trim() ||
+          seen.has(incoming.id)
+        ) {
+          throw new Error("Canvas upserts require unique element ids.");
+        }
+        seen.add(incoming.id);
+        const existing = currentById.get(incoming.id);
+        if (existing) {
+          if (incoming.type && incoming.type !== existing.type) {
+            throw new Error(
+              "An existing element type cannot be changed in place.",
+            );
+          }
+          const {
+            id: _id,
+            type: _type,
+            version: _version,
+            versionNonce: _versionNonce,
+            updated: _updated,
+            index: _index,
+            isDeleted: _isDeleted,
+            ...patch
+          } = incoming as any;
+          upserts.set(
+            incoming.id,
+            newElementWith(existing, patch as any, true),
+          );
+        } else {
+          const restored = restoreElements(
+            [incoming as ExcalidrawElement],
+            current,
+            { repairBindings: false },
+          )[0];
+          if (!restored) {
+            throw new Error(`Element ${incoming.id} could not be restored.`);
+          }
+          newElements.push(restored);
+        }
+      }
+
+      const deleteIds = new Set(operations.deleteElementIds);
+      for (const id of deleteIds) {
+        if (seen.has(id)) {
+          throw new Error(
+            `Element ${id} cannot be updated and deleted together.`,
+          );
+        }
+      }
+      const next = current.map((element) => {
+        if (deleteIds.has(element.id)) {
+          return newElementWith(element, { isDeleted: true }, true);
+        }
+        return upserts.get(element.id) || element;
+      });
+      const normalized = restoreElements([...next, ...newElements], current, {
+        repairBindings: true,
+      });
+      excalidrawAPI.updateScene({
+        elements: normalized,
+        captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+      });
+    },
+    [
+      activeCanvas,
+      connectorsOpen,
+      excalidrawAPI,
+      isPresentationCanvasActive,
+      jiraWorkspaceOpen,
+      kanbanOpen,
+    ],
+  );
   const comments = useCanvasComments({
     auth: drawsyAuth,
     canvasId:
@@ -6965,9 +7123,14 @@ const ExcalidrawWrapper = () => {
           />
         )}
       </Excalidraw>
-      {drawsyAIChatOpen && !framePresenter && (
+      {!framePresenter && (
         <DrawsyAIChat
+          isOpen={drawsyAIChatOpen}
           theme={editorTheme}
+          canvasId={drawsyCanvasId}
+          canvasName={activeCanvas?.title || null}
+          readCanvas={readDrawsyCanvas}
+          applyCanvas={applyDrawsyCanvas}
           onClose={() => setDrawsyAIChatOpen(false)}
         />
       )}
