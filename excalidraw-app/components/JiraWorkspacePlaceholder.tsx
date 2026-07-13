@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import { THEME, applyDarkModeFilter } from "@excalidraw/excalidraw";
 import { getDefaultAppState } from "@excalidraw/excalidraw/appState";
 import { useUIAppState } from "@excalidraw/excalidraw/context/ui-appState";
@@ -19,9 +21,31 @@ const capabilities = ["Issues", "Boards", "Sprints", "Queues"];
 export const JiraWorkspacePlaceholder = ({
   onConnect,
 }: {
-  onConnect: () => void;
+  onConnect: () => void | Promise<void>;
 }) => {
   const appState = useUIAppState() || getDefaultAppState();
+  const [connecting, setConnecting] = useState(false);
+
+  const connect = () => {
+    if (connecting) {
+      return;
+    }
+    setConnecting(true);
+    try {
+      const result = onConnect();
+      if (result instanceof Promise) {
+        void result.then(
+          () => setConnecting(false),
+          () => setConnecting(false),
+        );
+        return;
+      }
+    } catch (error) {
+      setConnecting(false);
+      throw error;
+    }
+    setConnecting(false);
+  };
 
   return (
     <section
@@ -84,11 +108,15 @@ export const JiraWorkspacePlaceholder = ({
             <i />
             <button
               type="button"
-              className="jira-connect-action"
-              onClick={onConnect}
+              className={`jira-connect-action ${
+                connecting ? "is-loading" : ""
+              }`}
+              disabled={connecting}
+              aria-busy={connecting}
+              onClick={connect}
             >
-              <span>Connect Jira</span>
-              <Arrow />
+              <span>{connecting ? "Connecting…" : "Connect Jira"}</span>
+              {connecting ? <i className="jira-spinner" /> : <Arrow />}
             </button>
             <i />
           </div>

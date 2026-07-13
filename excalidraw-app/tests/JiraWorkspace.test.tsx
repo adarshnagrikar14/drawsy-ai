@@ -1,10 +1,19 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { JiraWorkspace } from "../components/JiraWorkspace";
 
+import type { JiraApi } from "../data/JiraApi";
+
+const jiraProps = {
+  api: {} as JiraApi,
+  connections: [],
+  onConnectionsChange: vi.fn(),
+  onDisconnect: vi.fn().mockResolvedValue(undefined),
+};
+
 describe("JiraWorkspace", () => {
   it("shares search and ownership filters across board and work views", () => {
-    render(<JiraWorkspace onDisconnect={vi.fn()} />);
+    render(<JiraWorkspace {...jiraProps} />);
 
     expect(screen.getByPlaceholderText("Search 12 issues")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Search Jira issues"), {
@@ -31,7 +40,7 @@ describe("JiraWorkspace", () => {
   });
 
   it("edits issue details and reflects the change in the work view", () => {
-    render(<JiraWorkspace onDisconnect={vi.fn()} />);
+    render(<JiraWorkspace {...jiraProps} />);
 
     fireEvent.click(screen.getAllByText("Prepare release checklist")[0]);
     fireEvent.change(screen.getByLabelText("Issue title"), {
@@ -48,7 +57,7 @@ describe("JiraWorkspace", () => {
   });
 
   it("moves an issue between board columns with drag and drop", () => {
-    const { container } = render(<JiraWorkspace onDisconnect={vi.fn()} />);
+    const { container } = render(<JiraWorkspace {...jiraProps} />);
     const issue = screen
       .getAllByText("Prepare release checklist")[0]
       .closest("article")!;
@@ -64,7 +73,7 @@ describe("JiraWorkspace", () => {
   });
 
   it("uses the resource dock for backlog planning and service queues", () => {
-    render(<JiraWorkspace onDisconnect={vi.fn()} />);
+    render(<JiraWorkspace {...jiraProps} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Backlog" }));
     expect(
@@ -82,7 +91,7 @@ describe("JiraWorkspace", () => {
   });
 
   it("creates a session issue and opens its editable details", () => {
-    render(<JiraWorkspace onDisconnect={vi.fn()} />);
+    render(<JiraWorkspace {...jiraProps} />);
 
     fireEvent.click(screen.getByRole("button", { name: /Create issue/ }));
     fireEvent.change(screen.getByLabelText("New issue summary"), {
@@ -102,7 +111,9 @@ describe("JiraWorkspace", () => {
 
   it("keeps appearance in the dock and account tools in the profile menu", () => {
     const onDisconnect = vi.fn();
-    const { container } = render(<JiraWorkspace onDisconnect={onDisconnect} />);
+    const { container } = render(
+      <JiraWorkspace {...jiraProps} onDisconnect={onDisconnect} />,
+    );
 
     fireEvent.click(screen.getByRole("button", { name: /My Software Team/ }));
     expect(screen.getByText("Service Management")).toBeInTheDocument();
@@ -119,5 +130,102 @@ describe("JiraWorkspace", () => {
     expect(screen.getByText("Switch account")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Disconnect Jira" }));
     expect(onDisconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it("loads connected Jira data and sends contributor transitions", async () => {
+    const transitionIssue = vi.fn().mockResolvedValue(undefined);
+    const api = {
+      projects: vi.fn().mockResolvedValue({
+        values: [
+          {
+            id: "10000",
+            key: "KAN",
+            name: "My Software Team",
+            projectTypeKey: "software",
+          },
+        ],
+      }),
+      boards: vi.fn().mockResolvedValue({ values: [] }),
+      searchIssues: vi.fn().mockResolvedValue({
+        issues: [
+          {
+            id: "10001",
+            key: "KAN-1",
+            fields: {
+              summary: "Live Jira issue",
+              status: {
+                name: "To Do",
+                statusCategory: { key: "new" },
+              },
+              issuetype: { name: "Task" },
+              priority: { name: "Medium" },
+              assignee: { accountId: "you" },
+              updated: new Date().toISOString(),
+            },
+          },
+        ],
+      }),
+      issue: vi.fn().mockResolvedValue({
+        id: "10001",
+        key: "KAN-1",
+        fields: {
+          summary: "Live Jira issue",
+          status: { name: "To Do", statusCategory: { key: "new" } },
+          issuetype: { name: "Task" },
+          priority: { name: "Medium" },
+          assignee: { accountId: "account", displayName: "Jira User" },
+          comment: { comments: [] },
+        },
+      }),
+      assignableUsers: vi
+        .fn()
+        .mockResolvedValue([
+          { accountId: "account", displayName: "Jira User", active: true },
+        ]),
+      priorities: vi.fn().mockResolvedValue({
+        values: [{ id: "3", name: "Medium" }],
+      }),
+      transitionIssue,
+      sprints: vi.fn().mockResolvedValue({ values: [] }),
+    } as unknown as JiraApi;
+
+    render(
+      <JiraWorkspace
+        {...jiraProps}
+        api={api}
+        connections={[
+          {
+            id: "account",
+            accountId: "account",
+            accountName: "Jira User",
+            accountEmail: "jira@example.com",
+            accountAvatarUrl: null,
+            sites: [
+              {
+                id: "cloud",
+                name: "Jira",
+                url: "https://example.atlassian.net",
+                scopes: [],
+              },
+            ],
+          },
+        ]}
+      />,
+    );
+
+    expect(await screen.findByText("Live Jira issue")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Live Jira issue"));
+    fireEvent.change(screen.getByLabelText("Issue status"), {
+      target: { value: "progress" },
+    });
+
+    await waitFor(() =>
+      expect(transitionIssue).toHaveBeenCalledWith(
+        "account",
+        "cloud",
+        "KAN-1",
+        "In progress",
+      ),
+    );
   });
 });

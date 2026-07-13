@@ -1,10 +1,20 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+import {
+  fromAdf,
+  toAdf,
+  type JiraApi,
+  type JiraConnection,
+  type JiraProject,
+  type JiraRemoteIssue,
+  type JiraUser,
+} from "../data/JiraApi";
 
 import "./JiraWorkspace.scss";
 
 type StatusId = "todo" | "progress" | "review" | "done";
-type IssueType = "Bug" | "Task" | "Story";
-type Priority = "High" | "Medium" | "Low";
+type IssueType = string;
+type Priority = string;
 type View = "work" | "board" | "backlog" | "queues";
 type OwnershipFilter = "all" | "open" | "mine";
 type Roughness = "clean" | "balanced" | "sketchy";
@@ -15,6 +25,7 @@ type Person = {
   name: string;
   initials: string;
   tone: string;
+  avatarUrl?: string;
 };
 
 type JiraIssue = {
@@ -25,16 +36,23 @@ type JiraIssue = {
   type: IssueType;
   priority: Priority;
   assigneeId: string;
+  assigneeName?: string;
+  assigneeAvatarUrl?: string;
   updated: string;
   description: string;
   comments: string[];
+  commentAuthors?: Person[];
+  remoteStatusName?: string;
+  sprintIds?: string[];
+  points?: number;
 };
 
 type Sprint = {
-  id: "12" | "13" | "backlog";
+  id: string;
   title: string;
   dates?: string;
   issueIds: string[];
+  state?: string;
 };
 
 const people: Person[] = [
@@ -368,35 +386,149 @@ const Avatar = ({ person }: { person: Person }) => (
     className={`jira-avatar jira-avatar--${person.tone}`}
     title={person.name}
   >
-    {person.initials}
+    {person.avatarUrl ? <img src={person.avatarUrl} alt="" /> : person.initials}
   </span>
 );
 
 const personFor = (id: string) =>
   people.find((person) => person.id === id) || people[0];
 
+const initialsFor = (name: string) =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toLocaleUpperCase())
+    .join("") || "?";
+
+const personForIssue = (issue: JiraIssue): Person =>
+  issue.assigneeName
+    ? {
+        id: issue.assigneeId,
+        name: issue.assigneeName,
+        initials: initialsFor(issue.assigneeName),
+        tone: "violet",
+        avatarUrl: issue.assigneeAvatarUrl,
+      }
+    : personFor(issue.assigneeId);
+
+const statusFromJira = (fields: Record<string, any>): StatusId => {
+  const category = String(
+    fields.status?.statusCategory?.key || "",
+  ).toLowerCase();
+  const name = String(fields.status?.name || "").toLowerCase();
+  if (category === "done" || name.includes("done") || name.includes("closed")) {
+    return "done";
+  }
+  if (name.includes("review")) {
+    return "review";
+  }
+  if (category === "indeterminate" || name.includes("progress")) {
+    return "progress";
+  }
+  return "todo";
+};
+
+const priorityFromJira = (name: unknown): Priority => {
+  return String(name || "Medium");
+};
+
+const visualToken = (value: string) =>
+  value.toLocaleLowerCase().replace(/[^a-z0-9]+/g, "-");
+
+const issueFromJira = (issue: JiraRemoteIssue): JiraIssue => {
+  const fields = issue.fields;
+  return {
+    id: issue.id,
+    key: issue.key,
+    title: String(fields.summary || issue.key),
+    status: statusFromJira(fields),
+    type: String(fields.issuetype?.name || "Task"),
+    priority: priorityFromJira(fields.priority?.name),
+    assigneeId: fields.assignee?.accountId || "unassigned",
+    assigneeName: fields.assignee?.displayName || "Unassigned",
+    assigneeAvatarUrl:
+      fields.assignee?.avatarUrls?.["48x48"] ||
+      fields.assignee?.avatarUrls?.["32x32"],
+    updated: fields.updated
+      ? new Intl.RelativeTimeFormat(undefined, { numeric: "auto" }).format(
+          -Math.max(
+            0,
+            Math.round(
+              (Date.now() - new Date(fields.updated).getTime()) / 86_400_000,
+            ),
+          ),
+          "day",
+        )
+      : "recently",
+    description: fromAdf(fields.description),
+    comments: Array.isArray(fields.comment?.comments)
+      ? fields.comment.comments.map((comment: any) => fromAdf(comment.body))
+      : [],
+    commentAuthors: Array.isArray(fields.comment?.comments)
+      ? fields.comment.comments.map((comment: any) => {
+          const name = String(
+            comment.author?.displayName || "Jira contributor",
+          );
+          return {
+            id: String(comment.author?.accountId || "jira-contributor"),
+            name,
+            initials: initialsFor(name),
+            tone: "violet",
+            avatarUrl:
+              comment.author?.avatarUrls?.["48x48"] ||
+              comment.author?.avatarUrls?.["32x32"],
+          };
+        })
+      : [],
+    remoteStatusName: fields.status?.name,
+    sprintIds: (Array.isArray(fields.sprint)
+      ? fields.sprint
+      : fields.sprint
+      ? [fields.sprint]
+      : []
+    ).map((sprint: any) => String(sprint.id)),
+    points:
+      typeof fields.customfield_10016 === "number"
+        ? fields.customfield_10016
+        : undefined,
+  };
+};
+
 export const JiraWorkspace = ({
+  api,
+  connections,
+  onConnectionsChange,
   onDisconnect,
 }: {
-  onDisconnect: () => void;
+  api: JiraApi;
+  connections: JiraConnection[];
+  onConnectionsChange: (connections: JiraConnection[]) => void;
+  onDisconnect: (connectionId: string) => Promise<void>;
 }) => {
-  const [projectId, setProjectId] = useState<"software" | "service">(
-    "software",
+  const [projectId, setProjectId] = useState("software");
+  const [issuesByProject, setIssuesByProject] = useState<
+    Record<string, JiraIssue[]>
+  >(
+    connections.length
+      ? {}
+      : {
+          software: initialIssues,
+          service: serviceIssues,
+        },
   );
-  const [issuesByProject, setIssuesByProject] = useState({
-    software: initialIssues,
-    service: serviceIssues,
-  });
-  const issues = issuesByProject[projectId];
+  const issues = useMemo(
+    () => issuesByProject[projectId] || [],
+    [issuesByProject, projectId],
+  );
   const setIssues = (update: (current: JiraIssue[]) => JiraIssue[]) => {
     setIssuesByProject((current) => ({
       ...current,
-      [projectId]: update(current[projectId]),
+      [projectId]: update(current[projectId] || []),
     }));
   };
   const [view, setView] = useState<View>("board");
-  const [activeQueue, setActiveQueue] =
-    useState<typeof queueDefinitions[number]["id"]>("all");
+  const [activeQueue, setActiveQueue] = useState<string>("all");
   const [filter, setFilter] = useState<OwnershipFilter>("all");
   const [search, setSearch] = useState("");
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
@@ -414,6 +546,415 @@ export const JiraWorkspace = ({
   const [createTitle, setCreateTitle] = useState("");
   const [createType, setCreateType] = useState<IssueType>("Task");
   const [createPriority, setCreatePriority] = useState<Priority>("Medium");
+  const [activeConnectionId, setActiveConnectionId] = useState(
+    connections[0]?.id || "",
+  );
+  const [activeCloudId, setActiveCloudId] = useState(
+    connections[0]?.sites[0]?.id || "",
+  );
+  const [projects, setProjects] = useState<JiraProject[]>([]);
+  const [boardId, setBoardId] = useState<string | null>(null);
+  const [boardType, setBoardType] = useState<string | null>(null);
+  const [sprints, setSprints] = useState<Sprint[]>(
+    connections.length ? [] : sprintSeed,
+  );
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [contentLoading, setContentLoading] = useState(connections.length > 0);
+  const [busyAction, setBusyAction] = useState<string | null>(null);
+  const [queues, setQueues] = useState<
+    Array<{ id: string; label: string; count?: number }>
+  >(connections.length ? [] : [...queueDefinitions]);
+  const [serviceDeskId, setServiceDeskId] = useState<string | null>(null);
+  const [assignableUsers, setAssignableUsers] = useState<JiraUser[]>([]);
+  const [priorities, setPriorities] = useState<string[]>([
+    "High",
+    "Medium",
+    "Low",
+  ]);
+  const activeConnection =
+    connections.find((connection) => connection.id === activeConnectionId) ||
+    connections[0];
+  const activeProject = projects.find((project) => project.key === projectId);
+  const isServiceProject =
+    activeProject?.projectTypeKey === "service_desk" || projectId === "service";
+  const remoteEnabled = connections.length > 0;
+  const selectedIssueKey = issues.find(
+    (candidate) => candidate.id === selectedIssueId,
+  )?.key;
+  const currentPerson: Person = activeConnection
+    ? {
+        id: activeConnection.accountId,
+        name: activeConnection.accountName,
+        initials: initialsFor(activeConnection.accountName),
+        tone: "amber",
+        avatarUrl: activeConnection.accountAvatarUrl || undefined,
+      }
+    : people[0];
+  const currentAssigneeId = activeConnection?.accountId || "you";
+  const availablePeople: Person[] = remoteEnabled
+    ? [
+        {
+          id: "unassigned",
+          name: "Unassigned",
+          initials: "—",
+          tone: "violet",
+        },
+        ...assignableUsers.map((user) => ({
+          id: user.accountId,
+          name: user.displayName,
+          initials: initialsFor(user.displayName),
+          tone: "violet",
+          avatarUrl: user.avatarUrls?.["48x48"] || user.avatarUrls?.["32x32"],
+        })),
+      ]
+    : people;
+  const issueTypes = useMemo(
+    () =>
+      activeProject?.issueTypes?.filter((issueType) => !issueType.subtask) ||
+      [],
+    [activeProject?.issueTypes],
+  );
+
+  const findBoard = useCallback(
+    async (
+      connectionId: string,
+      cloudId: string,
+      projectKey: string,
+      projectId?: string,
+    ) => {
+      let result = await api.boards(connectionId, cloudId, projectKey);
+      if (!result.values.length && projectId) {
+        result = await api.boards(connectionId, cloudId, projectId);
+      }
+      if (!result.values.length) {
+        result = await api.boards(connectionId, cloudId);
+      }
+      const board =
+        result.values.find(
+          (board) =>
+            board.location?.projectKey === projectKey ||
+            String(board.location?.projectId || "") === projectId,
+        ) || result.values[0];
+      return board ? { id: board.id.toString(), type: board.type } : null;
+    },
+    [api],
+  );
+
+  useEffect(() => {
+    if (!issueTypes.length) {
+      return;
+    }
+    setCreateType((current) =>
+      issueTypes.some((issueType) => issueType.name === current)
+        ? current
+        : issueTypes[0]!.name,
+    );
+  }, [issueTypes]);
+
+  const refreshIssues = useCallback(
+    async (connectionId: string, cloudId: string, targetProjectId: string) => {
+      if (!connectionId || !cloudId || !targetProjectId) {
+        return;
+      }
+      const result = await api.searchIssues(
+        connectionId,
+        cloudId,
+        `project = "${targetProjectId.replace(
+          /"/g,
+          '\\"',
+        )}" ORDER BY Rank ASC, updated DESC`,
+      );
+      setIssuesByProject((current) => ({
+        ...current,
+        [targetProjectId]: result.issues.map(issueFromJira),
+      }));
+      setSyncLabel("Synced just now");
+    },
+    [api],
+  );
+
+  useEffect(() => {
+    const connection =
+      connections.find((candidate) => candidate.id === activeConnectionId) ||
+      connections[0];
+    const site =
+      connection?.sites.find((candidate) => candidate.id === activeCloudId) ||
+      connection?.sites[0];
+    if (!connection || !site) {
+      return;
+    }
+    setActiveConnectionId(connection.id);
+    setActiveCloudId(site.id);
+    let cancelled = false;
+    setContentLoading(true);
+    setBusyAction((current) => current || "workspace");
+    setLoadError(null);
+    setSyncLabel("Syncing…");
+    void api
+      .projects(connection.id, site.id)
+      .then(async ({ values }) => {
+        if (cancelled) {
+          return;
+        }
+        setProjects(values);
+        const software =
+          values.find((project) => project.projectTypeKey !== "service_desk") ||
+          values[0];
+        if (software) {
+          setProjectId(software.key);
+          const nextBoard = await findBoard(
+            connection.id,
+            site.id,
+            software.key,
+            software.id,
+          );
+          if (!cancelled) {
+            setBoardId(nextBoard?.id || null);
+            setBoardType(nextBoard?.type || null);
+            if (!nextBoard) {
+              setSprints([{ id: "backlog", title: "Backlog", issueIds: [] }]);
+            }
+          }
+          await refreshIssues(connection.id, site.id, software.key);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setLoadError(
+            error instanceof Error
+              ? error.message
+              : "Jira could not be loaded.",
+          );
+          setSyncLabel("Sync failed");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setContentLoading(false);
+          setBusyAction(null);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    activeCloudId,
+    activeConnectionId,
+    api,
+    connections,
+    findBoard,
+    refreshIssues,
+  ]);
+
+  useEffect(() => {
+    if (!boardId || !activeConnectionId || !activeCloudId) {
+      return;
+    }
+    if (boardType && boardType !== "scrum") {
+      setSprints([{ id: "backlog", title: "Backlog", issueIds: [] }]);
+      return;
+    }
+    let cancelled = false;
+    void api
+      .sprints(activeConnectionId, activeCloudId, boardId)
+      .then(({ values }) => {
+        if (cancelled) {
+          return;
+        }
+        setSprints([
+          ...values
+            .filter((sprint) => sprint.state !== "closed")
+            .map((sprint) => ({
+              id: String(sprint.id),
+              title: sprint.name,
+              dates:
+                sprint.startDate && sprint.endDate
+                  ? `${new Date(
+                      sprint.startDate,
+                    ).toLocaleDateString()} – ${new Date(
+                      sprint.endDate,
+                    ).toLocaleDateString()}`
+                  : undefined,
+              state: sprint.state,
+              issueIds: [],
+            })),
+          { id: "backlog", title: "Backlog", issueIds: [] },
+        ]);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSprints([{ id: "backlog", title: "Backlog", issueIds: [] }]);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeCloudId, activeConnectionId, api, boardId, boardType]);
+
+  useEffect(() => {
+    if (
+      !remoteEnabled ||
+      !activeConnectionId ||
+      !activeCloudId ||
+      !activeProject
+    ) {
+      return;
+    }
+    let cancelled = false;
+    void api
+      .assignableUsers(activeConnectionId, activeCloudId, projectId)
+      .then((users) => {
+        if (!cancelled) {
+          setAssignableUsers(users.filter((user) => user.active));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAssignableUsers([]);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    activeCloudId,
+    activeConnectionId,
+    activeProject,
+    api,
+    projectId,
+    remoteEnabled,
+  ]);
+
+  useEffect(() => {
+    if (!remoteEnabled || !activeConnectionId || !activeCloudId) {
+      return;
+    }
+    let cancelled = false;
+    void api
+      .priorities(activeConnectionId, activeCloudId)
+      .then(({ values }) => {
+        if (!cancelled && values.length) {
+          const names = values.map((priority) => priority.name);
+          setPriorities(names);
+          setCreatePriority((current) =>
+            names.includes(current) ? current : names[0]!,
+          );
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [activeCloudId, activeConnectionId, api, remoteEnabled]);
+
+  useEffect(() => {
+    if (!remoteEnabled || !selectedIssueKey) {
+      return;
+    }
+    let cancelled = false;
+    void api
+      .issue(activeConnectionId, activeCloudId, selectedIssueKey)
+      .then((remoteIssue) => {
+        if (!cancelled) {
+          const detailed = issueFromJira(remoteIssue);
+          setIssuesByProject((current) => ({
+            ...current,
+            [projectId]: (current[projectId] || []).map((candidate) =>
+              candidate.id === detailed.id ? detailed : candidate,
+            ),
+          }));
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setLoadError(
+            error instanceof Error ? error.message : "Issue details failed.",
+          );
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    activeCloudId,
+    activeConnectionId,
+    api,
+    projectId,
+    remoteEnabled,
+    selectedIssueKey,
+  ]);
+
+  useEffect(() => {
+    if (!isServiceProject || !activeConnectionId || !activeCloudId) {
+      return;
+    }
+    let cancelled = false;
+    setContentLoading(true);
+    setBusyAction(`project:${projectId}`);
+    void api
+      .serviceDesks(activeConnectionId, activeCloudId)
+      .then(async ({ values }) => {
+        const desk =
+          values.find(
+            (candidate) => candidate.projectId === activeProject?.id,
+          ) || values[0];
+        if (!desk || cancelled) {
+          return;
+        }
+        setServiceDeskId(desk.id);
+        const result = await api.queues(
+          activeConnectionId,
+          activeCloudId,
+          desk.id,
+        );
+        if (!cancelled && result.values.length) {
+          const nextQueues = result.values.map((queue) => ({
+            id: queue.id,
+            label: queue.name,
+            count: queue.issueCount,
+          }));
+          setQueues(nextQueues);
+          setActiveQueue(nextQueues[0]!.id);
+          const queueResult = await api.queueIssues(
+            activeConnectionId,
+            activeCloudId,
+            desk.id,
+            nextQueues[0]!.id,
+          );
+          if (!cancelled) {
+            setIssuesByProject((current) => ({
+              ...current,
+              [projectId]: queueResult.values.map(issueFromJira),
+            }));
+          }
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setLoadError(
+            error instanceof Error
+              ? error.message
+              : "Service queues could not be loaded.",
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setContentLoading(false);
+          setBusyAction(null);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    activeCloudId,
+    activeConnectionId,
+    activeProject?.id,
+    api,
+    isServiceProject,
+    projectId,
+  ]);
 
   useEffect(() => {
     const closeMenus = (event: PointerEvent) => {
@@ -447,7 +988,7 @@ export const JiraWorkspace = ({
       if (filter === "open" && issue.status === "done") {
         return false;
       }
-      if (filter === "mine" && issue.assigneeId !== "you") {
+      if (filter === "mine" && issue.assigneeId !== currentAssigneeId) {
         return false;
       }
       return (
@@ -457,28 +998,125 @@ export const JiraWorkspace = ({
         issue.type.toLocaleLowerCase().includes(normalizedSearch)
       );
     });
-  }, [filter, issues, search]);
+  }, [currentAssigneeId, filter, issues, search]);
 
   const queueIssues = useMemo(() => {
     const openIssues = visibleIssues.filter((issue) => issue.status !== "done");
     if (activeQueue === "mine") {
-      return openIssues.filter((issue) => issue.assigneeId === "you");
+      return openIssues.filter(
+        (issue) => issue.assigneeId === currentAssigneeId,
+      );
     }
     if (activeQueue === "urgent") {
       return openIssues.filter((issue) => issue.priority === "High");
     }
     return openIssues;
-  }, [activeQueue, visibleIssues]);
+  }, [activeQueue, currentAssigneeId, visibleIssues]);
 
-  const queueCount = (queueId: typeof queueDefinitions[number]["id"]) => {
+  const queueCount = (queueId: string) => {
+    const remoteQueue = queues.find((queue) => queue.id === queueId);
+    if (serviceDeskId && remoteQueue) {
+      return remoteQueue.count ?? (queueId === activeQueue ? issues.length : 0);
+    }
     const openIssues = visibleIssues.filter((issue) => issue.status !== "done");
     if (queueId === "mine") {
-      return openIssues.filter((issue) => issue.assigneeId === "you").length;
+      return openIssues.filter(
+        (issue) => issue.assigneeId === currentAssigneeId,
+      ).length;
     }
     if (queueId === "urgent") {
       return openIssues.filter((issue) => issue.priority === "High").length;
     }
     return openIssues.length;
+  };
+
+  const selectQueue = async (queueId: string) => {
+    setActiveQueue(queueId);
+    if (!serviceDeskId) {
+      return;
+    }
+    setBusyAction(`queue:${queueId}`);
+    setContentLoading(true);
+    setSyncLabel("Syncing…");
+    try {
+      const result = await api.queueIssues(
+        activeConnectionId,
+        activeCloudId,
+        serviceDeskId,
+        queueId,
+      );
+      setIssuesByProject((current) => ({
+        ...current,
+        [projectId]: result.values.map(issueFromJira),
+      }));
+      setSyncLabel("Synced just now");
+    } catch (error) {
+      setLoadError(
+        error instanceof Error ? error.message : "Queue could not be loaded.",
+      );
+      setSyncLabel("Sync failed");
+    } finally {
+      setContentLoading(false);
+      setBusyAction(null);
+    }
+  };
+
+  const selectProject = async (project: JiraProject) => {
+    if (project.key === projectId || busyAction) {
+      setProjectMenuOpen(false);
+      return;
+    }
+    const serviceProject = project.projectTypeKey === "service_desk";
+    setBusyAction(`project:${project.key}`);
+    setContentLoading(true);
+    setLoadError(null);
+    setProjectId(project.key);
+    setView(
+      serviceProject && view === "backlog"
+        ? "queues"
+        : !serviceProject && view === "queues"
+        ? "board"
+        : view,
+    );
+    setProjectMenuOpen(false);
+    setSelectedIssueId(null);
+    setSyncLabel("Syncing…");
+    if (!remoteEnabled) {
+      if (serviceProject) {
+        setBoardId(null);
+        setBoardType(null);
+      }
+      setSyncLabel("Local preview");
+      setContentLoading(false);
+      setBusyAction(null);
+      return;
+    }
+    if (serviceProject) {
+      setBoardId(null);
+      setBoardType(null);
+      return;
+    }
+    try {
+      const nextBoard = await findBoard(
+        activeConnectionId,
+        activeCloudId,
+        project.key,
+        project.id,
+      );
+      setBoardId(nextBoard?.id || null);
+      setBoardType(nextBoard?.type || null);
+      await refreshIssues(activeConnectionId, activeCloudId, project.key);
+    } catch (error) {
+      setBoardId(null);
+      setBoardType(null);
+      setLoadError(
+        error instanceof Error ? error.message : "Jira could not be loaded.",
+      );
+      setSyncLabel("Sync failed");
+    } finally {
+      setContentLoading(false);
+      setBusyAction(null);
+    }
   };
 
   const selectedIssue =
@@ -494,73 +1132,226 @@ export const JiraWorkspace = ({
     );
   };
 
-  const addIssue = (status: StatusId) => {
+  const persistIssueFields = async (
+    issue: JiraIssue,
+    fields: Record<string, unknown>,
+  ) => {
+    if (!remoteEnabled) {
+      return;
+    }
+    try {
+      await api.updateIssue(
+        activeConnectionId,
+        activeCloudId,
+        issue.key,
+        fields,
+      );
+      setSyncLabel("Synced just now");
+    } catch (error) {
+      setLoadError(
+        error instanceof Error ? error.message : "Jira update failed.",
+      );
+      setSyncLabel("Sync failed");
+      await refreshIssues(activeConnectionId, activeCloudId, projectId);
+    }
+  };
+
+  const transitionIssue = async (issue: JiraIssue, status: StatusId) => {
+    const target = columns.find((column) => column.id === status)!;
+    patchIssue(issue.id, { status });
+    if (!remoteEnabled) {
+      return;
+    }
+    try {
+      await api.transitionIssue(
+        activeConnectionId,
+        activeCloudId,
+        issue.key,
+        target.title,
+      );
+      setSyncLabel("Synced just now");
+    } catch (error) {
+      setLoadError(
+        error instanceof Error ? error.message : "Jira transition failed.",
+      );
+      setSyncLabel("Sync failed");
+      await refreshIssues(activeConnectionId, activeCloudId, projectId);
+    }
+  };
+
+  const addIssue = async (status: StatusId) => {
     const title = draftTitle.trim();
     if (!title) {
       return;
     }
-    const nextNumber =
-      Math.max(0, ...issues.map((issue) => Number(issue.key.split("-")[1]))) +
-      1;
-    const keyPrefix = projectId === "service" ? "SRV" : "KAN";
-    setIssues((current) => [
-      ...current,
-      {
-        id: `local-${nextNumber}`,
-        key: `${keyPrefix}-${nextNumber}`,
-        title,
-        status,
-        type: "Task",
-        priority: "Medium",
-        assigneeId: "you",
-        updated: "just now",
-        description: "",
-        comments: [],
-      },
-    ]);
-    setDraftTitle("");
-    setComposerStatus(null);
+    if (!remoteEnabled) {
+      const nextNumber =
+        Math.max(0, ...issues.map((issue) => Number(issue.key.split("-")[1]))) +
+        1;
+      const keyPrefix = projectId === "service" ? "SRV" : "KAN";
+      setIssues((current) => [
+        ...current,
+        {
+          id: `local-${nextNumber}`,
+          key: `${keyPrefix}-${nextNumber}`,
+          title,
+          status,
+          type: "Task",
+          priority: "Medium",
+          assigneeId: "you",
+          updated: "just now",
+          description: "",
+          comments: [],
+        },
+      ]);
+      setDraftTitle("");
+      setComposerStatus(null);
+      return;
+    }
+    const projectKey = projectId;
+    try {
+      const created = await api.createIssue(activeConnectionId, activeCloudId, {
+        project: { key: projectKey },
+        summary: title,
+        issuetype: { name: "Task" },
+        priority: { name: "Medium" },
+      });
+      if (status !== "todo") {
+        await api.transitionIssue(
+          activeConnectionId,
+          activeCloudId,
+          created.key,
+          columns.find((column) => column.id === status)!.title,
+        );
+      }
+      setDraftTitle("");
+      setComposerStatus(null);
+      await refreshIssues(activeConnectionId, activeCloudId, projectId);
+    } catch (error) {
+      setLoadError(
+        error instanceof Error ? error.message : "Jira issue creation failed.",
+      );
+    }
   };
 
-  const createIssue = () => {
+  const createIssue = async () => {
     const title = createTitle.trim();
     if (!title) {
       return;
     }
-    const nextNumber =
-      Math.max(0, ...issues.map((issue) => Number(issue.key.split("-")[1]))) +
-      1;
-    const keyPrefix = projectId === "service" ? "SRV" : "KAN";
-    const issue: JiraIssue = {
-      id: `local-${projectId}-${nextNumber}`,
-      key: `${keyPrefix}-${nextNumber}`,
-      title,
-      status: "todo",
-      type: createType,
-      priority: createPriority,
-      assigneeId: "you",
-      updated: "just now",
-      description: "",
-      comments: [],
-    };
-    setIssues((current) => [issue, ...current]);
-    setCreateTitle("");
-    setCreateType("Task");
-    setCreatePriority("Medium");
-    setCreateOpen(false);
-    setSelectedIssueId(issue.id);
+    if (!remoteEnabled) {
+      const nextNumber =
+        Math.max(0, ...issues.map((issue) => Number(issue.key.split("-")[1]))) +
+        1;
+      const keyPrefix = projectId === "service" ? "SRV" : "KAN";
+      const issue: JiraIssue = {
+        id: `local-${projectId}-${nextNumber}`,
+        key: `${keyPrefix}-${nextNumber}`,
+        title,
+        status: "todo",
+        type: createType,
+        priority: createPriority,
+        assigneeId: "you",
+        updated: "just now",
+        description: "",
+        comments: [],
+      };
+      setIssues((current) => [issue, ...current]);
+      setCreateTitle("");
+      setCreateType(issueTypes[0]?.name || "Task");
+      setCreatePriority(priorities[0] || "Medium");
+      setCreateOpen(false);
+      setSelectedIssueId(issue.id);
+      return;
+    }
+    const projectKey = projectId;
+    try {
+      const created = await api.createIssue(activeConnectionId, activeCloudId, {
+        project: { key: projectKey },
+        summary: title,
+        issuetype: { name: createType },
+        priority: { name: createPriority },
+      });
+      setCreateTitle("");
+      setCreateType(issueTypes[0]?.name || "Task");
+      setCreatePriority(priorities[0] || "Medium");
+      setCreateOpen(false);
+      await refreshIssues(activeConnectionId, activeCloudId, projectId);
+      setSelectedIssueId(created.id);
+    } catch (error) {
+      setLoadError(
+        error instanceof Error ? error.message : "Jira issue creation failed.",
+      );
+    }
   };
 
-  const syncNow = () => {
+  const syncNow = async () => {
+    if (busyAction) {
+      return;
+    }
+    setBusyAction("sync");
+    setContentLoading(true);
     setSyncLabel("Syncing…");
-    window.setTimeout(() => setSyncLabel("Synced just now"), 500);
+    if (!remoteEnabled) {
+      window.setTimeout(() => {
+        setSyncLabel("Synced just now");
+        setContentLoading(false);
+        setBusyAction(null);
+      }, 500);
+      return;
+    }
+    try {
+      await refreshIssues(activeConnectionId, activeCloudId, projectId);
+    } catch (error) {
+      setLoadError(
+        error instanceof Error ? error.message : "Jira sync failed.",
+      );
+      setSyncLabel("Sync failed");
+    } finally {
+      setContentLoading(false);
+      setBusyAction(null);
+    }
+  };
+
+  const changeSprintState = async (
+    sprint: Sprint,
+    state: "active" | "closed",
+  ) => {
+    if (!remoteEnabled || sprint.id === "backlog") {
+      return;
+    }
+    try {
+      await api.updateSprint(
+        activeConnectionId,
+        activeCloudId,
+        sprint.id,
+        state,
+      );
+      setSprints((current) =>
+        state === "closed"
+          ? current.filter((candidate) => candidate.id !== sprint.id)
+          : current.map((candidate) =>
+              candidate.id === sprint.id
+                ? { ...candidate, state: "active" }
+                : candidate,
+            ),
+      );
+      setSyncLabel("Synced just now");
+    } catch (error) {
+      setLoadError(
+        error instanceof Error ? error.message : "Sprint update failed.",
+      );
+      setSyncLabel("Sync failed");
+    }
   };
 
   const renderCard = (issue: JiraIssue) => {
-    const assignee = personFor(issue.assigneeId);
+    const assignee = personForIssue(issue);
     return (
       <article
-        className={`jira-issue-card jira-issue-card--${issue.type.toLocaleLowerCase()}`}
+        className={`jira-issue-card jira-issue-card--${visualToken(
+          issue.type,
+        )}`}
         draggable
         key={issue.id}
         onDragStart={() => setDraggedIssueId(issue.id)}
@@ -584,12 +1375,16 @@ export const JiraWorkspace = ({
         <strong>{issue.title}</strong>
         <div className="jira-issue-meta">
           <span
-            className={`jira-issue-type jira-issue-type--${issue.type.toLocaleLowerCase()}`}
+            className={`jira-issue-type jira-issue-type--${visualToken(
+              issue.type,
+            )}`}
           >
             {issue.type === "Bug" ? "✳" : "▣"} {issue.type}
           </span>
           <span
-            className={`jira-priority jira-priority--${issue.priority.toLocaleLowerCase()}`}
+            className={`jira-priority jira-priority--${visualToken(
+              issue.priority,
+            )}`}
           >
             {issue.priority === "High"
               ? "↑"
@@ -613,6 +1408,7 @@ export const JiraWorkspace = ({
     <section
       className={`jira-connected-workspace jira-roughness-${roughness} jira-corners-${corners}`}
       aria-label="Connected Jira workspace"
+      title={loadError || undefined}
     >
       <div className="jira-config-dock" aria-label="Jira appearance controls">
         <div className="jira-dock-group" aria-label="Roughness">
@@ -650,28 +1446,47 @@ export const JiraWorkspace = ({
         <div className="jira-popover-anchor jira-dock-account">
           <button
             type="button"
-            className={accountMenuOpen ? "is-active" : ""}
+            className={`${accountMenuOpen ? "is-active" : ""} ${
+              busyAction === "account" || busyAction === "disconnect"
+                ? "is-loading"
+                : ""
+            }`}
             aria-label="Jira account"
             aria-expanded={accountMenuOpen}
+            aria-busy={busyAction === "account" || busyAction === "disconnect"}
             onClick={() => {
               setAccountMenuOpen((open) => !open);
               setProjectMenuOpen(false);
             }}
           >
-            <Avatar person={people[0]} />
+            <Avatar person={currentPerson} />
           </button>
           {accountMenuOpen && (
             <div className="jira-menu jira-account-menu" role="menu">
               <div className="jira-account-summary">
-                <Avatar person={people[0]} />
+                <Avatar person={currentPerson} />
                 <span>
-                  <strong>Adarsh Nagarikar</strong>
-                  <small>adarshnagarikar</small>
+                  <strong>
+                    {activeConnection?.accountName || "Jira account"}
+                  </strong>
+                  <small>
+                    {activeConnection?.accountEmail ||
+                      activeConnection?.accountId}
+                  </small>
                 </span>
                 <b>Connected</b>
               </div>
               <div className="jira-menu-divider" />
-              <button type="button">
+              <button
+                type="button"
+                onClick={() => {
+                  window.open(
+                    "https://id.atlassian.com/manage-profile/profile-and-visibility",
+                    "_blank",
+                    "noopener,noreferrer",
+                  );
+                }}
+              >
                 <span className="jira-menu-glyph">
                   <Icon name="user" />
                 </span>
@@ -680,12 +1495,53 @@ export const JiraWorkspace = ({
                   <small>Atlassian contributor account</small>
                 </span>
               </button>
-              <button type="button">
+              <button
+                type="button"
+                disabled={busyAction !== null}
+                aria-busy={busyAction === "account"}
+                onClick={() => {
+                  setBusyAction("account");
+                  setContentLoading(true);
+                  const currentIndex = connections.findIndex(
+                    (connection) => connection.id === activeConnectionId,
+                  );
+                  const next =
+                    connections[(currentIndex + 1) % connections.length];
+                  if (connections.length > 1 && next) {
+                    setActiveConnectionId(next.id);
+                    setActiveCloudId(next.sites[0]?.id || "");
+                    setAccountMenuOpen(false);
+                    return;
+                  }
+                  void api
+                    .connect()
+                    .then((nextConnections) => {
+                      onConnectionsChange(nextConnections);
+                      const newest = nextConnections[0];
+                      if (newest) {
+                        setActiveConnectionId(newest.id);
+                        setActiveCloudId(newest.sites[0]?.id || "");
+                      }
+                      setAccountMenuOpen(false);
+                    })
+                    .catch((error) => {
+                      setLoadError(
+                        error instanceof Error
+                          ? error.message
+                          : "Jira account could not be switched.",
+                      );
+                      setContentLoading(false);
+                      setBusyAction(null);
+                    });
+                }}
+              >
                 <span className="jira-menu-glyph">
                   <Icon name="switch" />
                 </span>
                 <span>
-                  <strong>Switch account</strong>
+                  <strong>
+                    {busyAction === "account" ? "Switching…" : "Switch account"}
+                  </strong>
                   <small>Use another Jira connection</small>
                 </span>
               </button>
@@ -693,13 +1549,33 @@ export const JiraWorkspace = ({
               <button
                 type="button"
                 className="jira-account-disconnect"
-                onClick={onDisconnect}
+                disabled={busyAction !== null}
+                aria-busy={busyAction === "disconnect"}
+                onClick={() => {
+                  setBusyAction("disconnect");
+                  setContentLoading(true);
+                  void Promise.resolve(
+                    onDisconnect(activeConnection?.id || ""),
+                  ).catch((error) => {
+                    setLoadError(
+                      error instanceof Error
+                        ? error.message
+                        : "Jira could not be disconnected.",
+                    );
+                    setContentLoading(false);
+                    setBusyAction(null);
+                  });
+                }}
               >
                 <span className="jira-menu-glyph">
                   <Icon name="unlink" />
                 </span>
                 <span>
-                  <strong>Disconnect Jira</strong>
+                  <strong>
+                    {busyAction === "disconnect"
+                      ? "Disconnecting…"
+                      : "Disconnect Jira"}
+                  </strong>
                 </span>
               </button>
             </div>
@@ -710,7 +1586,9 @@ export const JiraWorkspace = ({
         <div className="jira-popover-anchor jira-project-control">
           <button
             type="button"
-            className="jira-project-trigger"
+            className={`jira-project-trigger ${
+              busyAction?.startsWith("project:") ? "is-loading" : ""
+            }`}
             aria-expanded={projectMenuOpen}
             onClick={() => {
               setProjectMenuOpen((open) => !open);
@@ -719,67 +1597,120 @@ export const JiraWorkspace = ({
           >
             <span
               className={`jira-project-icon ${
-                projectId === "service" ? "jira-project-icon--service" : ""
+                isServiceProject ? "jira-project-icon--service" : ""
               }`}
             >
-              {projectId === "service" ? "SM" : "JT"}
+              {activeProject?.key.slice(0, 2).toUpperCase() ||
+                (isServiceProject ? "SM" : "JT")}
             </span>
             <strong>
-              {projectId === "service"
-                ? "Service Management"
-                : "My Software Team"}
+              {activeProject?.name ||
+                (isServiceProject
+                  ? "Service Management"
+                  : projectId === "software"
+                  ? "My Software Team"
+                  : "Jira project")}
             </strong>
             <Icon name="chevron" />
           </button>
           {projectMenuOpen && (
             <div className="jira-menu jira-project-menu" role="menu">
               <span className="jira-menu-label">Projects</span>
-              <button
-                type="button"
-                className={projectId === "software" ? "is-selected" : ""}
-                onClick={() => {
-                  setProjectId("software");
-                  if (view === "queues") {
-                    setView("board");
-                  }
-                  setProjectMenuOpen(false);
-                  setSelectedIssueId(null);
-                }}
-              >
-                <span className="jira-project-icon">JT</span>
-                <span>
-                  <strong>My Software Team</strong>
-                  <small>Software project</small>
-                </span>
-                {projectId === "software" && <b>✓</b>}
-              </button>
-              <button
-                type="button"
-                className={projectId === "service" ? "is-selected" : ""}
-                onClick={() => {
-                  setProjectId("service");
-                  if (view === "backlog") {
-                    setView("queues");
-                  }
-                  setProjectMenuOpen(false);
-                  setSelectedIssueId(null);
-                }}
-              >
-                <span className="jira-project-icon jira-project-icon--service">
-                  SM
-                </span>
-                <span>
-                  <strong>Service Management</strong>
-                  <small>Service project</small>
-                </span>
-                {projectId === "service" && <b>✓</b>}
-              </button>
+              {(projects.length
+                ? projects
+                : [
+                    {
+                      id: "software",
+                      key: "software",
+                      name: "My Software Team",
+                      projectTypeKey: "software",
+                    },
+                    {
+                      id: "service",
+                      key: "service",
+                      name: "Service Management",
+                      projectTypeKey: "service_desk",
+                    },
+                  ]
+              ).map((project) => {
+                const serviceProject =
+                  project.projectTypeKey === "service_desk";
+                return (
+                  <button
+                    type="button"
+                    key={project.id}
+                    className={projectId === project.key ? "is-selected" : ""}
+                    disabled={busyAction !== null}
+                    aria-busy={busyAction === `project:${project.key}`}
+                    onClick={() => void selectProject(project)}
+                  >
+                    <span
+                      className={`jira-project-icon ${
+                        serviceProject ? "jira-project-icon--service" : ""
+                      }`}
+                    >
+                      {project.key.slice(0, 2).toUpperCase()}
+                    </span>
+                    <span>
+                      <strong>{project.name}</strong>
+                      <small>
+                        {serviceProject
+                          ? "Service project"
+                          : "Software project"}
+                      </small>
+                    </span>
+                    {busyAction === `project:${project.key}` ? (
+                      <i className="jira-spinner" />
+                    ) : (
+                      projectId === project.key && <b>✓</b>
+                    )}
+                  </button>
+                );
+              })}
+              {(activeConnection?.sites.length || 0) > 1 && (
+                <>
+                  <div className="jira-menu-divider" />
+                  <span className="jira-menu-label">Jira sites</span>
+                  {activeConnection!.sites.map((site) => (
+                    <button
+                      type="button"
+                      key={site.id}
+                      className={activeCloudId === site.id ? "is-selected" : ""}
+                      onClick={() => {
+                        setBusyAction("site");
+                        setContentLoading(true);
+                        setProjects([]);
+                        setProjectId("");
+                        setBoardId(null);
+                        setBoardType(null);
+                        setActiveCloudId(site.id);
+                        setProjectMenuOpen(false);
+                      }}
+                    >
+                      <span className="jira-project-icon">
+                        {initialsFor(site.name)}
+                      </span>
+                      <span>
+                        <strong>{site.name}</strong>
+                        <small>{site.url}</small>
+                      </span>
+                      {activeCloudId === site.id && <b>✓</b>}
+                    </button>
+                  ))}
+                </>
+              )}
               <div className="jira-menu-divider" />
-              <button type="button">
+              <button
+                type="button"
+                onClick={() => {
+                  void api.connect().then(onConnectionsChange);
+                  setProjectMenuOpen(false);
+                }}
+              >
                 <span className="jira-menu-glyph">＋</span>
                 <span>
                   <strong>Add Jira project</strong>
-                  <small>Session preview</small>
+                  <small>Connect another Jira account</small>
                 </span>
               </button>
             </div>
@@ -804,15 +1735,13 @@ export const JiraWorkspace = ({
           <button
             type="button"
             className={
-              view === (projectId === "service" ? "queues" : "backlog")
+              view === (isServiceProject ? "queues" : "backlog")
                 ? "is-active"
                 : ""
             }
-            onClick={() =>
-              setView(projectId === "service" ? "queues" : "backlog")
-            }
+            onClick={() => setView(isServiceProject ? "queues" : "backlog")}
           >
-            {projectId === "service" ? "Queues" : "Backlog"}
+            {isServiceProject ? "Queues" : "Backlog"}
           </button>
         </nav>
 
@@ -849,14 +1778,28 @@ export const JiraWorkspace = ({
 
         <button
           type="button"
-          className="jira-sync-button"
           aria-label={syncLabel}
           title={syncLabel}
-          onClick={syncNow}
+          className={`jira-sync-button ${
+            busyAction === "sync" ? "is-loading" : ""
+          }`}
+          disabled={busyAction !== null}
+          aria-busy={busyAction === "sync"}
+          onClick={() => void syncNow()}
         >
           <Icon name="refresh" />
         </button>
       </header>
+
+      {contentLoading && (
+        <div
+          className="jira-content-loading"
+          role="status"
+          aria-label="Loading Jira data"
+        >
+          <span className="jira-spinner jira-content-spinner" />
+        </div>
+      )}
 
       {view === "board" && (
         <div className="jira-board" aria-label="Jira board">
@@ -883,7 +1826,12 @@ export const JiraWorkspace = ({
                 }}
                 onDrop={() => {
                   if (draggedIssueId) {
-                    patchIssue(draggedIssueId, { status: column.id });
+                    const draggedIssue = issues.find(
+                      (issue) => issue.id === draggedIssueId,
+                    );
+                    if (draggedIssue) {
+                      void transitionIssue(draggedIssue, column.id);
+                    }
                   }
                   setDraggedIssueId(null);
                   setDropStatus(null);
@@ -932,7 +1880,7 @@ export const JiraWorkspace = ({
               </section>
             );
           })}
-          {!visibleIssues.length && (
+          {!contentLoading && !visibleIssues.length && (
             <div className="jira-no-results">
               No issues match these filters.
             </div>
@@ -952,7 +1900,7 @@ export const JiraWorkspace = ({
             <span>Updated</span>
           </header>
           {visibleIssues.map((issue) => {
-            const assignee = personFor(issue.assigneeId);
+            const assignee = personForIssue(issue);
             const status = columns.find(
               (column) => column.id === issue.status,
             )!;
@@ -975,7 +1923,9 @@ export const JiraWorkspace = ({
                 </span>
                 <span>{issue.type}</span>
                 <span
-                  className={`jira-priority jira-priority--${issue.priority.toLocaleLowerCase()}`}
+                  className={`jira-priority jira-priority--${visualToken(
+                    issue.priority,
+                  )}`}
                 >
                   {issue.priority}
                 </span>
@@ -987,7 +1937,7 @@ export const JiraWorkspace = ({
               </button>
             );
           })}
-          {!visibleIssues.length && (
+          {!contentLoading && !visibleIssues.length && (
             <div className="jira-no-results">
               No issues match these filters.
             </div>
@@ -1002,15 +1952,18 @@ export const JiraWorkspace = ({
             <button type="button">Filter</button>
           </div>
           <div className="jira-sprint-list">
-            {sprintSeed.map((sprint) => {
+            {sprints.map((sprint) => {
               const assignedIds = new Set(
-                sprintSeed.flatMap((candidate) => candidate.issueIds),
+                issues
+                  .filter((issue) => issue.sprintIds?.length)
+                  .map((issue) => issue.id),
               );
               const sprintIssues = visibleIssues.filter((issue) =>
                 sprint.id === "backlog"
                   ? sprint.issueIds.includes(issue.id) ||
                     !assignedIds.has(issue.id)
-                  : sprint.issueIds.includes(issue.id),
+                  : sprint.issueIds.includes(issue.id) ||
+                    issue.sprintIds?.includes(sprint.id),
               );
               const completed = sprintIssues.filter(
                 (issue) => issue.status === "done",
@@ -1039,13 +1992,21 @@ export const JiraWorkspace = ({
                         <em>{completed} Done</em>
                       </span>
                     )}
-                    {sprint.id === "12" && (
-                      <button type="button" className="jira-sprint-action">
+                    {sprint.state === "active" && (
+                      <button
+                        type="button"
+                        className="jira-sprint-action"
+                        onClick={() => void changeSprintState(sprint, "closed")}
+                      >
                         Complete sprint
                       </button>
                     )}
-                    {sprint.id === "13" && (
-                      <button type="button" className="jira-sprint-action">
+                    {sprint.state === "future" && (
+                      <button
+                        type="button"
+                        className="jira-sprint-action"
+                        onClick={() => void changeSprintState(sprint, "active")}
+                      >
                         Start sprint
                       </button>
                     )}
@@ -1061,7 +2022,7 @@ export const JiraWorkspace = ({
                     <span>Points</span>
                   </div>
                   {sprintIssues.map((issue) => {
-                    const assignee = personFor(issue.assigneeId);
+                    const assignee = personForIssue(issue);
                     const status = columns.find(
                       (column) => column.id === issue.status,
                     )!;
@@ -1074,7 +2035,9 @@ export const JiraWorkspace = ({
                       >
                         <span className="jira-row-grip">⋮⋮</span>
                         <span
-                          className={`jira-type-mark jira-type-mark--${issue.type.toLocaleLowerCase()}`}
+                          className={`jira-type-mark jira-type-mark--${visualToken(
+                            issue.type,
+                          )}`}
                         >
                           {issue.type === "Bug" ? "✳" : "▣"}
                         </span>
@@ -1089,7 +2052,11 @@ export const JiraWorkspace = ({
                           <Avatar person={assignee} />
                           {assignee.name}
                         </span>
-                        <span>{issuePoints[issue.id] || 3}</span>
+                        <span>
+                          {remoteEnabled
+                            ? issue.points ?? "—"
+                            : issuePoints[issue.id] || 3}
+                        </span>
                       </button>
                     );
                   })}
@@ -1116,15 +2083,21 @@ export const JiraWorkspace = ({
                 <Icon name="more" />
               </button>
             </header>
-            {queueDefinitions.map((queue) => (
+            {queues.map((queue) => (
               <button
                 type="button"
                 key={queue.id}
                 className={activeQueue === queue.id ? "is-active" : ""}
-                onClick={() => setActiveQueue(queue.id)}
+                disabled={busyAction !== null}
+                aria-busy={busyAction === `queue:${queue.id}`}
+                onClick={() => void selectQueue(queue.id)}
               >
                 <span>{queue.label}</span>
-                <b>{queueCount(queue.id)}</b>
+                {busyAction === `queue:${queue.id}` ? (
+                  <i className="jira-spinner" />
+                ) : (
+                  <b>{queueCount(queue.id)}</b>
+                )}
               </button>
             ))}
           </aside>
@@ -1132,10 +2105,7 @@ export const JiraWorkspace = ({
             <header>
               <div>
                 <strong>
-                  {
-                    queueDefinitions.find((queue) => queue.id === activeQueue)
-                      ?.label
-                  }
+                  {queues.find((queue) => queue.id === activeQueue)?.label}
                 </strong>
                 <span>Requests that need contributor action</span>
               </div>
@@ -1149,8 +2119,8 @@ export const JiraWorkspace = ({
               <span>Assignee</span>
               <span>SLA</span>
             </div>
-            {queueIssues.map((issue, index) => {
-              const assignee = personFor(issue.assigneeId);
+            {queueIssues.map((issue) => {
+              const assignee = personForIssue(issue);
               const status = columns.find(
                 (column) => column.id === issue.status,
               )!;
@@ -1169,7 +2139,9 @@ export const JiraWorkspace = ({
                     {status.title}
                   </span>
                   <span
-                    className={`jira-priority jira-priority--${issue.priority.toLocaleLowerCase()}`}
+                    className={`jira-priority jira-priority--${visualToken(
+                      issue.priority,
+                    )}`}
                   >
                     {issue.priority}
                   </span>
@@ -1177,9 +2149,7 @@ export const JiraWorkspace = ({
                     <Avatar person={assignee} />
                     {assignee.name}
                   </span>
-                  <span className={index === 0 ? "is-urgent" : ""}>
-                    {index === 0 ? "42m left" : "On track"}
-                  </span>
+                  <span aria-label="SLA unavailable">—</span>
                 </button>
               );
             })}
@@ -1201,9 +2171,8 @@ export const JiraWorkspace = ({
               <div>
                 <span>Create in</span>
                 <strong>
-                  {projectId === "service"
-                    ? "Service Management"
-                    : "My Software Team"}
+                  {activeProject?.name ||
+                    (isServiceProject ? "Service Management" : "Jira project")}
                 </strong>
               </div>
               <button
@@ -1233,9 +2202,12 @@ export const JiraWorkspace = ({
                     setCreateType(event.target.value as IssueType)
                   }
                 >
-                  <option>Task</option>
-                  <option>Bug</option>
-                  <option>Story</option>
+                  {(issueTypes.length
+                    ? issueTypes.map((issueType) => issueType.name)
+                    : ["Task", "Bug", "Story"]
+                  ).map((type) => (
+                    <option key={type}>{type}</option>
+                  ))}
                 </select>
               </label>
               <label>
@@ -1246,9 +2218,9 @@ export const JiraWorkspace = ({
                     setCreatePriority(event.target.value as Priority)
                   }
                 >
-                  <option>Medium</option>
-                  <option>High</option>
-                  <option>Low</option>
+                  {priorities.map((priority) => (
+                    <option key={priority}>{priority}</option>
+                  ))}
                 </select>
               </label>
             </div>
@@ -1290,6 +2262,11 @@ export const JiraWorkspace = ({
               onChange={(event) =>
                 patchIssue(selectedIssue.id, { title: event.target.value })
               }
+              onBlur={() => {
+                void persistIssueFields(selectedIssue, {
+                  summary: selectedIssue.title,
+                });
+              }}
             />
             <div className="jira-detail-fields">
               <label>
@@ -1298,9 +2275,10 @@ export const JiraWorkspace = ({
                   aria-label="Issue status"
                   value={selectedIssue.status}
                   onChange={(event) =>
-                    patchIssue(selectedIssue.id, {
-                      status: event.target.value as StatusId,
-                    })
+                    void transitionIssue(
+                      selectedIssue,
+                      event.target.value as StatusId,
+                    )
                   }
                 >
                   {columns.map((column) => (
@@ -1315,13 +2293,18 @@ export const JiraWorkspace = ({
                 <select
                   aria-label="Issue assignee"
                   value={selectedIssue.assigneeId}
-                  onChange={(event) =>
-                    patchIssue(selectedIssue.id, {
-                      assigneeId: event.target.value,
-                    })
-                  }
+                  onChange={(event) => {
+                    const assigneeId = event.target.value;
+                    patchIssue(selectedIssue.id, { assigneeId });
+                    void persistIssueFields(selectedIssue, {
+                      assignee:
+                        assigneeId === "unassigned"
+                          ? null
+                          : { accountId: assigneeId },
+                    });
+                  }}
                 >
-                  {people.map((person) => (
+                  {availablePeople.map((person) => (
                     <option value={person.id} key={person.id}>
                       {person.name}
                     </option>
@@ -1333,13 +2316,17 @@ export const JiraWorkspace = ({
                 <select
                   aria-label="Issue priority"
                   value={selectedIssue.priority}
-                  onChange={(event) =>
-                    patchIssue(selectedIssue.id, {
-                      priority: event.target.value as Priority,
-                    })
-                  }
+                  onChange={(event) => {
+                    const priority = event.target.value as Priority;
+                    patchIssue(selectedIssue.id, { priority });
+                    void persistIssueFields(selectedIssue, {
+                      priority: { name: priority },
+                    });
+                  }}
                 >
-                  {["High", "Medium", "Low"].map((priority) => (
+                  {Array.from(
+                    new Set([selectedIssue.priority, ...priorities]),
+                  ).map((priority) => (
                     <option key={priority}>{priority}</option>
                   ))}
                 </select>
@@ -1349,13 +2336,22 @@ export const JiraWorkspace = ({
                 <select
                   aria-label="Issue type"
                   value={selectedIssue.type}
-                  onChange={(event) =>
-                    patchIssue(selectedIssue.id, {
-                      type: event.target.value as IssueType,
-                    })
-                  }
+                  onChange={(event) => {
+                    const type = event.target.value as IssueType;
+                    patchIssue(selectedIssue.id, { type });
+                    void persistIssueFields(selectedIssue, {
+                      issuetype: { name: type },
+                    });
+                  }}
                 >
-                  {["Bug", "Task", "Story"].map((type) => (
+                  {Array.from(
+                    new Set([
+                      selectedIssue.type,
+                      ...(issueTypes.length
+                        ? issueTypes.map((issueType) => issueType.name)
+                        : ["Bug", "Task", "Story"]),
+                    ]),
+                  ).map((type) => (
                     <option key={type}>{type}</option>
                   ))}
                 </select>
@@ -1371,21 +2367,30 @@ export const JiraWorkspace = ({
                     description: event.target.value,
                   })
                 }
+                onBlur={() => {
+                  void persistIssueFields(selectedIssue, {
+                    description: toAdf(selectedIssue.description),
+                  });
+                }}
                 placeholder="Add context, decisions, or acceptance criteria…"
               />
             </label>
             <section className="jira-detail-activity">
               <h3>Activity</h3>
               {selectedIssue.comments.length ? (
-                selectedIssue.comments.map((comment, index) => (
-                  <article key={`${selectedIssue.id}-${index}`}>
-                    <Avatar person={people[0]} />
-                    <div>
-                      <strong>Adarsh Nagarikar</strong>
-                      <p>{comment}</p>
-                    </div>
-                  </article>
-                ))
+                selectedIssue.comments.map((comment, index) => {
+                  const author =
+                    selectedIssue.commentAuthors?.[index] || currentPerson;
+                  return (
+                    <article key={`${selectedIssue.id}-${index}`}>
+                      <Avatar person={author} />
+                      <div>
+                        <strong>{author.name}</strong>
+                        <p>{comment}</p>
+                      </div>
+                    </article>
+                  );
+                })
               ) : (
                 <p className="jira-empty-activity">No comments yet.</p>
               )}
@@ -1398,8 +2403,33 @@ export const JiraWorkspace = ({
                   }
                   patchIssue(selectedIssue.id, {
                     comments: [...selectedIssue.comments, body],
+                    commentAuthors: [
+                      ...(selectedIssue.commentAuthors || []),
+                      currentPerson,
+                    ],
                   });
                   setCommentDraft("");
+                  if (remoteEnabled) {
+                    void api
+                      .addComment(
+                        activeConnectionId,
+                        activeCloudId,
+                        selectedIssue.key,
+                        body,
+                      )
+                      .catch((error) => {
+                        setLoadError(
+                          error instanceof Error
+                            ? error.message
+                            : "Comment could not be added.",
+                        );
+                        void refreshIssues(
+                          activeConnectionId,
+                          activeCloudId,
+                          projectId,
+                        );
+                      });
+                  }
                 }}
               >
                 <textarea
