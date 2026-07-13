@@ -136,6 +136,7 @@ import { JiraWorkspaceStore } from "./data/JiraWorkspaceStore";
 import { KanbanApi } from "./data/KanbanApi";
 import { PresentationApi } from "./data/PresentationApi";
 import { JiraApi, type JiraConnection } from "./data/JiraApi";
+import { ConnectorsApi } from "./data/ConnectorsApi";
 import { PresentationSync } from "./data/PresentationSync";
 import {
   PRESENTATION_CLIENT_ID,
@@ -2040,6 +2041,10 @@ const ExcalidrawWrapper = () => {
   );
   const jiraApi = useMemo(
     () => (drawsyAuth.user ? new JiraApi(drawsyAuth.getIdToken) : null),
+    [drawsyAuth.getIdToken, drawsyAuth.user],
+  );
+  const connectorsApi = useMemo(
+    () => (drawsyAuth.user ? new ConnectorsApi(drawsyAuth.getIdToken) : null),
     [drawsyAuth.getIdToken, drawsyAuth.user],
   );
 
@@ -6332,7 +6337,12 @@ const ExcalidrawWrapper = () => {
               }}
             />
           ))}
-        {connectorsOpen && <ConnectorsWorkspace />}
+        {connectorsOpen && (
+          <ConnectorsWorkspace
+            api={connectorsApi}
+            onSignIn={drawsyAuth.signIn}
+          />
+        )}
         <DefaultSidebar.Trigger style={{ display: "none" }} />
         {!kanbanOpen &&
           !jiraWorkspaceOpen &&
