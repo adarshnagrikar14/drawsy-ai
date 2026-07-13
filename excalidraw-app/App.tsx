@@ -119,6 +119,7 @@ import { KanbanWorkspace } from "./components/KanbanWorkspace";
 import { JiraWorkspacePlaceholder } from "./components/JiraWorkspacePlaceholder";
 import { JiraWorkspace } from "./components/JiraWorkspace";
 import { ConnectorsWorkspace } from "./components/ConnectorsWorkspace";
+import { DrawsyAIChat } from "./components/DrawsyAIChat";
 import { KanbanShareDialog } from "./components/KanbanShareDialog";
 import {
   loadKanbanWorkspaceActive,
@@ -327,6 +328,8 @@ const TopRightToolbar = ({
   isPresentationOpen,
   isJiraWorkspaceOpen,
   isConnectorsOpen,
+  isDrawsyAIChatOpen,
+  onDrawsyAISelect,
   onCollabDialogOpen,
 }: {
   onShareSelect: () => void;
@@ -337,11 +340,16 @@ const TopRightToolbar = ({
   isPresentationOpen: boolean;
   isJiraWorkspaceOpen: boolean;
   isConnectorsOpen: boolean;
+  isDrawsyAIChatOpen: boolean;
+  onDrawsyAISelect: () => void;
   onCollabDialogOpen: () => void;
 }) => {
   if (isJiraWorkspaceOpen || isConnectorsOpen) {
     return (
-      <ExcalidrawPlusPromoBanner isSignedIn={isExcalidrawPlusSignedUser} />
+      <ExcalidrawPlusPromoBanner
+        onSelect={onDrawsyAISelect}
+        isActive={isDrawsyAIChatOpen}
+      />
     );
   }
 
@@ -356,7 +364,10 @@ const TopRightToolbar = ({
         >
           {usersIcon}
         </Button>
-        <ExcalidrawPlusPromoBanner isSignedIn={isExcalidrawPlusSignedUser} />
+        <ExcalidrawPlusPromoBanner
+          onSelect={onDrawsyAISelect}
+          isActive={isDrawsyAIChatOpen}
+        />
       </>
     );
   }
@@ -372,7 +383,10 @@ const TopRightToolbar = ({
         >
           {presentationIcon}
         </Button>
-        <ExcalidrawPlusPromoBanner isSignedIn={isExcalidrawPlusSignedUser} />
+        <ExcalidrawPlusPromoBanner
+          onSelect={onDrawsyAISelect}
+          isActive={isDrawsyAIChatOpen}
+        />
       </>
     );
   }
@@ -397,7 +411,10 @@ const TopRightToolbar = ({
       >
         {messageCircleIcon}
       </Button>
-      <ExcalidrawPlusPromoBanner isSignedIn={isExcalidrawPlusSignedUser} />
+      <ExcalidrawPlusPromoBanner
+        onSelect={onDrawsyAISelect}
+        isActive={isDrawsyAIChatOpen}
+      />
     </>
   );
 };
@@ -2155,6 +2172,7 @@ const ExcalidrawWrapper = () => {
   );
   const [jiraWorkspaceOpen, setJiraWorkspaceOpen] = useState(false);
   const [connectorsOpen, setConnectorsOpen] = useState(false);
+  const [drawsyAIChatOpen, setDrawsyAIChatOpen] = useState(false);
   const [jiraConnected, setJiraConnected] = useState(false);
   const [jiraConnections, setJiraConnections] = useState<JiraConnection[]>([]);
   const jiraWorkspaceRestoreRef = useRef(JiraWorkspaceStore.loadActive());
@@ -6018,6 +6036,7 @@ const ExcalidrawWrapper = () => {
         "is-kanban-open": kanbanOpen,
         "is-jira-workspace-open": jiraWorkspaceOpen,
         "is-connectors-open": connectorsOpen,
+        "is-drawsy-ai-chat-open": drawsyAIChatOpen,
         "is-frame-presenter-open": !!framePresenter,
       })}
     >
@@ -6093,6 +6112,10 @@ const ExcalidrawWrapper = () => {
                   isPresentationOpen={isPresentationCanvasActive}
                   isJiraWorkspaceOpen={jiraWorkspaceOpen}
                   isConnectorsOpen={connectorsOpen}
+                  isDrawsyAIChatOpen={drawsyAIChatOpen}
+                  onDrawsyAISelect={() =>
+                    setDrawsyAIChatOpen((isOpen) => !isOpen)
+                  }
                   onCollabDialogOpen={() => {
                     if (!kanbanOpen) {
                       onCollabDialogOpen();
@@ -6942,6 +6965,12 @@ const ExcalidrawWrapper = () => {
           />
         )}
       </Excalidraw>
+      {drawsyAIChatOpen && !framePresenter && (
+        <DrawsyAIChat
+          theme={editorTheme}
+          onClose={() => setDrawsyAIChatOpen(false)}
+        />
+      )}
     </div>
   );
 };

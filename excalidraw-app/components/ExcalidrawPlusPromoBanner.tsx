@@ -1,22 +1,18 @@
 export const ExcalidrawPlusPromoBanner = ({
-  isSignedIn,
+  onSelect,
+  isActive,
 }: {
-  isSignedIn: boolean;
+  onSelect: () => void;
+  isActive: boolean;
 }) => {
   return (
-    <a
-      href={
-        isSignedIn
-          ? import.meta.env.VITE_APP_PLUS_APP
-          : `${
-              import.meta.env.VITE_APP_PLUS_LP
-            }/plus?utm_source=excalidraw&utm_medium=app&utm_content=guestBanner#excalidraw-redirect`
-      }
-      target="_blank"
-      rel="noopener"
-      className="plus-banner plus-banner--solid"
+    <button
+      type="button"
+      className={`plus-banner plus-banner--solid${isActive ? " active" : ""}`}
+      onClick={onSelect}
+      aria-pressed={isActive}
     >
       Drawsy AI
-    </a>
+    </button>
   );
 };

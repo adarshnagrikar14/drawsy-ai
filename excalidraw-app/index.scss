@@ -6,6 +6,29 @@
   font-display: swap;
 }
 
+.excalidraw-app {
+  --drawsy-ai-panel-width: clamp(21rem, 25vw, 25rem);
+
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 0;
+  overflow: hidden;
+  transition: grid-template-columns 180ms ease-out;
+
+  > .excalidraw {
+    min-width: 0;
+  }
+
+  &.is-drawsy-ai-chat-open {
+    grid-template-columns: minmax(0, 1fr) var(--drawsy-ai-panel-width);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .excalidraw-app {
+    transition: none;
+  }
+}
+
 @font-face {
   font-family: "Excalifont";
   src: url("https://excalidraw.com/FG_Virgil.woff2") format("woff2");
@@ -796,6 +819,7 @@
   font-size: 0.8333rem;
   box-sizing: border-box;
   height: var(--lg-button-size);
+  appearance: none;
 
   border: none;
   box-shadow: 0 0 0 1px var(--color-surface-lowest);
@@ -814,6 +838,10 @@
   &:active {
     background-color: var(--color-primary-darker);
   }
+}
+
+.plus-banner.active {
+  background-color: var(--color-primary-darker);
 }
 
 .plus-banner--solid {
