@@ -3,22 +3,24 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Jira connected</title>
+    <title>Source connected</title>
   </head>
   <body>
     <script>
-      const status = new URLSearchParams(window.location.search).get("jira");
+      const params = new URLSearchParams(window.location.search);
+      const status = params.get("connector");
+      const provider = params.get("provider");
       if (window.opener) {
         window.opener.postMessage(
-          { type: "drawsy:jira-oauth", status },
+          { type: "drawsy:connector-oauth", status, provider },
           window.location.origin,
         );
       }
       window.setTimeout(() => window.close(), 50);
       document.body.textContent =
         status === "connected"
-          ? "Jira is connected. You can close this window."
-          : "Jira could not be connected. You can close this window and try again.";
+          ? "The source is connected. You can close this window."
+          : "The source could not be connected. You can close this window and try again.";
     </script>
   </body>
 </html>
