@@ -509,9 +509,6 @@ export const DrawsyAIChat = ({
   const [draft, setDraft] = useState("");
   const [timeline, setTimeline] = useState<TimelineItem[]>([]);
   const [composerTags, setComposerTags] = useState<ComposerTag[]>([]);
-  const [attachedConnectorTags, setAttachedConnectorTags] = useState<
-    ConnectorComposerTag[]
-  >([]);
   const [activeTag, setActiveTag] = useState<ActiveTagQuery | null>(null);
   const [engine, setEngine] = useState<AgentEngine>("codex");
   const [engineMenuOpen, setEngineMenuOpen] = useState(false);
@@ -1038,18 +1035,8 @@ export const DrawsyAIChat = ({
     }
     setTurnRunning(true);
     try {
-      const connectorTags = [
-        ...attachedConnectorTags,
-        ...submittedTags.filter(
-          (tag): tag is ConnectorComposerTag => tag.kind === "connector",
-        ),
-      ].filter(
-        (tag, index, all) =>
-          all.findIndex(
-            (candidate) =>
-              candidate.connectionId === tag.connectionId &&
-              candidate.capability === tag.capability,
-          ) === index,
+      const connectorTags = submittedTags.filter(
+        (tag): tag is ConnectorComposerTag => tag.kind === "connector",
       );
       const turnId = crypto.randomUUID();
       const connectorCapabilities = new Map<string, Set<ConnectorCapability>>();
@@ -1200,17 +1187,6 @@ export const DrawsyAIChat = ({
     tag: ComposerTag,
     query: ActiveTagQuery | null = null,
   ) => {
-    if (tag.kind === "connector") {
-      setAttachedConnectorTags((current) =>
-        current.some(
-          (item) =>
-            item.connectionId === tag.connectionId &&
-            item.capability === tag.capability,
-        )
-          ? current
-          : [...current, tag],
-      );
-    }
     setComposerTags((current) =>
       current.some((item) => item.kind === tag.kind && item.name === tag.name)
         ? current
@@ -1235,31 +1211,6 @@ export const DrawsyAIChat = ({
       textareaRef.current?.focus();
       textareaRef.current?.setSelectionRange(nextCaret, nextCaret);
     });
-  };
-
-  const removeAttachedConnector = (tag: ConnectorComposerTag) => {
-    setAttachedConnectorTags((current) =>
-      current.filter(
-        (item) =>
-          item.connectionId !== tag.connectionId ||
-          item.capability !== tag.capability,
-      ),
-    );
-    setComposerTags((current) =>
-      current.filter(
-        (item) =>
-          item.kind !== "connector" ||
-          item.connectionId !== tag.connectionId ||
-          item.capability !== tag.capability,
-      ),
-    );
-    const token = composerTagText(tag);
-    setDraft((current) =>
-      current
-        .replaceAll(token, "")
-        .replace(/[ \t]{2,}/g, " ")
-        .replace(/^\s+/, ""),
-    );
   };
 
   const connectorTagItems: SlashItem[] = (
@@ -1779,32 +1730,6 @@ export const DrawsyAIChat = ({
           }}
         >
           <div className="drawsy-ai-chat__composer-input">
-            {!!attachedConnectorTags.length && (
-              <div
-                className="drawsy-ai-chat__attached-sources"
-                aria-label="Sources attached to this conversation"
-              >
-                {attachedConnectorTags.map((tag) => (
-                  <span
-                    className="drawsy-ai-chat__attached-source"
-                    key={`${tag.connectionId}:${tag.capability}`}
-                    title={`${tag.accountLabel} · available for follow-up messages`}
-                  >
-                    <span>@{tag.label}</span>
-                    <button
-                      type="button"
-                      onClick={() => removeAttachedConnector(tag)}
-                      aria-label={`Detach ${tag.label}`}
-                      title={`Detach @${tag.label}`}
-                    >
-                      <svg viewBox="0 0 16 16" aria-hidden="true">
-                        <path d="m5 5 6 6m0-6-6 6" />
-                      </svg>
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
             {!!contextCaptures.length && (
               <div
                 className="drawsy-ai-chat__context-list"
