@@ -18,6 +18,40 @@ export type DrawsyAgentMetadata = {
   serviceTier: string | null;
 };
 
+export type DrawsyAgentAccessMode = "workspace" | "readOnly";
+
+export type DrawsyAgentControls = {
+  accessMode: DrawsyAgentAccessMode;
+  internetEnabled: boolean;
+  models: Array<{
+    id: string;
+    model: string;
+    displayName: string;
+    description: string;
+    efforts: Array<{ id: string; description: string }>;
+    defaultEffort: string;
+    isDefault: boolean;
+  }>;
+  skills: Array<{
+    name: string;
+    displayName: string;
+    description: string;
+    path: string;
+  }>;
+  plugins: Array<{
+    id: string;
+    name: string;
+    description: string;
+    capabilities: string[];
+    path: string;
+  }>;
+  mcpServers: Array<{
+    name: string;
+    toolCount: number;
+    authStatus: string;
+  }>;
+};
+
 export type DrawsyBridgeEvent =
   | {
       type: "session.ready";
@@ -31,7 +65,7 @@ export type DrawsyBridgeEvent =
       data: {
         itemId: string;
         tool: string;
-        status: "inProgress" | "completed" | "failed";
+        status: "inProgress" | "completed" | "failed" | "warning";
         message?: string;
         error?: string;
       };
@@ -121,7 +155,14 @@ export const DrawsyAgentApi = {
     }
   },
 
-  startTurn: async (session: { id: string; token: string }, message: string) =>
+  startTurn: async (
+    session: { id: string; token: string },
+    message: string,
+    tags: {
+      skills: Array<{ name: string; path: string }>;
+      plugins: Array<{ name: string; path: string }>;
+    },
+  ) =>
     parseResponse<{ accepted: true }>(
       await fetch(`${apiBase}/v1/sessions/${session.id}/turns`, {
         method: "POST",
@@ -129,7 +170,37 @@ export const DrawsyAgentApi = {
           authorization: `Bearer ${session.token}`,
           "content-type": "application/json",
         },
-        body: JSON.stringify({ message }),
+        body: JSON.stringify({ message, ...tags }),
+      }),
+    ),
+
+  getControls: async (session: { id: string; token: string }) =>
+    parseResponse<DrawsyAgentControls>(
+      await fetch(`${apiBase}/v1/sessions/${session.id}/controls`, {
+        headers: { authorization: `Bearer ${session.token}` },
+      }),
+    ),
+
+  updateSettings: async (
+    session: { id: string; token: string },
+    settings: {
+      model?: string;
+      effort?: string;
+      accessMode?: DrawsyAgentAccessMode;
+      internetEnabled?: boolean;
+    },
+  ) =>
+    parseResponse<{
+      agent: DrawsyAgentMetadata;
+      controls: DrawsyAgentControls;
+    }>(
+      await fetch(`${apiBase}/v1/sessions/${session.id}/settings`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${session.token}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(settings),
       }),
     ),
 
