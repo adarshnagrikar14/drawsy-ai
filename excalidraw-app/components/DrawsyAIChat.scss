@@ -334,6 +334,44 @@
   white-space: pre-wrap;
 }
 
+.drawsy-ai-chat__sent-contexts {
+  display: flex;
+  max-width: 100%;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  margin-bottom: 0.32rem;
+}
+
+.drawsy-ai-chat__sent-context {
+  position: relative;
+  width: 5.25rem;
+  height: 4rem;
+  overflow: hidden;
+  border-radius: 0.58rem;
+  background: var(--chat-soft);
+
+  img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  span {
+    position: absolute;
+    right: 0.28rem;
+    bottom: 0.25rem;
+    padding: 0.16rem 0.3rem;
+    border-radius: 0.3rem;
+    background: rgb(18 18 22 / 72%);
+    color: #ffffff;
+    font-size: 0.52rem;
+    font-weight: 650;
+    line-height: 1;
+  }
+}
+
 .drawsy-ai-chat__message-actions {
   display: flex;
   width: 100%;
@@ -961,7 +999,96 @@
 }
 
 .drawsy-ai-chat__composer-input {
+  display: grid;
   min-width: 0;
+  gap: 0.38rem;
+}
+
+.drawsy-ai-chat__context-list {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.drawsy-ai-chat__context {
+  display: grid;
+  min-width: 0;
+  max-width: 12rem;
+  height: 2.6rem;
+  grid-template-columns: 2.2rem minmax(0, 1fr) 1.55rem;
+  align-items: center;
+  gap: 0.38rem;
+  padding: 0.2rem;
+  border-radius: 0.58rem;
+  background: color-mix(in srgb, var(--chat-text) 6%, transparent);
+  box-sizing: border-box;
+
+  > img {
+    display: block;
+    width: 2.2rem;
+    height: 2.2rem;
+    border-radius: 0.42rem;
+    object-fit: cover;
+  }
+
+  > button {
+    display: grid;
+    width: 1.45rem;
+    height: 1.45rem;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--chat-muted);
+    cursor: pointer;
+
+    svg {
+      width: 0.8rem;
+      height: 0.8rem;
+      fill: none;
+      stroke: currentColor;
+      stroke-linecap: round;
+      stroke-width: 1.5;
+    }
+
+    &:hover {
+      background: color-mix(in srgb, var(--chat-text) 8%, transparent);
+      color: var(--chat-text);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--chat-primary);
+      outline-offset: 1px;
+    }
+  }
+}
+
+.drawsy-ai-chat__context-copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.14rem;
+
+  strong,
+  small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  strong {
+    color: var(--chat-text);
+    font-size: 0.65rem;
+    font-weight: 680;
+    line-height: 1;
+  }
+
+  small {
+    color: var(--chat-muted);
+    font-size: 0.53rem;
+    line-height: 1;
+  }
 }
 
 .drawsy-ai-chat__composer-editor {

@@ -29,6 +29,9 @@ import {
   type DrawsyAgentControls,
   type DrawsyAgentMetadata,
   type DrawsyBridgeEvent,
+  type DrawsyCanvasContextCapture,
+  type DrawsyCanvasContextRequest,
+  type DrawsyCanvasImageReplacement,
   type DrawsyCanvasOperations,
   type DrawsyCanvasSnapshot,
 } from "../data/DrawsyAgentApi";
@@ -52,6 +55,17 @@ type DrawsyAIChatProps = {
     expectedCanvasId: string,
     operations: DrawsyCanvasOperations,
   ) => void;
+  captureCanvas: (
+    expectedCanvasId: string,
+    request: DrawsyCanvasContextRequest,
+  ) => Promise<DrawsyCanvasContextCapture>;
+  replaceCanvasImage: (
+    expectedCanvasId: string,
+    replacement: DrawsyCanvasImageReplacement,
+  ) => void;
+  contextCaptures: DrawsyCanvasContextCapture[];
+  onRemoveContext: (captureId: string) => void;
+  onClearContexts: () => void;
 };
 
 type AgentEngine = "opencode" | "codex";
@@ -168,6 +182,12 @@ type TimelineMessage = {
   role: "user" | "assistant" | "error";
   text: string;
   tags?: ComposerTag[];
+  contexts?: Array<{
+    id: string;
+    previewDataURL: string;
+    elementCount: number;
+    sourceCount: number;
+  }>;
 };
 
 type TimelineTool = {
@@ -187,6 +207,12 @@ const toolActivityLabel = (activity: TimelineTool) => {
       ? { inProgress: "Reading current canvas", completed: "Canvas read" }
       : activity.tool === "apply_canvas_changes"
       ? { inProgress: "Updating canvas", completed: "Canvas updated" }
+      : activity.tool === "add_image_from_file"
+      ? { inProgress: "Adding image to canvas", completed: "Image added" }
+      : activity.tool === "capture_canvas_context"
+      ? { inProgress: "Looking closer", completed: "Canvas context captured" }
+      : activity.tool === "replace_canvas_image_from_file"
+      ? { inProgress: "Replacing canvas image", completed: "Image replaced" }
       : { inProgress: "Working on canvas", completed: "Canvas tool finished" };
 
   if (activity.status === "failed") {
@@ -199,6 +225,36 @@ const toolActivityLabel = (activity: TimelineTool) => {
 };
 
 type AgentSession = { id: string; token: string; folderName: string };
+
+const dataURLToBlob = async (dataURL: string) => {
+  const response = await fetch(dataURL);
+  if (!response.ok) {
+    throw new Error("Canvas context could not be prepared.");
+  }
+  return response.blob();
+};
+
+const uploadContextCapture = async (
+  session: AgentSession,
+  capture: DrawsyCanvasContextCapture,
+) => {
+  await DrawsyAgentApi.uploadContextAsset(session, {
+    captureId: capture.id,
+    role: "preview",
+    assetId: "selection",
+    blob: await dataURLToBlob(capture.preview.dataURL),
+  });
+  await Promise.all(
+    capture.sourceImages.map(async (source) =>
+      DrawsyAgentApi.uploadContextAsset(session, {
+        captureId: capture.id,
+        role: "source",
+        assetId: source.id,
+        blob: await dataURLToBlob(source.dataURL),
+      }),
+    ),
+  );
+};
 
 type SlashView =
   | "model"
@@ -375,6 +431,11 @@ export const DrawsyAIChat = ({
   canvasName,
   readCanvas,
   applyCanvas,
+  captureCanvas,
+  replaceCanvasImage,
+  contextCaptures,
+  onRemoveContext,
+  onClearContexts,
 }: DrawsyAIChatProps) => {
   const [draft, setDraft] = useState("");
   const [timeline, setTimeline] = useState<TimelineItem[]>([]);
@@ -409,7 +470,12 @@ export const DrawsyAIChat = ({
   const stickToBottomRef = useRef(true);
   const copiedMessageTimerRef = useRef<number | null>(null);
   const sessionRef = useRef<AgentSession | null>(null);
-  const canvasHandlersRef = useRef({ readCanvas, applyCanvas });
+  const canvasHandlersRef = useRef({
+    readCanvas,
+    applyCanvas,
+    captureCanvas,
+    replaceCanvasImage,
+  });
 
   useEffect(() => {
     setComposerTags((current) => {
@@ -419,8 +485,19 @@ export const DrawsyAIChat = ({
   }, [draft]);
 
   useEffect(() => {
-    canvasHandlersRef.current = { readCanvas, applyCanvas };
-  }, [applyCanvas, readCanvas]);
+    canvasHandlersRef.current = {
+      readCanvas,
+      applyCanvas,
+      captureCanvas,
+      replaceCanvasImage,
+    };
+  }, [applyCanvas, captureCanvas, readCanvas, replaceCanvasImage]);
+
+  useEffect(() => {
+    if (isOpen && contextCaptures.length) {
+      textareaRef.current?.focus();
+    }
+  }, [contextCaptures.length, isOpen]);
 
   useEffect(() => {
     if (!stickToBottomRef.current || !conversationRef.current) {
@@ -634,17 +711,43 @@ export const DrawsyAIChat = ({
             if (event.data.canvasId !== canvasId) {
               throw new Error("The active canvas changed. Please retry.");
             }
-            const data =
-              event.data.action === "read"
-                ? canvasHandlersRef.current.readCanvas(event.data.canvasId)
-                : (canvasHandlersRef.current.applyCanvas(
-                    event.data.canvasId,
-                    event.data.operations || {
-                      upsertElements: [],
-                      deleteElementIds: [],
-                    },
-                  ),
-                  { ok: true });
+            let data: unknown;
+            if (event.data.action === "read") {
+              data = canvasHandlersRef.current.readCanvas(event.data.canvasId);
+            } else if (event.data.action === "apply") {
+              canvasHandlersRef.current.applyCanvas(
+                event.data.canvasId,
+                event.data.operations || {
+                  upsertElements: [],
+                  deleteElementIds: [],
+                  files: [],
+                },
+              );
+              data = { ok: true };
+            } else if (event.data.action === "capture") {
+              if (!event.data.contextRequest) {
+                throw new Error("The canvas context request is missing.");
+              }
+              const capture = await canvasHandlersRef.current.captureCanvas(
+                event.data.canvasId,
+                event.data.contextRequest,
+              );
+              await uploadContextCapture(session, capture);
+              data = {
+                id: capture.id,
+                elementIds: capture.elementIds,
+                bounds: capture.bounds,
+              };
+            } else {
+              if (!event.data.imageReplacement) {
+                throw new Error("The canvas image replacement is missing.");
+              }
+              canvasHandlersRef.current.replaceCanvasImage(
+                event.data.canvasId,
+                event.data.imageReplacement,
+              );
+              data = { ok: true };
+            }
             await DrawsyAgentApi.respondToCanvas(session, {
               requestId: event.data.requestId,
               ok: true,
@@ -775,10 +878,12 @@ export const DrawsyAIChat = ({
   };
 
   const submitDraft = async () => {
-    const message = draft.trim();
-    if (!message || turnRunning) {
+    const writtenMessage = draft.trim();
+    const submittedContexts = contextCaptures;
+    if ((!writtenMessage && !submittedContexts.length) || turnRunning) {
       return;
     }
+    const message = writtenMessage || "Work with this canvas selection.";
     const submittedTags = tagsPresentInText(composerTags, message);
     if (engine !== "codex") {
       setTimeline((current) => [
@@ -789,6 +894,12 @@ export const DrawsyAIChat = ({
           role: "user",
           text: message,
           tags: submittedTags,
+          contexts: submittedContexts.map((capture) => ({
+            id: capture.id,
+            previewDataURL: capture.preview.dataURL,
+            elementCount: capture.elementIds.length,
+            sourceCount: capture.sourceImages.length,
+          })),
         },
         {
           kind: "message",
@@ -809,29 +920,50 @@ export const DrawsyAIChat = ({
       }
       return;
     }
-    setTimeline((current) => [
-      ...current,
-      {
-        kind: "message",
-        id: crypto.randomUUID(),
-        role: "user",
-        text: message,
-        tags: submittedTags,
-      },
-    ]);
-    setDraft("");
-    setComposerTags([]);
-    setActiveTag(null);
     setTurnRunning(true);
     try {
-      await DrawsyAgentApi.startTurn(session, message, {
-        skills: submittedTags
-          .filter((tag) => tag.kind === "skill")
-          .map(({ name, path }) => ({ name, path })),
-        plugins: submittedTags
-          .filter((tag) => tag.kind === "plugin")
-          .map(({ name, path }) => ({ name, path })),
-      });
+      await Promise.all(
+        submittedContexts.map((capture) =>
+          uploadContextCapture(session, capture),
+        ),
+      );
+      await DrawsyAgentApi.startTurn(
+        session,
+        message,
+        {
+          skills: submittedTags
+            .filter((tag) => tag.kind === "skill")
+            .map(({ name, path }) => ({ name, path })),
+          plugins: submittedTags
+            .filter((tag) => tag.kind === "plugin")
+            .map(({ name, path }) => ({ name, path })),
+        },
+        submittedContexts.map((capture) => ({
+          id: capture.id,
+          elementIds: capture.elementIds,
+          bounds: capture.bounds,
+        })),
+      );
+      setTimeline((current) => [
+        ...current,
+        {
+          kind: "message",
+          id: crypto.randomUUID(),
+          role: "user",
+          text: message,
+          tags: submittedTags,
+          contexts: submittedContexts.map((capture) => ({
+            id: capture.id,
+            previewDataURL: capture.preview.dataURL,
+            elementCount: capture.elementIds.length,
+            sourceCount: capture.sourceImages.length,
+          })),
+        },
+      ]);
+      setDraft("");
+      setComposerTags([]);
+      setActiveTag(null);
+      onClearContexts();
     } catch (error) {
       setTurnRunning(false);
       setTimeline((current) => [
@@ -1218,6 +1350,25 @@ export const DrawsyAIChat = ({
                   className={`drawsy-ai-chat__message drawsy-ai-chat__message--${item.role}`}
                   key={item.id}
                 >
+                  {!!item.contexts?.length && (
+                    <div className="drawsy-ai-chat__sent-contexts">
+                      {item.contexts.map((context) => (
+                        <div
+                          className="drawsy-ai-chat__sent-context"
+                          key={context.id}
+                        >
+                          <img
+                            src={context.previewDataURL}
+                            alt="Attached canvas selection"
+                          />
+                          <span>
+                            {context.elementCount} object
+                            {context.elementCount === 1 ? "" : "s"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <div className="drawsy-ai-chat__message-content">
                     {item.role === "assistant" ? (
                       <Suspense
@@ -1335,6 +1486,43 @@ export const DrawsyAIChat = ({
           }}
         >
           <div className="drawsy-ai-chat__composer-input">
+            {!!contextCaptures.length && (
+              <div
+                className="drawsy-ai-chat__context-list"
+                aria-label="Attached canvas context"
+              >
+                {contextCaptures.map((capture) => (
+                  <div className="drawsy-ai-chat__context" key={capture.id}>
+                    <img
+                      src={capture.preview.dataURL}
+                      alt="Canvas selection preview"
+                    />
+                    <span className="drawsy-ai-chat__context-copy">
+                      <strong>Canvas selection</strong>
+                      <small>
+                        {capture.elementIds.length} object
+                        {capture.elementIds.length === 1 ? "" : "s"}
+                        {capture.sourceImages.length
+                          ? ` · ${capture.sourceImages.length} source${
+                              capture.sourceImages.length === 1 ? "" : "s"
+                            }`
+                          : ""}
+                      </small>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onRemoveContext(capture.id)}
+                      aria-label="Remove canvas selection"
+                      title="Remove selection"
+                    >
+                      <svg viewBox="0 0 16 16" aria-hidden="true">
+                        <path d="m5 5 6 6m0-6-6 6" />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="drawsy-ai-chat__composer-editor">
               <div
                 className="drawsy-ai-chat__composer-highlighter"
@@ -1441,7 +1629,11 @@ export const DrawsyAIChat = ({
                 }}
                 rows={1}
                 placeholder={
-                  folder ? "Ask Drawsy anything…" : "Choose a folder to begin…"
+                  folder
+                    ? contextCaptures.length
+                      ? "Tell Drawsy what to do…"
+                      : "Ask Drawsy anything…"
+                    : "Choose a folder to begin…"
                 }
                 aria-label="Message Drawsy AI"
               />
@@ -1476,7 +1668,7 @@ export const DrawsyAIChat = ({
               type="submit"
               className="drawsy-ai-chat__send"
               disabled={
-                !draft.trim() ||
+                (!draft.trim() && !contextCaptures.length) ||
                 turnRunning ||
                 (engine === "codex" && sessionStatus !== "ready")
               }
