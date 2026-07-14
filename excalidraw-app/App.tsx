@@ -4,6 +4,7 @@ import {
   TTDDialogTrigger,
   CaptureUpdateAction,
   exportToCanvas,
+  exportToBlob,
   reconcileElements,
   ExcalidrawAPIProvider,
   useExcalidrawAPI,
@@ -44,6 +45,8 @@ import {
 import polyfill from "@excalidraw/excalidraw/polyfill";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { loadFromBlob } from "@excalidraw/excalidraw/data/blob";
+import { getDataURL } from "@excalidraw/excalidraw/data/blob";
+import { getSelectedElements } from "@excalidraw/excalidraw/scene";
 import { t } from "@excalidraw/excalidraw/i18n";
 
 import {
@@ -104,6 +107,7 @@ import type {
 } from "@excalidraw/element/types";
 import type {
   AppState,
+  BinaryFileData,
   ExcalidrawImperativeAPI,
   BinaryFiles,
   ExcalidrawInitialDataState,
@@ -258,6 +262,9 @@ import type { CollabAPI } from "./collab/Collab";
 import type { CanvasComment } from "./comments/types";
 import type {
   DrawsyCanvasOperations,
+  DrawsyCanvasContextCapture,
+  DrawsyCanvasContextRequest,
+  DrawsyCanvasImageReplacement,
   DrawsyCanvasSnapshot,
 } from "./data/DrawsyAgentApi";
 import type { RemoteKanbanRole } from "./data/KanbanApi";
@@ -2179,6 +2186,9 @@ const ExcalidrawWrapper = () => {
   const [jiraWorkspaceOpen, setJiraWorkspaceOpen] = useState(false);
   const [connectorsOpen, setConnectorsOpen] = useState(false);
   const [drawsyAIChatOpen, setDrawsyAIChatOpen] = useState(false);
+  const [drawsyContextCaptures, setDrawsyContextCaptures] = useState<
+    DrawsyCanvasContextCapture[]
+  >([]);
   const [jiraConnected, setJiraConnected] = useState(false);
   const [jiraConnections, setJiraConnections] = useState<JiraConnection[]>([]);
   const jiraWorkspaceRestoreRef = useRef(JiraWorkspaceStore.loadActive());
@@ -4724,6 +4734,37 @@ const ExcalidrawWrapper = () => {
         throw new Error("The active canvas changed. Please retry.");
       }
 
+      const existingFiles = excalidrawAPI.getFiles();
+      const incomingFileIds = new Set<string>();
+      const incomingFiles = (operations.files || []).map((file) => {
+        if (
+          !file ||
+          typeof file.id !== "string" ||
+          incomingFileIds.has(file.id) ||
+          typeof file.dataURL !== "string" ||
+          !file.dataURL.startsWith(`data:${file.mimeType};base64,`) ||
+          typeof file.created !== "number" ||
+          !Number.isFinite(file.created)
+        ) {
+          throw new Error("The canvas image asset is invalid.");
+        }
+        const existingFile = existingFiles[file.id as FileId];
+        if (existingFile && existingFile.dataURL !== file.dataURL) {
+          throw new Error(
+            "The canvas image asset conflicts with an existing file.",
+          );
+        }
+        incomingFileIds.add(file.id);
+        return {
+          ...file,
+          id: file.id as FileId,
+          dataURL: file.dataURL as BinaryFileData["dataURL"],
+        } as BinaryFileData;
+      });
+      const availableFileIds = new Set([
+        ...Object.keys(existingFiles),
+        ...incomingFiles.map((file) => file.id),
+      ]);
       const current = excalidrawAPI.getSceneElementsIncludingDeleted();
       const currentById = new Map(
         current.map((element) => [element.id, element]),
@@ -4749,6 +4790,20 @@ const ExcalidrawWrapper = () => {
         }
         seen.add(incoming.id);
         const existing = currentById.get(incoming.id);
+        const incomingType = existing?.type || incoming.type;
+        if (incomingType === "image") {
+          const fileId =
+            typeof (incoming as { fileId?: unknown }).fileId === "string"
+              ? (incoming as { fileId: string }).fileId
+              : existing?.type === "image"
+              ? existing.fileId
+              : null;
+          if (!fileId || !availableFileIds.has(fileId)) {
+            throw new Error(
+              "Image elements require a registered file. Use add_image_from_file.",
+            );
+          }
+        }
         if (existing) {
           if (incoming.type && incoming.type !== existing.type) {
             throw new Error(
@@ -4799,6 +4854,9 @@ const ExcalidrawWrapper = () => {
       const normalized = restoreElements([...next, ...newElements], current, {
         repairBindings: true,
       });
+      if (incomingFiles.length) {
+        excalidrawAPI.addFiles(incomingFiles);
+      }
       excalidrawAPI.updateScene({
         elements: normalized,
         captureUpdate: CaptureUpdateAction.IMMEDIATELY,
@@ -4813,6 +4871,328 @@ const ExcalidrawWrapper = () => {
       kanbanOpen,
     ],
   );
+  const captureDrawsyCanvas = useCallback(
+    async (
+      expectedCanvasId: string,
+      request: DrawsyCanvasContextRequest,
+    ): Promise<DrawsyCanvasContextCapture> => {
+      if (
+        !excalidrawAPI ||
+        !activeCanvas ||
+        workspaceIndexRef.current?.activeCanvasId !== expectedCanvasId ||
+        activeCanvas.id !== expectedCanvasId ||
+        kanbanOpen ||
+        jiraWorkspaceOpen ||
+        connectorsOpen ||
+        isPresentationCanvasActive
+      ) {
+        throw new Error("The active canvas changed. Please retry.");
+      }
+
+      const allElements = getNonDeletedElements(
+        excalidrawAPI.getSceneElementsIncludingDeleted(),
+      );
+      const appState = excalidrawAPI.getAppState();
+      const files = excalidrawAPI.getFiles();
+      const requestedIds = request.elementIds?.length
+        ? Object.fromEntries(
+            request.elementIds.map((id) => [id, true as const]),
+          )
+        : null;
+      let exportingFrame: ExcalidrawFrameLikeElement | null = null;
+      let capturedElements: readonly NonDeletedExcalidrawElement[];
+
+      if (requestedIds) {
+        capturedElements = getSelectedElements(
+          allElements,
+          { selectedElementIds: requestedIds },
+          {
+            includeBoundTextElement: true,
+            includeElementsInFrames: true,
+          },
+        ) as readonly NonDeletedExcalidrawElement[];
+        if (!capturedElements.length) {
+          throw new Error(
+            "The selected canvas elements are no longer available.",
+          );
+        }
+      } else if (request.bounds) {
+        const { x, y, width, height } = request.bounds;
+        exportingFrame = newFrameElement({
+          x,
+          y,
+          width,
+          height,
+          name: "Context",
+          strokeColor: "transparent",
+          backgroundColor: "transparent",
+          fillStyle: "solid",
+          strokeWidth: 1,
+          roughness: 0,
+        });
+        capturedElements = allElements.filter((element) => {
+          const [minX, minY, maxX, maxY] = getCommonBounds([element]);
+          return (
+            maxX >= x && maxY >= y && minX <= x + width && minY <= y + height
+          );
+        });
+      } else {
+        throw new Error("Canvas context requires a selection or exact bounds.");
+      }
+
+      const captureBounds = request.bounds
+        ? request.bounds
+        : (() => {
+            const [minX, minY, maxX, maxY] = getCommonBounds(capturedElements);
+            return {
+              x: minX,
+              y: minY,
+              width: Math.max(1, maxX - minX),
+              height: Math.max(1, maxY - minY),
+            };
+          })();
+      const exportElements = exportingFrame
+        ? [...capturedElements, exportingFrame]
+        : capturedElements;
+      const previewBlob = await exportToBlob({
+        elements: exportElements,
+        appState: {
+          ...appState,
+          exportBackground: true,
+          exportEmbedScene: false,
+          viewBackgroundColor: appState.viewBackgroundColor,
+        },
+        files,
+        maxWidthOrHeight: request.maxDimension,
+        exportPadding: exportingFrame ? 0 : 24,
+        exportingFrame,
+      });
+
+      const sourceImages: DrawsyCanvasContextCapture["sourceImages"] = [];
+      const sourceFileIds = new Set<FileId>();
+      if (request.includeSourceImages) {
+        for (const element of capturedElements) {
+          if (
+            !isInitializedImageElement(element) ||
+            sourceFileIds.has(element.fileId) ||
+            sourceImages.length >= 4
+          ) {
+            continue;
+          }
+          const file = files[element.fileId];
+          if (
+            !file ||
+            !["image/png", "image/jpeg", "image/gif", "image/webp"].includes(
+              file.mimeType,
+            )
+          ) {
+            continue;
+          }
+          sourceFileIds.add(element.fileId);
+          sourceImages.push({
+            id: element.fileId,
+            mimeType:
+              file.mimeType as DrawsyCanvasContextCapture["sourceImages"][number]["mimeType"],
+            dataURL: file.dataURL,
+          });
+        }
+      }
+
+      return {
+        id: crypto.randomUUID(),
+        elementIds: capturedElements.map((element) => element.id),
+        bounds: captureBounds,
+        preview: {
+          mimeType: "image/png",
+          dataURL: await getDataURL(previewBlob),
+        },
+        sourceImages,
+      };
+    },
+    [
+      activeCanvas,
+      connectorsOpen,
+      excalidrawAPI,
+      isPresentationCanvasActive,
+      jiraWorkspaceOpen,
+      kanbanOpen,
+    ],
+  );
+  const replaceDrawsyCanvasImage = useCallback(
+    (expectedCanvasId: string, replacement: DrawsyCanvasImageReplacement) => {
+      if (
+        !excalidrawAPI ||
+        !activeCanvas ||
+        workspaceIndexRef.current?.activeCanvasId !== expectedCanvasId ||
+        activeCanvas.id !== expectedCanvasId ||
+        kanbanOpen ||
+        jiraWorkspaceOpen ||
+        connectorsOpen ||
+        isPresentationCanvasActive
+      ) {
+        throw new Error("The active canvas changed. Please retry.");
+      }
+      const file = replacement.file;
+      if (
+        !file.dataURL.startsWith(`data:${file.mimeType};base64,`) ||
+        !Number.isFinite(file.created) ||
+        !Number.isFinite(replacement.naturalWidth) ||
+        !Number.isFinite(replacement.naturalHeight) ||
+        replacement.naturalWidth <= 0 ||
+        replacement.naturalHeight <= 0
+      ) {
+        throw new Error("The replacement image asset is invalid.");
+      }
+      const existingFile = excalidrawAPI.getFiles()[file.id as FileId];
+      if (existingFile && existingFile.dataURL !== file.dataURL) {
+        throw new Error(
+          "The replacement image conflicts with an existing file.",
+        );
+      }
+      const elements = excalidrawAPI.getSceneElementsIncludingDeleted();
+      const target = elements.find(
+        (element) =>
+          element.id === replacement.targetElementId && !element.isDeleted,
+      );
+      if (!target || target.type !== "image") {
+        throw new Error("The image to replace is no longer on this canvas.");
+      }
+      const naturalWidth = replacement.naturalWidth;
+      const naturalHeight = replacement.naturalHeight;
+      const crop = target.crop
+        ? {
+            x: (target.crop.x / target.crop.naturalWidth) * naturalWidth,
+            y: (target.crop.y / target.crop.naturalHeight) * naturalHeight,
+            width:
+              (target.crop.width / target.crop.naturalWidth) * naturalWidth,
+            height:
+              (target.crop.height / target.crop.naturalHeight) * naturalHeight,
+            naturalWidth,
+            naturalHeight,
+          }
+        : (() => {
+            const targetRatio = Math.abs(target.width / target.height);
+            const sourceRatio = naturalWidth / naturalHeight;
+            if (!Number.isFinite(targetRatio) || targetRatio <= 0) {
+              return null;
+            }
+            if (Math.abs(targetRatio - sourceRatio) < 0.001) {
+              return null;
+            }
+            if (sourceRatio > targetRatio) {
+              const width = naturalHeight * targetRatio;
+              return {
+                x: (naturalWidth - width) / 2,
+                y: 0,
+                width,
+                height: naturalHeight,
+                naturalWidth,
+                naturalHeight,
+              };
+            }
+            const height = naturalWidth / targetRatio;
+            return {
+              x: 0,
+              y: (naturalHeight - height) / 2,
+              width: naturalWidth,
+              height,
+              naturalWidth,
+              naturalHeight,
+            };
+          })();
+      excalidrawAPI.addFiles([
+        {
+          ...file,
+          id: file.id as FileId,
+          dataURL: file.dataURL as BinaryFileData["dataURL"],
+        } as BinaryFileData,
+      ]);
+      excalidrawAPI.updateScene({
+        elements: elements.map((element) =>
+          element.id === target.id
+            ? newElementWith(
+                target,
+                { fileId: file.id as FileId, status: "saved", crop },
+                true,
+              )
+            : element,
+        ),
+        captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+      });
+    },
+    [
+      activeCanvas,
+      connectorsOpen,
+      excalidrawAPI,
+      isPresentationCanvasActive,
+      jiraWorkspaceOpen,
+      kanbanOpen,
+    ],
+  );
+  const drawsyContextCaptureInFlightRef = useRef(false);
+
+  useEffect(() => {
+    setDrawsyContextCaptures([]);
+  }, [drawsyCanvasId]);
+
+  useEffect(() => {
+    const captureSelection = (event: KeyboardEvent) => {
+      if (
+        event.key.toLowerCase() !== "c" ||
+        event.repeat ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.altKey ||
+        event.shiftKey ||
+        !drawsyCanvasId ||
+        !excalidrawAPI ||
+        drawsyContextCaptureInFlightRef.current
+      ) {
+        return;
+      }
+      const target = event.target;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        (target instanceof HTMLElement && target.isContentEditable)
+      ) {
+        return;
+      }
+      const selectedElementIds = Object.keys(
+        excalidrawAPI.getAppState().selectedElementIds,
+      ).filter((id) => excalidrawAPI.getAppState().selectedElementIds[id]);
+      if (!selectedElementIds.length) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      drawsyContextCaptureInFlightRef.current = true;
+      void captureDrawsyCanvas(drawsyCanvasId, {
+        elementIds: selectedElementIds,
+        includeSourceImages: true,
+        maxDimension: 2048,
+      })
+        .then((capture) => {
+          setDrawsyContextCaptures((current) =>
+            [...current, capture].slice(-3),
+          );
+          setDrawsyAIChatOpen(true);
+        })
+        .catch((error) => {
+          setErrorMessage(
+            error instanceof Error
+              ? error.message
+              : "The selection could not be attached.",
+          );
+        })
+        .finally(() => {
+          drawsyContextCaptureInFlightRef.current = false;
+        });
+    };
+    window.addEventListener("keydown", captureSelection, true);
+    return () => window.removeEventListener("keydown", captureSelection, true);
+  }, [captureDrawsyCanvas, drawsyCanvasId, excalidrawAPI]);
   const comments = useCanvasComments({
     auth: drawsyAuth,
     canvasId:
@@ -7131,6 +7511,15 @@ const ExcalidrawWrapper = () => {
           canvasName={activeCanvas?.title || null}
           readCanvas={readDrawsyCanvas}
           applyCanvas={applyDrawsyCanvas}
+          captureCanvas={captureDrawsyCanvas}
+          replaceCanvasImage={replaceDrawsyCanvasImage}
+          contextCaptures={drawsyContextCaptures}
+          onRemoveContext={(captureId) =>
+            setDrawsyContextCaptures((current) =>
+              current.filter((capture) => capture.id !== captureId),
+            )
+          }
+          onClearContexts={() => setDrawsyContextCaptures([])}
           onClose={() => setDrawsyAIChatOpen(false)}
         />
       )}
