@@ -7476,6 +7476,7 @@ const ExcalidrawWrapper = () => {
           canvasId={drawsyCanvasId}
           canvasName={drawsyCanvasName}
           surfaceKind={isPresentationCanvasActive ? "presentation" : "canvas"}
+          connectorsApi={connectorsApi}
           readCanvas={readDrawsyCanvas}
           applyCanvas={applyDrawsyCanvas}
           captureCanvas={captureDrawsyCanvas}

@@ -436,6 +436,26 @@
   font-weight: inherit;
 }
 
+.drawsy-ai-chat__slash-icon--coral {
+  --connector-accent: #e35d5b;
+}
+
+.drawsy-ai-chat__slash-icon--blue {
+  --connector-accent: #4285f4;
+}
+
+.drawsy-ai-chat__slash-icon--green {
+  --connector-accent: #2f9e68;
+}
+
+.drawsy-ai-chat__slash-icon--violet {
+  --connector-accent: #8b5cf6;
+}
+
+.drawsy-ai-chat__slash-icon--ink {
+  --connector-accent: var(--chat-text);
+}
+
 .drawsy-ai-chat__markdown {
   min-width: 0;
   color: var(--chat-text);
@@ -870,6 +890,15 @@
     stroke-linecap: round;
     stroke-linejoin: round;
   }
+}
+
+.drawsy-ai-chat__slash-icon--coral,
+.drawsy-ai-chat__slash-icon--blue,
+.drawsy-ai-chat__slash-icon--green,
+.drawsy-ai-chat__slash-icon--violet,
+.drawsy-ai-chat__slash-icon--ink {
+  background: color-mix(in srgb, var(--connector-accent) 12%, transparent);
+  color: var(--connector-accent);
 }
 
 .drawsy-ai-chat__slash-copy {

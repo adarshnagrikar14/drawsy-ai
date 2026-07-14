@@ -36,7 +36,19 @@ import {
   type DrawsyCanvasSnapshot,
 } from "../data/DrawsyAgentApi";
 
+import {
+  ConnectorLogo,
+  connectorCatalog,
+  type ConnectorTone,
+} from "./connectorCatalog";
+
 import "./DrawsyAIChat.scss";
+
+import type {
+  ConnectorCapability,
+  ConnectorsApi,
+  ConnectorsOverview,
+} from "../data/ConnectorsApi";
 
 const DrawsyMarkdown = lazy(() =>
   import("./DrawsyMarkdown").then((module) => ({
@@ -51,6 +63,7 @@ type DrawsyAIChatProps = {
   canvasId: string | null;
   canvasName: string | null;
   surfaceKind: "canvas" | "presentation";
+  connectorsApi: ConnectorsApi | null;
   readCanvas: (expectedCanvasId: string) => DrawsyCanvasSnapshot;
   applyCanvas: (
     expectedCanvasId: string,
@@ -110,12 +123,24 @@ const DrawsyMark = () => (
   </svg>
 );
 
-type ComposerTag = {
+type PathComposerTag = {
   kind: "skill" | "plugin";
   name: string;
   label: string;
   path: string;
 };
+
+type ComposerTag =
+  | PathComposerTag
+  | {
+      kind: "connector";
+      name: string;
+      label: string;
+      connectionId: string;
+      capability: ConnectorCapability;
+      accountLabel: string;
+      tone: ConnectorTone;
+    };
 
 const composerTagText = (tag: ComposerTag) =>
   `${tag.kind === "skill" ? "$" : "@"}${tag.label}`;
@@ -214,6 +239,15 @@ const toolActivityLabel = (activity: TimelineTool) => {
       ? { inProgress: "Looking closer", completed: "Canvas context captured" }
       : activity.tool === "replace_canvas_image_from_file"
       ? { inProgress: "Replacing canvas image", completed: "Image replaced" }
+      : activity.tool === "list_connected_sources"
+      ? { inProgress: "Checking connected sources", completed: "Sources ready" }
+      : activity.tool === "search_connected_source"
+      ? {
+          inProgress: "Searching connected source",
+          completed: "Source searched",
+        }
+      : activity.tool === "read_connected_item"
+      ? { inProgress: "Reading connected item", completed: "Source read" }
       : { inProgress: "Working on canvas", completed: "Canvas tool finished" };
 
   if (activity.status === "failed") {
@@ -274,6 +308,10 @@ type SlashItem = {
   selected?: boolean;
   disabled?: boolean;
   icon?: string;
+  connector?: {
+    capability: ConnectorCapability;
+    tone: ConnectorTone;
+  };
   onSelect?: () => void;
 };
 
@@ -378,7 +416,7 @@ const SlashMenu = ({
     )}
     <div className="drawsy-ai-chat__slash-list">
       {loading ? (
-        <div className="drawsy-ai-chat__slash-state">Loading from Codex…</div>
+        <div className="drawsy-ai-chat__slash-state">Loading…</div>
       ) : error ? (
         <div className="drawsy-ai-chat__slash-state drawsy-ai-chat__slash-state--error">
           {error}
@@ -395,10 +433,20 @@ const SlashMenu = ({
             onPointerMove={() => onHover(index)}
             onClick={item.onSelect}
           >
-            <span className="drawsy-ai-chat__slash-icon">
-              <SlashIcon
-                type={item.icon || (view === "root" ? item.id : view)}
-              />
+            <span
+              className={`drawsy-ai-chat__slash-icon${
+                item.connector
+                  ? ` drawsy-ai-chat__slash-icon--${item.connector.tone}`
+                  : ""
+              }`}
+            >
+              {item.connector ? (
+                <ConnectorLogo capability={item.connector.capability} />
+              ) : (
+                <SlashIcon
+                  type={item.icon || (view === "root" ? item.id : view)}
+                />
+              )}
             </span>
             <span className="drawsy-ai-chat__slash-copy">
               <span className="drawsy-ai-chat__slash-title">{item.title}</span>
@@ -431,6 +479,7 @@ export const DrawsyAIChat = ({
   canvasId,
   canvasName,
   surfaceKind,
+  connectorsApi,
   readCanvas,
   applyCanvas,
   captureCanvas,
@@ -462,6 +511,10 @@ export const DrawsyAIChat = ({
   const [controls, setControls] = useState<DrawsyAgentControls | null>(null);
   const [controlsLoading, setControlsLoading] = useState(false);
   const [controlsError, setControlsError] = useState<string | null>(null);
+  const [connectorsOverview, setConnectorsOverview] =
+    useState<ConnectorsOverview | null>(null);
+  const [connectorsLoading, setConnectorsLoading] = useState(false);
+  const [connectorsError, setConnectorsError] = useState<string | null>(null);
   const [slashView, setSlashView] = useState<SlashView | null>(null);
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
   const [pendingModel, setPendingModel] = useState<string | null>(null);
@@ -485,6 +538,45 @@ export const DrawsyAIChat = ({
       return next.length === current.length ? current : next;
     });
   }, [draft]);
+
+  useEffect(() => {
+    if (activeTag?.trigger !== "@") {
+      return;
+    }
+    if (!connectorsApi) {
+      setConnectorsOverview(null);
+      setConnectorsError(null);
+      return;
+    }
+    let cancelled = false;
+    setConnectorsLoading(true);
+    setConnectorsError(null);
+    void connectorsApi
+      .getOverview()
+      .then((overview) => {
+        if (!cancelled) {
+          setConnectorsOverview(overview);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setConnectorsOverview(null);
+          setConnectorsError(
+            error instanceof Error
+              ? error.message
+              : "Connected sources could not be loaded.",
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setConnectorsLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTag?.trigger, connectorsApi]);
 
   useEffect(() => {
     canvasHandlersRef.current = {
@@ -925,20 +1017,63 @@ export const DrawsyAIChat = ({
     }
     setTurnRunning(true);
     try {
+      const connectorTags = submittedTags.filter(
+        (tag): tag is Extract<ComposerTag, { kind: "connector" }> =>
+          tag.kind === "connector",
+      );
+      const turnId = crypto.randomUUID();
+      const connectorCapabilities = new Map<string, Set<ConnectorCapability>>();
+      connectorTags.forEach((tag) => {
+        const capabilities =
+          connectorCapabilities.get(tag.connectionId) ||
+          new Set<ConnectorCapability>();
+        capabilities.add(tag.capability);
+        connectorCapabilities.set(tag.connectionId, capabilities);
+      });
       await Promise.all(
         submittedContexts.map((capture) =>
           uploadContextCapture(session, capture),
         ),
       );
+      const connectorGrants = connectorTags.length
+        ? await Promise.all(
+            Array.from(
+              connectorCapabilities,
+              ([connectionId, capabilities]) => {
+                if (!connectorsApi) {
+                  throw new Error("Connected sources are unavailable.");
+                }
+                return connectorsApi
+                  .createAiGrant({
+                    sessionId: session.id,
+                    turnId,
+                    connectionId,
+                    capabilities: Array.from(capabilities),
+                  })
+                  .then((result) => ({
+                    connectionId,
+                    grant: result.grant,
+                    expiresAt: result.expiresAt,
+                  }));
+              },
+            ),
+          )
+        : [];
       await DrawsyAgentApi.startTurn(
         session,
         message,
         {
           skills: submittedTags
-            .filter((tag) => tag.kind === "skill")
+            .filter(
+              (tag): tag is PathComposerTag & { kind: "skill" } =>
+                tag.kind === "skill",
+            )
             .map(({ name, path }) => ({ name, path })),
           plugins: submittedTags
-            .filter((tag) => tag.kind === "plugin")
+            .filter(
+              (tag): tag is PathComposerTag & { kind: "plugin" } =>
+                tag.kind === "plugin",
+            )
             .map(({ name, path }) => ({ name, path })),
         },
         submittedContexts.map((capture) => ({
@@ -946,6 +1081,18 @@ export const DrawsyAIChat = ({
           elementIds: capture.elementIds,
           bounds: capture.bounds,
         })),
+        connectorTags.length
+          ? {
+              turnId,
+              sources: connectorTags.map((tag) => ({
+                connectionId: tag.connectionId,
+                capability: tag.capability,
+                label: tag.label,
+                accountLabel: tag.accountLabel,
+              })),
+              grants: connectorGrants,
+            }
+          : undefined,
       );
       setTimeline((current) => [
         ...current,
@@ -1049,6 +1196,72 @@ export const DrawsyAIChat = ({
     });
   };
 
+  const connectorTagItems: SlashItem[] = (
+    connectorsOverview?.connections || []
+  ).flatMap((connection) =>
+    connection.capabilities.flatMap((capability) => {
+      const connector = connectorCatalog.find(
+        (candidate) => candidate.capability === capability,
+      );
+      if (!connector) {
+        return [];
+      }
+      const accountLabel =
+        connection.accountEmail ||
+        connection.accountName ||
+        "Connected account";
+      const matchingAccounts = (connectorsOverview?.connections || []).filter(
+        (candidate) => candidate.capabilities.includes(capability),
+      ).length;
+      const accountSlug = accountLabel
+        .split("@")[0]
+        .toLowerCase()
+        .replace(/[^a-z0-9._-]+/g, "-")
+        .replace(/^-|-$/g, "")
+        .slice(0, 24);
+      const tagLabel =
+        matchingAccounts > 1 && accountSlug
+          ? `${connector.tagLabel}:${accountSlug}`
+          : connector.tagLabel;
+      return [
+        {
+          id: `connector:${connection.id}:${capability}`,
+          title: connector.name,
+          description: accountLabel,
+          connector: { capability, tone: connector.tone },
+          selected: composerTags.some(
+            (tag) =>
+              tag.kind === "connector" &&
+              tag.connectionId === connection.id &&
+              tag.capability === capability,
+          ),
+          onSelect: () =>
+            addComposerTag(
+              {
+                kind: "connector",
+                name: `${connection.id}:${capability}`,
+                label: tagLabel,
+                connectionId: connection.id,
+                capability,
+                accountLabel,
+                tone: connector.tone,
+              },
+              activeTag,
+            ),
+        },
+      ];
+    }),
+  );
+  if (connectorsError && !connectorTagItems.length) {
+    connectorTagItems.push({
+      id: "connectors-unavailable",
+      title: "Connected sources unavailable",
+      description: connectorsError,
+      icon: "mcp",
+      disabled: true,
+    });
+  }
+
   const availableTagItems: SlashItem[] = activeTag
     ? activeTag.trigger === "$"
       ? (controls?.skills || []).map((skill) => ({
@@ -1070,25 +1283,28 @@ export const DrawsyAIChat = ({
               activeTag,
             ),
         }))
-      : (controls?.plugins || []).map((plugin) => ({
-          id: plugin.id,
-          title: plugin.name,
-          description: plugin.description,
-          icon: "plugins",
-          selected: composerTags.some(
-            (tag) => tag.kind === "plugin" && tag.name === plugin.name,
-          ),
-          onSelect: () =>
-            addComposerTag(
-              {
-                kind: "plugin",
-                name: plugin.name,
-                label: plugin.name,
-                path: plugin.path,
-              },
-              activeTag,
+      : [
+          ...connectorTagItems,
+          ...(controls?.plugins || []).map((plugin) => ({
+            id: plugin.id,
+            title: plugin.name,
+            description: plugin.description,
+            icon: "plugins",
+            selected: composerTags.some(
+              (tag) => tag.kind === "plugin" && tag.name === plugin.name,
             ),
-        }))
+            onSelect: () =>
+              addComposerTag(
+                {
+                  kind: "plugin",
+                  name: plugin.name,
+                  label: plugin.name,
+                  path: plugin.path,
+                },
+                activeTag,
+              ),
+          })),
+        ]
     : [];
   const tagItems = activeTag
     ? availableTagItems.filter((item) =>
@@ -1455,17 +1671,25 @@ export const DrawsyAIChat = ({
               tagMenuOpen
                 ? activeTag?.trigger === "$"
                   ? "Tag a skill"
-                  : "Tag a plugin"
+                  : "Tag a source or plugin"
                 : slashTitle
             }
             view={tagMenuOpen ? "tag" : currentSlashView}
             items={visibleMenuItems}
             selectedIndex={slashSelectedIndex}
             loading={
-              controlsLoading && (tagMenuOpen || currentSlashView !== "root")
+              (controlsLoading &&
+                (tagMenuOpen || currentSlashView !== "root")) ||
+              (tagMenuOpen && activeTag?.trigger === "@" && connectorsLoading)
             }
             error={
-              tagMenuOpen || currentSlashView !== "root" ? controlsError : null
+              tagMenuOpen &&
+              activeTag?.trigger === "@" &&
+              connectorTagItems.length
+                ? null
+                : tagMenuOpen || currentSlashView !== "root"
+                ? controlsError
+                : null
             }
             onBack={() => {
               if (tagMenuOpen) {

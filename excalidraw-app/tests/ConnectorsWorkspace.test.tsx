@@ -80,7 +80,11 @@ describe("ConnectorsWorkspace", () => {
 
     await waitFor(() => {
       expect(api.connect).toHaveBeenCalledWith("google-workspace");
-      expect(screen.getAllByText("Connected")).toHaveLength(3);
+      expect(
+        screen.getAllByRole("button", {
+          name: /Disconnect Google Workspace/,
+        }),
+      ).toHaveLength(3);
       expect(screen.getAllByText("ada@example.com")).toHaveLength(3);
     });
   });
