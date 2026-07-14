@@ -149,6 +149,7 @@ export const DrawsyAgentApi = {
     selectionId: string;
     canvasId: string;
     canvasName: string;
+    surfaceKind: "canvas" | "presentation";
   }) =>
     parseResponse<{ id: string; token: string; folderName: string }>(
       await fetch(`${apiBase}/v1/sessions`, {
