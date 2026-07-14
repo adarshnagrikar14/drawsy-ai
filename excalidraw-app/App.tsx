@@ -4672,24 +4672,45 @@ const ExcalidrawWrapper = () => {
     (project) => project.id === activeCanvas?.projectId,
   );
   const drawsyCanvasId =
-    !kanbanOpen &&
-    !jiraWorkspaceOpen &&
-    !connectorsOpen &&
-    !isPresentationCanvasActive
-      ? activeCanvas?.id || null
-      : null;
+    kanbanOpen || jiraWorkspaceOpen || connectorsOpen
+      ? null
+      : isPresentationCanvasActive
+      ? activePresentation
+        ? `presentation:${activePresentation.id}`
+        : null
+      : activeCanvas?.id || null;
+  const drawsyCanvasName = isPresentationCanvasActive
+    ? activePresentation?.title || null
+    : activeCanvas?.title || null;
+  const isCurrentDrawsyCanvas = useCallback(
+    (expectedCanvasId: string) => {
+      if (!excalidrawAPI || kanbanOpen || jiraWorkspaceOpen || connectorsOpen) {
+        return false;
+      }
+      if (isPresentationCanvasActive) {
+        return (
+          !!presentationIdRef.current &&
+          expectedCanvasId === `presentation:${presentationIdRef.current}`
+        );
+      }
+      return (
+        !!activeCanvas &&
+        workspaceIndexRef.current?.activeCanvasId === expectedCanvasId &&
+        activeCanvas.id === expectedCanvasId
+      );
+    },
+    [
+      activeCanvas,
+      connectorsOpen,
+      excalidrawAPI,
+      isPresentationCanvasActive,
+      jiraWorkspaceOpen,
+      kanbanOpen,
+    ],
+  );
   const readDrawsyCanvas = useCallback(
     (expectedCanvasId: string): DrawsyCanvasSnapshot => {
-      if (
-        !excalidrawAPI ||
-        !activeCanvas ||
-        workspaceIndexRef.current?.activeCanvasId !== expectedCanvasId ||
-        activeCanvas.id !== expectedCanvasId ||
-        kanbanOpen ||
-        jiraWorkspaceOpen ||
-        connectorsOpen ||
-        isPresentationCanvasActive
-      ) {
+      if (!excalidrawAPI || !isCurrentDrawsyCanvas(expectedCanvasId)) {
         throw new Error("The active canvas changed. Please retry.");
       }
       const files = Object.fromEntries(
@@ -4704,33 +4725,17 @@ const ExcalidrawWrapper = () => {
       );
       return {
         canvasId: expectedCanvasId,
-        canvasName: activeCanvas.title,
+        canvasName: drawsyCanvasName || "Untitled",
         elements: excalidrawAPI.getSceneElementsIncludingDeleted(),
         appState: clearAppStateForDatabase(excalidrawAPI.getAppState()),
         files,
       };
     },
-    [
-      activeCanvas,
-      connectorsOpen,
-      excalidrawAPI,
-      isPresentationCanvasActive,
-      jiraWorkspaceOpen,
-      kanbanOpen,
-    ],
+    [drawsyCanvasName, excalidrawAPI, isCurrentDrawsyCanvas],
   );
   const applyDrawsyCanvas = useCallback(
     (expectedCanvasId: string, operations: DrawsyCanvasOperations) => {
-      if (
-        !excalidrawAPI ||
-        !activeCanvas ||
-        workspaceIndexRef.current?.activeCanvasId !== expectedCanvasId ||
-        activeCanvas.id !== expectedCanvasId ||
-        kanbanOpen ||
-        jiraWorkspaceOpen ||
-        connectorsOpen ||
-        isPresentationCanvasActive
-      ) {
+      if (!excalidrawAPI || !isCurrentDrawsyCanvas(expectedCanvasId)) {
         throw new Error("The active canvas changed. Please retry.");
       }
 
@@ -4862,30 +4867,14 @@ const ExcalidrawWrapper = () => {
         captureUpdate: CaptureUpdateAction.IMMEDIATELY,
       });
     },
-    [
-      activeCanvas,
-      connectorsOpen,
-      excalidrawAPI,
-      isPresentationCanvasActive,
-      jiraWorkspaceOpen,
-      kanbanOpen,
-    ],
+    [excalidrawAPI, isCurrentDrawsyCanvas],
   );
   const captureDrawsyCanvas = useCallback(
     async (
       expectedCanvasId: string,
       request: DrawsyCanvasContextRequest,
     ): Promise<DrawsyCanvasContextCapture> => {
-      if (
-        !excalidrawAPI ||
-        !activeCanvas ||
-        workspaceIndexRef.current?.activeCanvasId !== expectedCanvasId ||
-        activeCanvas.id !== expectedCanvasId ||
-        kanbanOpen ||
-        jiraWorkspaceOpen ||
-        connectorsOpen ||
-        isPresentationCanvasActive
-      ) {
+      if (!excalidrawAPI || !isCurrentDrawsyCanvas(expectedCanvasId)) {
         throw new Error("The active canvas changed. Please retry.");
       }
 
@@ -5009,27 +4998,11 @@ const ExcalidrawWrapper = () => {
         sourceImages,
       };
     },
-    [
-      activeCanvas,
-      connectorsOpen,
-      excalidrawAPI,
-      isPresentationCanvasActive,
-      jiraWorkspaceOpen,
-      kanbanOpen,
-    ],
+    [excalidrawAPI, isCurrentDrawsyCanvas],
   );
   const replaceDrawsyCanvasImage = useCallback(
     (expectedCanvasId: string, replacement: DrawsyCanvasImageReplacement) => {
-      if (
-        !excalidrawAPI ||
-        !activeCanvas ||
-        workspaceIndexRef.current?.activeCanvasId !== expectedCanvasId ||
-        activeCanvas.id !== expectedCanvasId ||
-        kanbanOpen ||
-        jiraWorkspaceOpen ||
-        connectorsOpen ||
-        isPresentationCanvasActive
-      ) {
+      if (!excalidrawAPI || !isCurrentDrawsyCanvas(expectedCanvasId)) {
         throw new Error("The active canvas changed. Please retry.");
       }
       const file = replacement.file;
@@ -5120,14 +5093,7 @@ const ExcalidrawWrapper = () => {
         captureUpdate: CaptureUpdateAction.IMMEDIATELY,
       });
     },
-    [
-      activeCanvas,
-      connectorsOpen,
-      excalidrawAPI,
-      isPresentationCanvasActive,
-      jiraWorkspaceOpen,
-      kanbanOpen,
-    ],
+    [excalidrawAPI, isCurrentDrawsyCanvas],
   );
   const drawsyContextCaptureInFlightRef = useRef(false);
 
@@ -7508,7 +7474,8 @@ const ExcalidrawWrapper = () => {
           isOpen={drawsyAIChatOpen}
           theme={editorTheme}
           canvasId={drawsyCanvasId}
-          canvasName={activeCanvas?.title || null}
+          canvasName={drawsyCanvasName}
+          surfaceKind={isPresentationCanvasActive ? "presentation" : "canvas"}
           readCanvas={readDrawsyCanvas}
           applyCanvas={applyDrawsyCanvas}
           captureCanvas={captureDrawsyCanvas}

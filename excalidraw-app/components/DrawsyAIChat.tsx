@@ -50,6 +50,7 @@ type DrawsyAIChatProps = {
   theme: "light" | "dark";
   canvasId: string | null;
   canvasName: string | null;
+  surfaceKind: "canvas" | "presentation";
   readCanvas: (expectedCanvasId: string) => DrawsyCanvasSnapshot;
   applyCanvas: (
     expectedCanvasId: string,
@@ -429,6 +430,7 @@ export const DrawsyAIChat = ({
   theme,
   canvasId,
   canvasName,
+  surfaceKind,
   readCanvas,
   applyCanvas,
   captureCanvas,
@@ -771,6 +773,7 @@ export const DrawsyAIChat = ({
       selectionId: folder.selectionId,
       canvasId,
       canvasName: canvasName || "Untitled",
+      surfaceKind,
     })
       .then((session) => {
         createdSession = session;
@@ -802,7 +805,7 @@ export const DrawsyAIChat = ({
         void DrawsyAgentApi.closeSession(createdSession);
       }
     };
-  }, [canvasId, canvasName, engine, folder]);
+  }, [canvasId, canvasName, engine, folder, surfaceKind]);
 
   const selectedEngine = agentEngines.find((option) => option.id === engine)!;
   const slashQueryOpen =
