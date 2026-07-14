@@ -9,6 +9,47 @@ export type DrawsyCanvasSnapshot = {
 export type DrawsyCanvasOperations = {
   upsertElements: unknown[];
   deleteElementIds: string[];
+  files: DrawsyCanvasFile[];
+};
+
+export type DrawsyCanvasFile = {
+  id: string;
+  mimeType: "image/png" | "image/jpeg" | "image/gif" | "image/webp";
+  dataURL: string;
+  created: number;
+};
+
+export type DrawsyCanvasContextBounds = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+export type DrawsyCanvasContextRequest = {
+  elementIds?: string[];
+  bounds?: DrawsyCanvasContextBounds;
+  includeSourceImages: boolean;
+  maxDimension: number;
+};
+
+export type DrawsyCanvasContextCapture = {
+  id: string;
+  elementIds: string[];
+  bounds: DrawsyCanvasContextBounds;
+  preview: { mimeType: "image/png"; dataURL: string };
+  sourceImages: Array<{
+    id: string;
+    mimeType: DrawsyCanvasFile["mimeType"];
+    dataURL: string;
+  }>;
+};
+
+export type DrawsyCanvasImageReplacement = {
+  targetElementId: string;
+  file: DrawsyCanvasFile;
+  naturalWidth: number;
+  naturalHeight: number;
 };
 
 export type DrawsyAgentMetadata = {
@@ -74,9 +115,11 @@ export type DrawsyBridgeEvent =
       type: "canvas.request";
       data: {
         requestId: string;
-        action: "read" | "apply";
+        action: "read" | "apply" | "capture" | "replaceImage";
         canvasId: string;
         operations?: DrawsyCanvasOperations;
+        contextRequest?: DrawsyCanvasContextRequest;
+        imageReplacement?: DrawsyCanvasImageReplacement;
       };
     }
   | { type: "error"; data: { message: string; code: string } };
@@ -162,6 +205,11 @@ export const DrawsyAgentApi = {
       skills: Array<{ name: string; path: string }>;
       plugins: Array<{ name: string; path: string }>;
     },
+    contexts: Array<{
+      id: string;
+      elementIds: string[];
+      bounds: DrawsyCanvasContextBounds;
+    }> = [],
   ) =>
     parseResponse<{ accepted: true }>(
       await fetch(`${apiBase}/v1/sessions/${session.id}/turns`, {
@@ -170,8 +218,35 @@ export const DrawsyAgentApi = {
           authorization: `Bearer ${session.token}`,
           "content-type": "application/json",
         },
-        body: JSON.stringify({ message, ...tags }),
+        body: JSON.stringify({ message, ...tags, contexts }),
       }),
+    ),
+
+  uploadContextAsset: async (
+    session: { id: string; token: string },
+    input: {
+      captureId: string;
+      role: "preview" | "source";
+      assetId: string;
+      blob: Blob;
+    },
+  ) =>
+    parseResponse<{ id: string; mimeType: string }>(
+      await fetch(
+        `${apiBase}/v1/sessions/${
+          session.id
+        }/context-assets/${encodeURIComponent(input.captureId)}/${
+          input.role
+        }/${encodeURIComponent(input.assetId)}`,
+        {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${session.token}`,
+            "content-type": input.blob.type,
+          },
+          body: input.blob,
+        },
+      ),
     ),
 
   getControls: async (session: { id: string; token: string }) =>
