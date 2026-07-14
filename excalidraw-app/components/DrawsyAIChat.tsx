@@ -1,7 +1,32 @@
-import { useEffect, useRef, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+
+import {
+  alertTriangleIcon,
+  boltIcon,
+  brainIconThin,
+  chevronRight,
+  codeIcon,
+  copyIcon,
+  elementLinkIcon,
+  LinkIcon,
+  MagicIconThin,
+  settingsIcon,
+  shield,
+  tablerCheckIcon,
+} from "@excalidraw/excalidraw/components/icons";
+import { copyTextToSystemClipboard } from "@excalidraw/excalidraw/clipboard";
 
 import {
   DrawsyAgentApi,
+  type DrawsyAgentAccessMode,
+  type DrawsyAgentControls,
   type DrawsyAgentMetadata,
   type DrawsyBridgeEvent,
   type DrawsyCanvasOperations,
@@ -9,6 +34,12 @@ import {
 } from "../data/DrawsyAgentApi";
 
 import "./DrawsyAIChat.scss";
+
+const DrawsyMarkdown = lazy(() =>
+  import("./DrawsyMarkdown").then((module) => ({
+    default: module.DrawsyMarkdown,
+  })),
+);
 
 type DrawsyAIChatProps = {
   isOpen: boolean;
@@ -64,21 +95,33 @@ const DrawsyMark = () => (
   </svg>
 );
 
-type ChatMessage = {
+type ComposerTag = {
+  kind: "skill" | "plugin";
+  name: string;
+  label: string;
+  path: string;
+};
+
+type TimelineMessage = {
+  kind: "message";
   id: string;
   role: "user" | "assistant" | "error";
   text: string;
+  tags?: ComposerTag[];
 };
 
-type ToolActivity = {
+type TimelineTool = {
+  kind: "tool";
   id: string;
   tool: string;
-  status: "inProgress" | "completed" | "failed";
+  status: "inProgress" | "completed" | "failed" | "warning";
   message?: string;
   error?: string;
 };
 
-const toolActivityLabel = (activity: ToolActivity) => {
+type TimelineItem = TimelineMessage | TimelineTool;
+
+const toolActivityLabel = (activity: TimelineTool) => {
   const labels =
     activity.tool === "read_current_canvas"
       ? { inProgress: "Reading current canvas", completed: "Canvas read" }
@@ -89,10 +132,180 @@ const toolActivityLabel = (activity: ToolActivity) => {
   if (activity.status === "failed") {
     return activity.error || "Canvas tool failed";
   }
+  if (activity.status === "warning") {
+    return activity.message || "Needs attention";
+  }
   return activity.message || labels[activity.status];
 };
 
 type AgentSession = { id: string; token: string; folderName: string };
+
+type SlashView =
+  | "model"
+  | "effort"
+  | "permissions"
+  | "internet"
+  | "skills"
+  | "plugins"
+  | "mcp";
+
+type SlashItem = {
+  id: string;
+  title: string;
+  description: string;
+  meta?: string;
+  selected?: boolean;
+  disabled?: boolean;
+  icon?: string;
+  onSelect?: () => void;
+};
+
+type ActiveTagQuery = {
+  trigger: "$" | "@";
+  query: string;
+  start: number;
+  end: number;
+};
+
+const tagQueryAt = (value: string, caret: number): ActiveTagQuery | null => {
+  const beforeCaret = value.slice(0, caret);
+  const match = beforeCaret.match(/(^|\s)([$@])([\w:-]*)$/);
+  if (!match) {
+    return null;
+  }
+  const query = match[3] || "";
+  return {
+    trigger: match[2] as "$" | "@",
+    query,
+    start: caret - query.length - 1,
+    end: caret,
+  };
+};
+
+const slashCommands: Array<{
+  id: Exclude<SlashView, "effort">;
+  title: string;
+  description: string;
+}> = [
+  { id: "model", title: "Model", description: "Choose model and reasoning" },
+  {
+    id: "permissions",
+    title: "Permissions",
+    description: "Control selected-folder access",
+  },
+  {
+    id: "internet",
+    title: "Internet",
+    description: "Allow terminal network access",
+  },
+  { id: "skills", title: "Skills", description: "Use an available skill" },
+  {
+    id: "plugins",
+    title: "Plugins",
+    description: "See enabled local plugins",
+  },
+  { id: "mcp", title: "MCP", description: "See attached MCP servers" },
+];
+
+const SlashIcon = ({ type }: { type: string }) => {
+  const icons: Record<string, ReactNode> = {
+    model: brainIconThin,
+    permissions: shield,
+    internet: LinkIcon,
+    skills: MagicIconThin,
+    plugins: settingsIcon,
+    mcp: elementLinkIcon,
+    effort: boltIcon,
+    code: codeIcon,
+  };
+  return icons[type] || icons.model;
+};
+
+const ActivityIndicator = ({ status }: Pick<TimelineTool, "status">) => (
+  <span className="drawsy-ai-chat__activity-indicator" aria-hidden="true">
+    {status === "completed"
+      ? tablerCheckIcon
+      : status === "failed" || status === "warning"
+      ? alertTriangleIcon
+      : null}
+  </span>
+);
+
+const SlashMenu = ({
+  title,
+  view,
+  items,
+  selectedIndex,
+  loading,
+  error,
+  onBack,
+  onHover,
+}: {
+  title: string;
+  view: SlashView | "root" | "tag";
+  items: SlashItem[];
+  selectedIndex: number;
+  loading: boolean;
+  error: string | null;
+  onBack: () => void;
+  onHover: (index: number) => void;
+}) => (
+  <div className="drawsy-ai-chat__slash-menu" role="listbox" aria-label={title}>
+    {view !== "root" && (
+      <div className="drawsy-ai-chat__slash-heading">
+        <button type="button" onClick={onBack} aria-label="Back to commands">
+          {chevronRight}
+        </button>
+        <span>{title}</span>
+      </div>
+    )}
+    <div className="drawsy-ai-chat__slash-list">
+      {loading ? (
+        <div className="drawsy-ai-chat__slash-state">Loading from Codex…</div>
+      ) : error ? (
+        <div className="drawsy-ai-chat__slash-state drawsy-ai-chat__slash-state--error">
+          {error}
+        </div>
+      ) : items.length ? (
+        items.map((item, index) => (
+          <button
+            type="button"
+            role="option"
+            aria-selected={index === selectedIndex}
+            className="drawsy-ai-chat__slash-item"
+            key={item.id}
+            disabled={item.disabled}
+            onPointerMove={() => onHover(index)}
+            onClick={item.onSelect}
+          >
+            <span className="drawsy-ai-chat__slash-icon">
+              <SlashIcon
+                type={item.icon || (view === "root" ? item.id : view)}
+              />
+            </span>
+            <span className="drawsy-ai-chat__slash-copy">
+              <span className="drawsy-ai-chat__slash-title">{item.title}</span>
+              <span className="drawsy-ai-chat__slash-description">
+                {item.description}
+              </span>
+            </span>
+            {(item.meta || item.selected) && (
+              <span
+                className={`drawsy-ai-chat__slash-meta${
+                  item.selected ? " drawsy-ai-chat__slash-meta--selected" : ""
+                }`}
+              >
+                {item.selected ? "Active" : item.meta}
+              </span>
+            )}
+          </button>
+        ))
+      ) : (
+        <div className="drawsy-ai-chat__slash-state">Nothing available</div>
+      )}
+    </div>
+  </div>
+);
 
 export const DrawsyAIChat = ({
   isOpen,
@@ -104,7 +317,9 @@ export const DrawsyAIChat = ({
   applyCanvas,
 }: DrawsyAIChatProps) => {
   const [draft, setDraft] = useState("");
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [timeline, setTimeline] = useState<TimelineItem[]>([]);
+  const [composerTags, setComposerTags] = useState<ComposerTag[]>([]);
+  const [activeTag, setActiveTag] = useState<ActiveTagQuery | null>(null);
   const [engine, setEngine] = useState<AgentEngine>("codex");
   const [engineMenuOpen, setEngineMenuOpen] = useState(false);
   const [folder, setFolder] = useState<{
@@ -117,16 +332,73 @@ export const DrawsyAIChat = ({
   >("idle");
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [turnRunning, setTurnRunning] = useState(false);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [agentMetadata, setAgentMetadata] =
     useState<DrawsyAgentMetadata | null>(null);
-  const [toolActivities, setToolActivities] = useState<ToolActivity[]>([]);
+  const [controls, setControls] = useState<DrawsyAgentControls | null>(null);
+  const [controlsLoading, setControlsLoading] = useState(false);
+  const [controlsError, setControlsError] = useState<string | null>(null);
+  const [slashView, setSlashView] = useState<SlashView | null>(null);
+  const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
+  const [pendingModel, setPendingModel] = useState<string | null>(null);
   const engineSwitcherRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const conversationRef = useRef<HTMLDivElement>(null);
+  const stickToBottomRef = useRef(true);
+  const copiedMessageTimerRef = useRef<number | null>(null);
   const sessionRef = useRef<AgentSession | null>(null);
   const canvasHandlersRef = useRef({ readCanvas, applyCanvas });
 
   useEffect(() => {
     canvasHandlersRef.current = { readCanvas, applyCanvas };
   }, [applyCanvas, readCanvas]);
+
+  useEffect(() => {
+    if (!stickToBottomRef.current || !conversationRef.current) {
+      return;
+    }
+    conversationRef.current.scrollTop = conversationRef.current.scrollHeight;
+    setShowScrollToBottom(false);
+  }, [timeline, turnRunning]);
+
+  useEffect(
+    () => () => {
+      if (copiedMessageTimerRef.current !== null) {
+        window.clearTimeout(copiedMessageTimerRef.current);
+      }
+    },
+    [],
+  );
+
+  const scrollToLatestMessage = () => {
+    const conversation = conversationRef.current;
+    if (!conversation) {
+      return;
+    }
+    stickToBottomRef.current = true;
+    setShowScrollToBottom(false);
+    conversation.scrollTo({
+      top: conversation.scrollHeight,
+      behavior: "smooth",
+    });
+  };
+
+  const copyMessage = async (message: TimelineMessage) => {
+    try {
+      await copyTextToSystemClipboard(message.text);
+      setCopiedMessageId(message.id);
+      if (copiedMessageTimerRef.current !== null) {
+        window.clearTimeout(copiedMessageTimerRef.current);
+      }
+      copiedMessageTimerRef.current = window.setTimeout(() => {
+        setCopiedMessageId(null);
+        copiedMessageTimerRef.current = null;
+      }, 1600);
+    } catch {
+      setCopiedMessageId(null);
+    }
+  };
 
   useEffect(() => {
     if (!engineMenuOpen) {
@@ -168,7 +440,9 @@ export const DrawsyAIChat = ({
     setSessionStatus("starting");
     setSessionError(null);
     setAgentMetadata(null);
-    setToolActivities([]);
+    setControls(null);
+    setSlashView(null);
+    setActiveTag(null);
 
     const handleEvent = (event: DrawsyBridgeEvent) => {
       if (event.type === "session.ready") {
@@ -177,33 +451,44 @@ export const DrawsyAIChat = ({
         return;
       }
       if (event.type === "tool.status") {
-        setToolActivities((current) => {
-          const activity: ToolActivity = {
+        setTimeline((current) => {
+          const activity: TimelineTool = {
+            kind: "tool",
             id: event.data.itemId,
             tool: event.data.tool,
             status: event.data.status,
             message: event.data.message,
             error: event.data.error,
           };
-          const index = current.findIndex((item) => item.id === activity.id);
+          const index = current.findIndex(
+            (item) => item.kind === "tool" && item.id === activity.id,
+          );
           if (index < 0) {
             return [...current, activity];
           }
           const next = [...current];
-          next[index] = { ...next[index], ...activity };
+          next[index] = {
+            ...next[index],
+            status: activity.status,
+            ...(activity.message !== undefined
+              ? { message: activity.message }
+              : {}),
+            ...(activity.error !== undefined ? { error: activity.error } : {}),
+          } as TimelineTool;
           return next;
         });
         return;
       }
       if (event.type === "assistant.delta") {
-        setMessages((current) => {
+        setTimeline((current) => {
           const index = current.findIndex(
-            (message) => message.id === event.data.itemId,
+            (item) => item.kind === "message" && item.id === event.data.itemId,
           );
           if (index < 0) {
             return [
               ...current,
               {
+                kind: "message",
                 id: event.data.itemId,
                 role: "assistant",
                 text: event.data.delta,
@@ -213,21 +498,22 @@ export const DrawsyAIChat = ({
           const next = [...current];
           next[index] = {
             ...next[index],
-            text: next[index].text + event.data.delta,
-          };
+            text: (next[index] as TimelineMessage).text + event.data.delta,
+          } as TimelineMessage;
           return next;
         });
         return;
       }
       if (event.type === "assistant.final") {
-        setMessages((current) => {
+        setTimeline((current) => {
           const index = current.findIndex(
-            (message) => message.id === event.data.itemId,
+            (item) => item.kind === "message" && item.id === event.data.itemId,
           );
           if (index < 0) {
             return [
               ...current,
               {
+                kind: "message",
                 id: event.data.itemId,
                 role: "assistant",
                 text: event.data.text,
@@ -235,7 +521,10 @@ export const DrawsyAIChat = ({
             ];
           }
           const next = [...current];
-          next[index] = { ...next[index], text: event.data.text };
+          next[index] = {
+            ...next[index],
+            text: event.data.text,
+          } as TimelineMessage;
           return next;
         });
         return;
@@ -245,18 +534,28 @@ export const DrawsyAIChat = ({
           setTurnRunning(false);
         }
         if (event.data.error) {
-          setMessages((current) => [
+          setTimeline((current) => [
             ...current,
-            { id: crypto.randomUUID(), role: "error", text: event.data.error! },
+            {
+              kind: "message",
+              id: crypto.randomUUID(),
+              role: "error",
+              text: event.data.error!,
+            },
           ]);
         }
         return;
       }
       if (event.type === "error") {
         setTurnRunning(false);
-        setMessages((current) => [
+        setTimeline((current) => [
           ...current,
-          { id: crypto.randomUUID(), role: "error", text: event.data.message },
+          {
+            kind: "message",
+            id: crypto.randomUUID(),
+            role: "error",
+            text: event.data.message,
+          },
         ]);
         return;
       }
@@ -335,6 +634,57 @@ export const DrawsyAIChat = ({
   }, [canvasId, canvasName, engine, folder]);
 
   const selectedEngine = agentEngines.find((option) => option.id === engine)!;
+  const slashQueryOpen =
+    draft.startsWith("/") &&
+    !draft.slice(1).includes(" ") &&
+    !draft.includes("\n");
+  const slashMenuOpen =
+    engine === "codex" &&
+    sessionStatus === "ready" &&
+    (slashQueryOpen || slashView !== null);
+  const tagMenuOpen =
+    engine === "codex" && sessionStatus === "ready" && activeTag !== null;
+  const composerMenuOpen = slashMenuOpen || tagMenuOpen;
+
+  useEffect(() => {
+    if (!composerMenuOpen || controls) {
+      return;
+    }
+    const session = sessionRef.current;
+    if (!session) {
+      return;
+    }
+    let cancelled = false;
+    setControlsLoading(true);
+    setControlsError(null);
+    void DrawsyAgentApi.getControls(session)
+      .then((nextControls) => {
+        if (!cancelled) {
+          setControls(nextControls);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setControlsError(
+            error instanceof Error
+              ? error.message
+              : "Codex controls could not load.",
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setControlsLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [composerMenuOpen, controls]);
+
+  useEffect(() => {
+    setSlashSelectedIndex(0);
+  }, [activeTag, draft, slashView]);
 
   const chooseFolder = async () => {
     if (folderPicking) {
@@ -362,16 +712,25 @@ export const DrawsyAIChat = ({
       return;
     }
     if (engine !== "codex") {
-      setMessages((current) => [
+      setTimeline((current) => [
         ...current,
-        { id: crypto.randomUUID(), role: "user", text: message },
         {
+          kind: "message",
+          id: crypto.randomUUID(),
+          role: "user",
+          text: message,
+          tags: composerTags,
+        },
+        {
+          kind: "message",
           id: crypto.randomUUID(),
           role: "error",
           text: "OpenCode is not connected in this local Codex build.",
         },
       ]);
       setDraft("");
+      setComposerTags([]);
+      setActiveTag(null);
       return;
     }
     const session = sessionRef.current;
@@ -381,20 +740,36 @@ export const DrawsyAIChat = ({
       }
       return;
     }
-    setMessages((current) => [
+    const submittedTags = [...composerTags];
+    setTimeline((current) => [
       ...current,
-      { id: crypto.randomUUID(), role: "user", text: message },
+      {
+        kind: "message",
+        id: crypto.randomUUID(),
+        role: "user",
+        text: message,
+        tags: submittedTags,
+      },
     ]);
     setDraft("");
+    setComposerTags([]);
+    setActiveTag(null);
     setTurnRunning(true);
-    setToolActivities([]);
     try {
-      await DrawsyAgentApi.startTurn(session, message);
+      await DrawsyAgentApi.startTurn(session, message, {
+        skills: submittedTags
+          .filter((tag) => tag.kind === "skill")
+          .map(({ name, path }) => ({ name, path })),
+        plugins: submittedTags
+          .filter((tag) => tag.kind === "plugin")
+          .map(({ name, path }) => ({ name, path })),
+      });
     } catch (error) {
       setTurnRunning(false);
-      setMessages((current) => [
+      setTimeline((current) => [
         ...current,
         {
+          kind: "message",
           id: crypto.randomUUID(),
           role: "error",
           text:
@@ -403,6 +778,259 @@ export const DrawsyAIChat = ({
               : "Codex could not start the turn.",
         },
       ]);
+    }
+  };
+
+  const updateAgentSettings = async (settings: {
+    model?: string;
+    effort?: string;
+    accessMode?: DrawsyAgentAccessMode;
+    internetEnabled?: boolean;
+  }) => {
+    const session = sessionRef.current;
+    if (!session) {
+      return;
+    }
+    setControlsLoading(true);
+    setControlsError(null);
+    try {
+      const result = await DrawsyAgentApi.updateSettings(session, settings);
+      setAgentMetadata(result.agent);
+      setControls(result.controls);
+      setSlashView(null);
+      setPendingModel(null);
+      setDraft("");
+      textareaRef.current?.focus();
+    } catch (error) {
+      setControlsError(
+        error instanceof Error ? error.message : "Codex setting did not apply.",
+      );
+    } finally {
+      setControlsLoading(false);
+    }
+  };
+
+  const showSlashView = (view: Exclude<SlashView, "effort">) => {
+    setDraft("");
+    setSlashView(view);
+    setPendingModel(null);
+  };
+
+  const addComposerTag = (
+    tag: ComposerTag,
+    query: ActiveTagQuery | null = null,
+  ) => {
+    setComposerTags((current) =>
+      current.some((item) => item.kind === tag.kind && item.name === tag.name)
+        ? current
+        : [...current, tag],
+    );
+    const removalEnd =
+      query && draft.charAt(query.end) === " " ? query.end + 1 : query?.end;
+    const nextDraft = query
+      ? `${draft.slice(0, query.start)}${draft.slice(removalEnd)}`
+      : draft;
+    setDraft(nextDraft);
+    setActiveTag(null);
+    setSlashView(null);
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus();
+      if (query) {
+        textareaRef.current?.setSelectionRange(query.start, query.start);
+      }
+    });
+  };
+
+  const availableTagItems: SlashItem[] = activeTag
+    ? activeTag.trigger === "$"
+      ? (controls?.skills || []).map((skill) => ({
+          id: skill.name,
+          title: skill.displayName,
+          description: skill.description,
+          icon: "skills",
+          selected: composerTags.some(
+            (tag) => tag.kind === "skill" && tag.name === skill.name,
+          ),
+          onSelect: () =>
+            addComposerTag(
+              {
+                kind: "skill",
+                name: skill.name,
+                label: skill.displayName,
+                path: skill.path,
+              },
+              activeTag,
+            ),
+        }))
+      : (controls?.plugins || []).map((plugin) => ({
+          id: plugin.id,
+          title: plugin.name,
+          description: plugin.description,
+          icon: "plugins",
+          selected: composerTags.some(
+            (tag) => tag.kind === "plugin" && tag.name === plugin.name,
+          ),
+          onSelect: () =>
+            addComposerTag(
+              {
+                kind: "plugin",
+                name: plugin.name,
+                label: plugin.name,
+                path: plugin.path,
+              },
+              activeTag,
+            ),
+        }))
+    : [];
+  const tagItems = activeTag
+    ? availableTagItems.filter((item) =>
+        `${item.title} ${item.description}`
+          .toLowerCase()
+          .includes(activeTag.query.toLowerCase()),
+      )
+    : [];
+
+  const slashRootItems: SlashItem[] = slashCommands
+    .filter((command) =>
+      command.title.toLowerCase().includes(draft.slice(1).trim().toLowerCase()),
+    )
+    .map((command) => ({
+      id: command.id,
+      title: command.title,
+      description: command.description,
+      onSelect: () => showSlashView(command.id),
+    }));
+
+  const currentSlashView: SlashView | "root" = slashView || "root";
+  let slashTitle = "Commands";
+  let slashItems = slashRootItems;
+  if (slashView === "model") {
+    slashTitle = "Model";
+    slashItems = (controls?.models || []).map((model) => ({
+      id: model.id,
+      title: model.displayName,
+      description: model.description,
+      selected: agentMetadata?.model === model.model,
+      meta: model.isDefault ? "Default" : undefined,
+      onSelect: () => {
+        if (model.efforts.length > 1) {
+          setPendingModel(model.model);
+          setSlashView("effort");
+          return;
+        }
+        void updateAgentSettings({
+          model: model.model,
+          effort: model.efforts[0]?.id || model.defaultEffort,
+        });
+      },
+    }));
+  } else if (slashView === "effort") {
+    slashTitle = "Reasoning";
+    const model = controls?.models.find(
+      (option) => option.model === pendingModel,
+    );
+    slashItems = (model?.efforts || []).map((effort) => ({
+      id: effort.id,
+      title: effort.id.charAt(0).toUpperCase() + effort.id.slice(1),
+      description: effort.description,
+      selected:
+        agentMetadata?.model === model?.model &&
+        agentMetadata?.reasoningEffort === effort.id,
+      onSelect: () =>
+        void updateAgentSettings({ model: model?.model, effort: effort.id }),
+    }));
+  } else if (slashView === "permissions") {
+    slashTitle = "Permissions";
+    slashItems = [
+      {
+        id: "workspace",
+        title: "Current folder",
+        description: "Read and change files only in the selected folder",
+        selected: controls?.accessMode === "workspace",
+        onSelect: () => void updateAgentSettings({ accessMode: "workspace" }),
+      },
+      {
+        id: "readOnly",
+        title: "Read only",
+        description: "Inspect the selected folder without changing files",
+        selected: controls?.accessMode === "readOnly",
+        onSelect: () => void updateAgentSettings({ accessMode: "readOnly" }),
+      },
+    ];
+  } else if (slashView === "internet") {
+    slashTitle = "Internet";
+    slashItems = [
+      {
+        id: "off",
+        title: "Blocked",
+        description: "No terminal network access",
+        selected: controls?.internetEnabled === false,
+        onSelect: () => void updateAgentSettings({ internetEnabled: false }),
+      },
+      {
+        id: "on",
+        title: "Allowed",
+        description: "Terminal network only; Browser and Computer stay off",
+        selected: controls?.internetEnabled === true,
+        onSelect: () => void updateAgentSettings({ internetEnabled: true }),
+      },
+    ];
+  } else if (slashView === "skills") {
+    slashTitle = "Tag a skill";
+    slashItems = (controls?.skills || []).map((skill) => ({
+      id: skill.name,
+      title: skill.displayName,
+      description: skill.description,
+      onSelect: () =>
+        addComposerTag({
+          kind: "skill",
+          name: skill.name,
+          label: skill.displayName,
+          path: skill.path,
+        }),
+    }));
+  } else if (slashView === "plugins") {
+    slashTitle = "Tag a plugin";
+    slashItems = (controls?.plugins || []).map((plugin) => ({
+      id: plugin.id,
+      title: plugin.name,
+      description: plugin.description,
+      onSelect: () =>
+        addComposerTag({
+          kind: "plugin",
+          name: plugin.name,
+          label: plugin.name,
+          path: plugin.path,
+        }),
+    }));
+  } else if (slashView === "mcp") {
+    slashTitle = "MCP servers";
+    slashItems = (controls?.mcpServers || []).map((server) => ({
+      id: server.name,
+      title: server.name === "drawsy" ? "Drawsy canvas" : server.name,
+      description: `${server.toolCount} tool${
+        server.toolCount === 1 ? "" : "s"
+      } available`,
+      meta: server.name === "drawsy" ? "Required" : "Ready",
+      disabled: true,
+    }));
+  }
+
+  const visibleMenuItems = tagMenuOpen ? tagItems : slashItems;
+
+  const chooseComposerMenuItem = () => {
+    const item = visibleMenuItems[slashSelectedIndex];
+    if (item && !item.disabled) {
+      item.onSelect?.();
+    }
+  };
+
+  const closeComposerMenu = () => {
+    setActiveTag(null);
+    setSlashView(null);
+    setPendingModel(null);
+    if (slashQueryOpen) {
+      setDraft("");
     }
   };
 
@@ -487,8 +1115,22 @@ export const DrawsyAIChat = ({
         </div>
       </header>
 
-      <div className="drawsy-ai-chat__conversation" aria-live="polite">
-        {messages.length === 0 ? (
+      <div
+        className="drawsy-ai-chat__conversation"
+        aria-live="polite"
+        ref={conversationRef}
+        onScroll={(event) => {
+          const element = event.currentTarget;
+          const isAtBottom =
+            element.scrollHeight - element.scrollTop - element.clientHeight <
+            72;
+          stickToBottomRef.current = isAtBottom;
+          setShowScrollToBottom(
+            !isAtBottom && element.scrollHeight > element.clientHeight,
+          );
+        }}
+      >
+        {timeline.length === 0 ? (
           <div className="drawsy-ai-chat__empty">
             <span className="drawsy-ai-chat__empty-mark" aria-hidden="true">
               <DrawsyMark />
@@ -497,35 +1139,76 @@ export const DrawsyAIChat = ({
           </div>
         ) : (
           <div className="drawsy-ai-chat__messages">
-            {messages.map((message) => (
-              <div
-                className={`drawsy-ai-chat__message drawsy-ai-chat__message--${message.role}`}
-                key={message.id}
-              >
-                {message.text}
-              </div>
-            ))}
-            {toolActivities.map((activity) => (
-              <div
-                className={`drawsy-ai-chat__activity drawsy-ai-chat__activity--${activity.status}`}
-                key={activity.id}
-              >
-                <span
-                  className="drawsy-ai-chat__activity-indicator"
-                  aria-hidden="true"
-                />
-                <span>{toolActivityLabel(activity)}</span>
-              </div>
-            ))}
+            {timeline.map((item) =>
+              item.kind === "message" ? (
+                <div
+                  className={`drawsy-ai-chat__message drawsy-ai-chat__message--${item.role}`}
+                  key={item.id}
+                >
+                  <div className="drawsy-ai-chat__message-content">
+                    {!!item.tags?.length && (
+                      <div className="drawsy-ai-chat__message-tags">
+                        {item.tags.map((tag) => (
+                          <span
+                            className={`drawsy-ai-chat__tag drawsy-ai-chat__tag--${tag.kind}`}
+                            key={`${tag.kind}:${tag.name}`}
+                          >
+                            {tag.kind === "skill" ? "$" : "@"}
+                            {tag.label}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {item.role !== "error" ? (
+                      <Suspense
+                        fallback={
+                          <div className="drawsy-ai-chat__markdown drawsy-ai-chat__markdown--loading">
+                            {item.text}
+                          </div>
+                        }
+                      >
+                        <DrawsyMarkdown copyCode={item.role === "assistant"}>
+                          {item.text}
+                        </DrawsyMarkdown>
+                      </Suspense>
+                    ) : (
+                      item.text
+                    )}
+                  </div>
+                  <div className="drawsy-ai-chat__message-actions">
+                    <button
+                      type="button"
+                      className="drawsy-ai-chat__message-copy"
+                      onClick={() => void copyMessage(item)}
+                      aria-label={
+                        copiedMessageId === item.id
+                          ? "Message copied"
+                          : "Copy message"
+                      }
+                      title={
+                        copiedMessageId === item.id ? "Copied" : "Copy message"
+                      }
+                    >
+                      {copiedMessageId === item.id ? tablerCheckIcon : copyIcon}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  className={`drawsy-ai-chat__activity drawsy-ai-chat__activity--${item.status}`}
+                  key={item.id}
+                >
+                  <ActivityIndicator status={item.status} />
+                  <span>{toolActivityLabel(item)}</span>
+                </div>
+              ),
+            )}
             {turnRunning &&
-              !toolActivities.some(
-                (activity) => activity.status === "inProgress",
+              !timeline.some(
+                (item) => item.kind === "tool" && item.status === "inProgress",
               ) && (
                 <div className="drawsy-ai-chat__activity drawsy-ai-chat__activity--inProgress">
-                  <span
-                    className="drawsy-ai-chat__activity-indicator"
-                    aria-hidden="true"
-                  />
+                  <ActivityIndicator status="inProgress" />
                   <span>Thinking</span>
                 </div>
               )}
@@ -534,6 +1217,51 @@ export const DrawsyAIChat = ({
       </div>
 
       <div className="drawsy-ai-chat__composer-wrap">
+        {showScrollToBottom && (
+          <button
+            type="button"
+            className="drawsy-ai-chat__scroll-to-bottom"
+            onClick={scrollToLatestMessage}
+            aria-label="Scroll to latest message"
+            title="Scroll to latest"
+          >
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path d="m5.5 8 4.5 4.5L14.5 8" />
+            </svg>
+          </button>
+        )}
+        {composerMenuOpen && (
+          <SlashMenu
+            title={
+              tagMenuOpen
+                ? activeTag?.trigger === "$"
+                  ? "Tag a skill"
+                  : "Tag a plugin"
+                : slashTitle
+            }
+            view={tagMenuOpen ? "tag" : currentSlashView}
+            items={visibleMenuItems}
+            selectedIndex={slashSelectedIndex}
+            loading={
+              controlsLoading && (tagMenuOpen || currentSlashView !== "root")
+            }
+            error={
+              tagMenuOpen || currentSlashView !== "root" ? controlsError : null
+            }
+            onBack={() => {
+              if (tagMenuOpen) {
+                setActiveTag(null);
+              } else if (slashView === "effort") {
+                setSlashView("model");
+                setPendingModel(null);
+              } else {
+                setSlashView(null);
+                setDraft("/");
+              }
+            }}
+            onHover={setSlashSelectedIndex}
+          />
+        )}
         <form
           className="drawsy-ai-chat__composer"
           onSubmit={(event) => {
@@ -541,21 +1269,135 @@ export const DrawsyAIChat = ({
             void submitDraft();
           }}
         >
-          <textarea
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                void submitDraft();
+          <div className="drawsy-ai-chat__composer-input">
+            {!!composerTags.length && (
+              <div className="drawsy-ai-chat__composer-tags">
+                {composerTags.map((tag) => (
+                  <button
+                    type="button"
+                    className={`drawsy-ai-chat__tag drawsy-ai-chat__tag--${tag.kind}`}
+                    key={`${tag.kind}:${tag.name}`}
+                    aria-label={`Remove ${tag.label}`}
+                    onClick={() =>
+                      setComposerTags((current) =>
+                        current.filter(
+                          (item) =>
+                            item.kind !== tag.kind || item.name !== tag.name,
+                        ),
+                      )
+                    }
+                  >
+                    <span>
+                      {tag.kind === "skill" ? "$" : "@"}
+                      {tag.label}
+                    </span>
+                    <svg viewBox="0 0 16 16" aria-hidden="true">
+                      <path d="m5 5 6 6m0-6-6 6" />
+                    </svg>
+                  </button>
+                ))}
+              </div>
+            )}
+            <textarea
+              ref={textareaRef}
+              value={draft}
+              onChange={(event) => {
+                const value = event.target.value;
+                const caret = event.target.selectionStart ?? value.length;
+                setDraft(value);
+                setActiveTag(
+                  value.startsWith("/") ? null : tagQueryAt(value, caret),
+                );
+                if (slashView && value) {
+                  setSlashView(null);
+                  setPendingModel(null);
+                }
+              }}
+              onClick={(event) =>
+                setActiveTag(
+                  tagQueryAt(
+                    event.currentTarget.value,
+                    event.currentTarget.selectionStart ?? draft.length,
+                  ),
+                )
               }
-            }}
-            rows={1}
-            placeholder={
-              folder ? "Ask Drawsy anything…" : "Choose a folder to begin…"
-            }
-            aria-label="Message Drawsy AI"
-          />
+              onKeyUp={(event) => {
+                if (
+                  event.key !== "ArrowDown" &&
+                  event.key !== "ArrowUp" &&
+                  event.key !== "Enter" &&
+                  event.key !== "Escape"
+                ) {
+                  setActiveTag(
+                    tagQueryAt(
+                      event.currentTarget.value,
+                      event.currentTarget.selectionStart ?? draft.length,
+                    ),
+                  );
+                }
+              }}
+              onKeyDown={(event) => {
+                if (composerMenuOpen) {
+                  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                    event.preventDefault();
+                    if (visibleMenuItems.length) {
+                      const direction = event.key === "ArrowDown" ? 1 : -1;
+                      setSlashSelectedIndex(
+                        (slashSelectedIndex +
+                          direction +
+                          visibleMenuItems.length) %
+                          visibleMenuItems.length,
+                      );
+                    }
+                    return;
+                  }
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    chooseComposerMenuItem();
+                    return;
+                  }
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    closeComposerMenu();
+                    return;
+                  }
+                  if (
+                    event.key === "Backspace" &&
+                    slashView &&
+                    draft.length === 0
+                  ) {
+                    event.preventDefault();
+                    if (slashView === "effort") {
+                      setSlashView("model");
+                      setPendingModel(null);
+                    } else {
+                      setSlashView(null);
+                      setDraft("/");
+                    }
+                    return;
+                  }
+                }
+                if (
+                  event.key === "Backspace" &&
+                  draft.length === 0 &&
+                  composerTags.length
+                ) {
+                  event.preventDefault();
+                  setComposerTags((current) => current.slice(0, -1));
+                  return;
+                }
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  void submitDraft();
+                }
+              }}
+              rows={1}
+              placeholder={
+                folder ? "Ask Drawsy anything…" : "Choose a folder to begin…"
+              }
+              aria-label="Message Drawsy AI"
+            />
+          </div>
           <div className="drawsy-ai-chat__composer-menu">
             <div className="drawsy-ai-chat__composer-options">
               <button

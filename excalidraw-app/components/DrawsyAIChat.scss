@@ -7,6 +7,8 @@
   --chat-soft: #f0eff4;
   --chat-primary: #6965db;
   --chat-primary-strong: #5753c9;
+  --chat-tag-skill: #6f5bd3;
+  --chat-tag-plugin: #167d74;
 
   position: relative;
   z-index: 20;
@@ -37,6 +39,8 @@
   --chat-soft: #2b2b30;
   --chat-primary: #a8a5ff;
   --chat-primary-strong: #918dff;
+  --chat-tag-skill: #b4a9ff;
+  --chat-tag-plugin: #72d6c7;
 }
 
 .drawsy-ai-chat__header {
@@ -284,34 +288,370 @@
   display: flex;
   width: 100%;
   flex-direction: column;
-  justify-content: flex-end;
   gap: 0.75rem;
+
+  > :first-child {
+    margin-top: auto;
+  }
 }
 
 .drawsy-ai-chat__message {
+  display: flex;
+  min-width: 0;
   align-self: flex-end;
   max-width: 85%;
-  padding: 0.7rem 0.85rem;
-  border-radius: 0.9rem 0.9rem 0.25rem 0.9rem;
-  background: var(--chat-soft);
+  align-items: flex-end;
+  flex-direction: column;
   color: var(--chat-text);
   font-size: 0.84rem;
   line-height: 1.45;
   overflow-wrap: anywhere;
 }
 
+.drawsy-ai-chat__message-content {
+  min-width: 0;
+  max-width: 100%;
+  padding: 0.7rem 0.85rem;
+  border-radius: 0.9rem 0.9rem 0.25rem 0.9rem;
+  background: var(--chat-soft);
+  white-space: pre-wrap;
+}
+
 .drawsy-ai-chat__message--assistant {
+  width: 100%;
+  max-width: 100%;
+  align-items: flex-start;
   align-self: flex-start;
-  border-radius: 0.9rem 0.9rem 0.9rem 0.25rem;
+
+  .drawsy-ai-chat__message-content {
+    width: 100%;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    white-space: normal;
+  }
+}
+
+.drawsy-ai-chat__message--user .drawsy-ai-chat__message-content {
+  white-space: normal;
+}
+
+.drawsy-ai-chat__message-actions {
+  display: flex;
+  width: 100%;
+  height: 1.45rem;
+  align-items: center;
+  justify-content: flex-start;
+  margin-top: 0.18rem;
+}
+
+.drawsy-ai-chat__message--assistant .drawsy-ai-chat__message-copy,
+.drawsy-ai-chat__message--error .drawsy-ai-chat__message-copy {
+  margin-left: -0.28rem;
+}
+
+.drawsy-ai-chat__message--user .drawsy-ai-chat__message-actions {
+  justify-content: flex-end;
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+
+.drawsy-ai-chat__message--user .drawsy-ai-chat__message-copy {
+  margin-right: -0.28rem;
+}
+
+.drawsy-ai-chat__message--user:hover .drawsy-ai-chat__message-actions,
+.drawsy-ai-chat__message--user:focus-within .drawsy-ai-chat__message-actions {
+  opacity: 1;
+}
+
+.drawsy-ai-chat__message-copy {
+  display: grid;
+  width: 1.45rem;
+  height: 1.45rem;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
   background: transparent;
-  padding-inline: 0;
+  color: var(--chat-muted);
+  cursor: pointer;
+
+  svg {
+    width: 0.88rem;
+    height: 0.88rem;
+    fill: none;
+    stroke: currentColor;
+  }
+
+  &:hover {
+    background: color-mix(in srgb, var(--chat-text) 7%, transparent);
+    color: var(--chat-text);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--chat-primary);
+    outline-offset: 1px;
+  }
+}
+
+.drawsy-ai-chat__message-tags,
+.drawsy-ai-chat__composer-tags {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.drawsy-ai-chat__message-tags {
+  margin-bottom: 0.5rem;
+}
+
+.drawsy-ai-chat__tag {
+  display: inline-flex;
+  min-width: 0;
+  height: 1.45rem;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0 0.42rem;
+  border: 0;
+  border-radius: 0.42rem;
+  font: 650 0.61rem/1 var(--ui-font, "Assistant", sans-serif);
+  white-space: nowrap;
+}
+
+.drawsy-ai-chat__tag--skill {
+  background: color-mix(in srgb, var(--chat-tag-skill) 14%, transparent);
+  color: var(--chat-tag-skill);
+}
+
+.drawsy-ai-chat__tag--plugin {
+  background: color-mix(in srgb, var(--chat-tag-plugin) 14%, transparent);
+  color: var(--chat-tag-plugin);
+}
+
+.drawsy-ai-chat__markdown {
+  min-width: 0;
+  color: var(--chat-text);
+  font-size: 0.82rem;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+
+  > :first-child {
+    margin-top: 0;
+  }
+
+  > :last-child {
+    margin-bottom: 0;
+  }
+
+  p,
+  ul,
+  ol,
+  blockquote,
+  pre,
+  table,
+  .drawsy-ai-chat__math--display {
+    margin: 0.62rem 0;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    margin: 1rem 0 0.4rem;
+    color: var(--chat-text);
+    font-family: var(--ui-font, "Assistant", sans-serif);
+    font-weight: 730;
+    letter-spacing: -0.018em;
+    line-height: 1.25;
+  }
+
+  h1 {
+    font-size: 1.15rem;
+  }
+
+  h2 {
+    font-size: 1.02rem;
+  }
+
+  h3 {
+    font-size: 0.92rem;
+  }
+
+  h4,
+  h5,
+  h6 {
+    font-size: 0.82rem;
+  }
+
+  strong {
+    font-weight: 750;
+  }
+
+  a {
+    color: var(--chat-primary);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.16em;
+  }
+
+  ul,
+  ol {
+    padding-left: 1.2rem;
+  }
+
+  li {
+    margin: 0.22rem 0;
+    padding-left: 0.08rem;
+
+    > p {
+      margin: 0;
+    }
+  }
+
+  blockquote {
+    padding: 0.05rem 0 0.05rem 0.75rem;
+    border-left: 2px solid color-mix(in srgb, var(--chat-text) 20%, transparent);
+    color: var(--chat-muted);
+
+    > :first-child {
+      margin-top: 0;
+    }
+
+    > :last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  code {
+    padding: 0.1em 0.32em;
+    border-radius: 0.3rem;
+    background: color-mix(in srgb, var(--chat-text) 7%, transparent);
+    color: var(--chat-text);
+    font: 0.76rem/1.45 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+      monospace;
+  }
+
+  pre {
+    position: relative;
+    max-width: 100%;
+    overflow: auto;
+    padding: 0.72rem 0.78rem;
+    border-radius: 0.62rem;
+    background: color-mix(in srgb, var(--chat-text) 7%, var(--chat-surface));
+    tab-size: 2;
+
+    &.drawsy-ai-chat__code-block--copyable {
+      padding-top: 2.15rem;
+    }
+
+    code {
+      padding: 0;
+      border-radius: 0;
+      background: transparent;
+      font-size: 0.7rem;
+      white-space: pre;
+    }
+  }
+
+  table {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    border-collapse: collapse;
+    font-size: 0.72rem;
+    white-space: nowrap;
+  }
+
+  th,
+  td {
+    padding: 0.42rem 0.5rem;
+    border-bottom: 1px solid var(--chat-border);
+    text-align: left;
+  }
+
+  th {
+    color: var(--chat-text);
+    font-weight: 700;
+  }
+
+  hr {
+    height: 1px;
+    margin: 0.9rem 0;
+    border: 0;
+    background: var(--chat-border);
+  }
+
+  img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin: 0.65rem 0;
+    border-radius: 0.55rem;
+  }
+
+  input[type="checkbox"] {
+    margin: 0 0.4rem 0 0;
+    accent-color: var(--chat-primary);
+  }
+}
+
+.drawsy-ai-chat__code-copy {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.42rem;
+  display: inline-flex;
+  height: 1.4rem;
+  align-items: center;
+  padding: 0 0.42rem;
+  border: 0;
+  border-radius: 0.4rem;
+  background: color-mix(in srgb, var(--chat-text) 8%, var(--chat-surface));
+  color: var(--chat-muted);
+  font: 650 0.58rem/1 var(--ui-font, "Assistant", sans-serif);
+  cursor: pointer;
+
+  &:hover {
+    background: color-mix(in srgb, var(--chat-text) 13%, var(--chat-surface));
+    color: var(--chat-text);
+  }
+
+  &[data-copied="true"] {
+    color: color-mix(in srgb, #2f9e68 78%, var(--chat-text));
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--chat-primary);
+    outline-offset: 1px;
+  }
+}
+
+.drawsy-ai-chat__markdown--loading {
+  white-space: pre-wrap;
+}
+
+.drawsy-ai-chat__math {
+  max-width: 100%;
+}
+
+.drawsy-ai-chat__math--display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.2rem 0;
 }
 
 .drawsy-ai-chat__message--error {
+  align-items: flex-start;
   align-self: flex-start;
-  border-radius: 0.6rem;
-  background: color-mix(in srgb, #e03131 9%, transparent);
   color: color-mix(in srgb, #e03131 74%, var(--chat-text));
+
+  .drawsy-ai-chat__message-content {
+    border-radius: 0.6rem;
+    background: color-mix(in srgb, #e03131 9%, transparent);
+  }
 }
 
 .drawsy-ai-chat__activity {
@@ -327,13 +667,18 @@
 }
 
 .drawsy-ai-chat__activity-indicator {
-  position: relative;
   width: 0.68rem;
   height: 0.68rem;
   flex: 0 0 0.68rem;
   border: 1.5px solid color-mix(in srgb, var(--chat-muted) 35%, transparent);
   border-radius: 50%;
   box-sizing: border-box;
+
+  svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
 }
 
 .drawsy-ai-chat__activity--inProgress .drawsy-ai-chat__activity-indicator {
@@ -342,33 +687,245 @@
 }
 
 .drawsy-ai-chat__activity--completed .drawsy-ai-chat__activity-indicator {
-  border-color: color-mix(in srgb, #2f9e68 55%, var(--chat-muted));
-
-  &::after {
-    position: absolute;
-    width: 0.24rem;
-    height: 0.12rem;
-    border-bottom: 1px solid currentColor;
-    border-left: 1px solid currentColor;
-    color: color-mix(in srgb, #2f9e68 68%, var(--chat-text));
-    content: "";
-    left: 0.16rem;
-    top: 0.17rem;
-    transform: rotate(-45deg);
-  }
+  border: 0;
+  color: color-mix(in srgb, #2f9e68 72%, var(--chat-text));
 }
 
-.drawsy-ai-chat__activity--failed {
+.drawsy-ai-chat__activity--failed,
+.drawsy-ai-chat__activity--warning {
   color: color-mix(in srgb, #e03131 72%, var(--chat-muted));
 
   .drawsy-ai-chat__activity-indicator {
-    border-color: currentColor;
-    background: currentColor;
+    border: 0;
   }
 }
 
+.drawsy-ai-chat__activity--warning {
+  color: color-mix(in srgb, #e09f24 68%, var(--chat-text));
+}
+
 .drawsy-ai-chat__composer-wrap {
+  position: relative;
   padding: 0 0.75rem 0.45rem;
+}
+
+.drawsy-ai-chat__scroll-to-bottom {
+  position: absolute;
+  top: -2.4rem;
+  left: 50%;
+  z-index: 3;
+  display: grid;
+  width: 1.82rem;
+  height: 1.82rem;
+  place-items: center;
+  padding: 0;
+  transform: translateX(-50%);
+  border: 1px solid color-mix(in srgb, var(--chat-border) 78%, transparent);
+  border-radius: 50%;
+  background: var(--chat-surface);
+  box-shadow: 0 0.3rem 0.85rem rgb(20 18 28 / 12%);
+  color: var(--chat-muted);
+  cursor: pointer;
+
+  svg {
+    width: 0.92rem;
+    height: 0.92rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 1.65;
+  }
+
+  &:hover {
+    color: var(--chat-text);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--chat-primary);
+    outline-offset: 2px;
+  }
+}
+
+.drawsy-ai-chat__slash-menu {
+  position: absolute;
+  right: 1.05rem;
+  bottom: calc(100% + 0.32rem);
+  left: 1.05rem;
+  z-index: 4;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--chat-border) 84%, transparent);
+  border-radius: 0.76rem;
+  background: color-mix(in srgb, var(--chat-surface) 97%, transparent);
+  box-shadow: 0 0.9rem 2.5rem rgb(18 17 24 / 18%);
+  backdrop-filter: blur(12px);
+}
+
+.drawsy-ai-chat__slash-heading {
+  display: grid;
+  height: 2.2rem;
+  grid-template-columns: 1.55rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0 0.42rem;
+  border-bottom: 1px solid var(--chat-border);
+  color: var(--chat-text);
+  font-size: 0.68rem;
+  font-weight: 700;
+
+  button {
+    display: grid;
+    width: 1.55rem;
+    height: 1.55rem;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--chat-muted);
+    cursor: pointer;
+
+    &:hover {
+      background: color-mix(in srgb, var(--chat-text) 6%, transparent);
+      color: var(--chat-text);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--chat-primary);
+      outline-offset: 1px;
+    }
+  }
+
+  svg {
+    width: 0.95rem;
+    height: 0.95rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 1.6;
+    transform: rotate(180deg);
+  }
+}
+
+.drawsy-ai-chat__slash-list {
+  display: grid;
+  max-height: min(17.5rem, 46vh);
+  gap: 0.08rem;
+  overflow-y: auto;
+  padding: 0.25rem;
+}
+
+.drawsy-ai-chat__slash-item {
+  display: grid;
+  width: 100%;
+  min-height: 2.62rem;
+  grid-template-columns: 1.55rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.42rem;
+  padding: 0.3rem 0.42rem;
+  border: 0;
+  border-radius: 0.52rem;
+  background: transparent;
+  color: var(--chat-text);
+  font-family: var(--ui-font, "Assistant", sans-serif);
+  text-align: left;
+  cursor: pointer;
+
+  &[aria-selected="true"] {
+    background: color-mix(in srgb, var(--chat-text) 7%, transparent);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--chat-primary);
+    outline-offset: -2px;
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 1;
+  }
+}
+
+.drawsy-ai-chat__slash-icon {
+  display: grid;
+  width: 1.55rem;
+  height: 1.55rem;
+  place-items: center;
+  border-radius: 0.44rem;
+  background: color-mix(in srgb, var(--chat-text) 6%, transparent);
+  color: var(--chat-muted);
+
+  svg {
+    width: 0.88rem;
+    height: 0.88rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+}
+
+.drawsy-ai-chat__slash-copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.08rem;
+}
+
+.drawsy-ai-chat__slash-title,
+.drawsy-ai-chat__slash-description {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drawsy-ai-chat__slash-title {
+  font-size: 0.7rem;
+  font-weight: 680;
+  line-height: 1.2;
+}
+
+.drawsy-ai-chat__slash-description {
+  color: var(--chat-muted);
+  font-size: 0.59rem;
+  font-weight: 450;
+  line-height: 1.25;
+}
+
+.drawsy-ai-chat__slash-meta {
+  max-width: 4.5rem;
+  overflow: hidden;
+  color: var(--chat-muted);
+  font-size: 0.55rem;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drawsy-ai-chat__slash-meta--selected {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  color: var(--chat-text);
+
+  &::before {
+    width: 0.38rem;
+    height: 0.38rem;
+    border-radius: 50%;
+    background: #2f9e68;
+    content: "";
+  }
+}
+
+.drawsy-ai-chat__slash-state {
+  padding: 0.85rem 0.65rem;
+  color: var(--chat-muted);
+  font-size: 0.68rem;
+  text-align: center;
+}
+
+.drawsy-ai-chat__slash-state--error {
+  color: color-mix(in srgb, #e03131 72%, var(--chat-muted));
 }
 
 .drawsy-ai-chat__session-meta {
@@ -422,6 +979,46 @@
 
     &::placeholder {
       color: var(--chat-muted);
+    }
+  }
+}
+
+.drawsy-ai-chat__composer-input {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.drawsy-ai-chat__composer-tags {
+  padding: 0.15rem 0.35rem 0.1rem;
+
+  .drawsy-ai-chat__tag {
+    max-width: 10rem;
+    cursor: pointer;
+
+    > span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    svg {
+      width: 0.72rem;
+      height: 0.72rem;
+      flex: 0 0 0.72rem;
+      fill: none;
+      stroke: currentColor;
+      stroke-linecap: round;
+      stroke-width: 1.55;
+      opacity: 0.72;
+    }
+
+    &:hover {
+      background: color-mix(in srgb, currentColor 20%, transparent);
+    }
+
+    &:focus-visible {
+      outline: 2px solid currentColor;
+      outline-offset: 1px;
     }
   }
 }
@@ -544,9 +1141,19 @@
   color: color-mix(in srgb, #e03131 72%, var(--chat-muted)) !important;
 }
 
+@media (hover: none) {
+  .drawsy-ai-chat__message--user .drawsy-ai-chat__message-actions {
+    opacity: 1;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .drawsy-ai-chat__empty {
     transform: none;
+  }
+
+  .drawsy-ai-chat__message--user .drawsy-ai-chat__message-actions {
+    transition: none;
   }
 
   .drawsy-ai-chat__activity--inProgress .drawsy-ai-chat__activity-indicator {
