@@ -102,6 +102,66 @@ type ComposerTag = {
   path: string;
 };
 
+const composerTagText = (tag: ComposerTag) =>
+  `${tag.kind === "skill" ? "$" : "@"}${tag.label}`;
+
+const tagsPresentInText = (tags: ComposerTag[], text: string) =>
+  tags.filter((tag) => text.includes(composerTagText(tag)));
+
+const InlineTaggedText = ({
+  text,
+  tags,
+}: {
+  text: string;
+  tags: ComposerTag[];
+}) => {
+  const matches = tags
+    .flatMap((tag) => {
+      const token = composerTagText(tag);
+      const ranges: Array<{ start: number; end: number; tag: ComposerTag }> =
+        [];
+      let from = 0;
+      while (from < text.length) {
+        const start = text.indexOf(token, from);
+        if (start < 0) {
+          break;
+        }
+        ranges.push({ start, end: start + token.length, tag });
+        from = start + token.length;
+      }
+      return ranges;
+    })
+    .sort((left, right) => left.start - right.start || right.end - left.end)
+    .filter((match, index, all) =>
+      all.slice(0, index).every((previous) => previous.end <= match.start),
+    );
+
+  if (!matches.length) {
+    return <>{text}</>;
+  }
+
+  const content: ReactNode[] = [];
+  let cursor = 0;
+  for (const match of matches) {
+    if (match.start > cursor) {
+      content.push(text.slice(cursor, match.start));
+    }
+    content.push(
+      <span
+        className={`drawsy-ai-chat__inline-tag drawsy-ai-chat__inline-tag--${match.tag.kind}`}
+        key={`${match.tag.kind}:${match.tag.name}:${match.start}`}
+      >
+        {text.slice(match.start, match.end)}
+      </span>,
+    );
+    cursor = match.end;
+  }
+  if (cursor < text.length) {
+    content.push(text.slice(cursor));
+  }
+  return <>{content}</>;
+};
+
 type TimelineMessage = {
   kind: "message";
   id: string;
@@ -344,11 +404,19 @@ export const DrawsyAIChat = ({
   const [pendingModel, setPendingModel] = useState<string | null>(null);
   const engineSwitcherRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const composerHighlighterRef = useRef<HTMLDivElement>(null);
   const conversationRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
   const copiedMessageTimerRef = useRef<number | null>(null);
   const sessionRef = useRef<AgentSession | null>(null);
   const canvasHandlersRef = useRef({ readCanvas, applyCanvas });
+
+  useEffect(() => {
+    setComposerTags((current) => {
+      const next = tagsPresentInText(current, draft);
+      return next.length === current.length ? current : next;
+    });
+  }, [draft]);
 
   useEffect(() => {
     canvasHandlersRef.current = { readCanvas, applyCanvas };
@@ -711,6 +779,7 @@ export const DrawsyAIChat = ({
     if (!message || turnRunning) {
       return;
     }
+    const submittedTags = tagsPresentInText(composerTags, message);
     if (engine !== "codex") {
       setTimeline((current) => [
         ...current,
@@ -719,7 +788,7 @@ export const DrawsyAIChat = ({
           id: crypto.randomUUID(),
           role: "user",
           text: message,
-          tags: composerTags,
+          tags: submittedTags,
         },
         {
           kind: "message",
@@ -740,7 +809,6 @@ export const DrawsyAIChat = ({
       }
       return;
     }
-    const submittedTags = [...composerTags];
     setTimeline((current) => [
       ...current,
       {
@@ -825,19 +893,24 @@ export const DrawsyAIChat = ({
         ? current
         : [...current, tag],
     );
-    const removalEnd =
-      query && draft.charAt(query.end) === " " ? query.end + 1 : query?.end;
-    const nextDraft = query
-      ? `${draft.slice(0, query.start)}${draft.slice(removalEnd)}`
-      : draft;
+    const insertionStart =
+      query?.start ?? textareaRef.current?.selectionStart ?? draft.length;
+    const insertionEnd =
+      query?.end ?? textareaRef.current?.selectionEnd ?? insertionStart;
+    const before = draft.slice(0, insertionStart);
+    const after = draft.slice(insertionEnd);
+    const token = composerTagText(tag);
+    const leadingSpace = before && !/\s$/.test(before) ? " " : "";
+    const trailingSpace = !after || !/^\s/.test(after) ? " " : "";
+    const insertedText = `${leadingSpace}${token}${trailingSpace}`;
+    const nextDraft = `${before}${insertedText}${after}`;
+    const nextCaret = insertionStart + insertedText.length;
     setDraft(nextDraft);
     setActiveTag(null);
     setSlashView(null);
     requestAnimationFrame(() => {
       textareaRef.current?.focus();
-      if (query) {
-        textareaRef.current?.setSelectionRange(query.start, query.start);
-      }
+      textareaRef.current?.setSelectionRange(nextCaret, nextCaret);
     });
   };
 
@@ -1146,20 +1219,7 @@ export const DrawsyAIChat = ({
                   key={item.id}
                 >
                   <div className="drawsy-ai-chat__message-content">
-                    {!!item.tags?.length && (
-                      <div className="drawsy-ai-chat__message-tags">
-                        {item.tags.map((tag) => (
-                          <span
-                            className={`drawsy-ai-chat__tag drawsy-ai-chat__tag--${tag.kind}`}
-                            key={`${tag.kind}:${tag.name}`}
-                          >
-                            {tag.kind === "skill" ? "$" : "@"}
-                            {tag.label}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    {item.role !== "error" ? (
+                    {item.role === "assistant" ? (
                       <Suspense
                         fallback={
                           <div className="drawsy-ai-chat__markdown drawsy-ai-chat__markdown--loading">
@@ -1171,6 +1231,11 @@ export const DrawsyAIChat = ({
                           {item.text}
                         </DrawsyMarkdown>
                       </Suspense>
+                    ) : item.role === "user" ? (
+                      <InlineTaggedText
+                        text={item.text}
+                        tags={item.tags || []}
+                      />
                     ) : (
                       item.text
                     )}
@@ -1270,133 +1335,117 @@ export const DrawsyAIChat = ({
           }}
         >
           <div className="drawsy-ai-chat__composer-input">
-            {!!composerTags.length && (
-              <div className="drawsy-ai-chat__composer-tags">
-                {composerTags.map((tag) => (
-                  <button
-                    type="button"
-                    className={`drawsy-ai-chat__tag drawsy-ai-chat__tag--${tag.kind}`}
-                    key={`${tag.kind}:${tag.name}`}
-                    aria-label={`Remove ${tag.label}`}
-                    onClick={() =>
-                      setComposerTags((current) =>
-                        current.filter(
-                          (item) =>
-                            item.kind !== tag.kind || item.name !== tag.name,
-                        ),
-                      )
-                    }
-                  >
-                    <span>
-                      {tag.kind === "skill" ? "$" : "@"}
-                      {tag.label}
-                    </span>
-                    <svg viewBox="0 0 16 16" aria-hidden="true">
-                      <path d="m5 5 6 6m0-6-6 6" />
-                    </svg>
-                  </button>
-                ))}
+            <div className="drawsy-ai-chat__composer-editor">
+              <div
+                className="drawsy-ai-chat__composer-highlighter"
+                ref={composerHighlighterRef}
+                aria-hidden="true"
+              >
+                <InlineTaggedText
+                  text={draft}
+                  tags={tagsPresentInText(composerTags, draft)}
+                />
+                {draft.endsWith("\n") && "\u200b"}
               </div>
-            )}
-            <textarea
-              ref={textareaRef}
-              value={draft}
-              onChange={(event) => {
-                const value = event.target.value;
-                const caret = event.target.selectionStart ?? value.length;
-                setDraft(value);
-                setActiveTag(
-                  value.startsWith("/") ? null : tagQueryAt(value, caret),
-                );
-                if (slashView && value) {
-                  setSlashView(null);
-                  setPendingModel(null);
-                }
-              }}
-              onClick={(event) =>
-                setActiveTag(
-                  tagQueryAt(
-                    event.currentTarget.value,
-                    event.currentTarget.selectionStart ?? draft.length,
-                  ),
-                )
-              }
-              onKeyUp={(event) => {
-                if (
-                  event.key !== "ArrowDown" &&
-                  event.key !== "ArrowUp" &&
-                  event.key !== "Enter" &&
-                  event.key !== "Escape"
-                ) {
+              <textarea
+                ref={textareaRef}
+                value={draft}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  const caret = event.target.selectionStart ?? value.length;
+                  setDraft(value);
+                  setActiveTag(
+                    value.startsWith("/") ? null : tagQueryAt(value, caret),
+                  );
+                  if (slashView && value) {
+                    setSlashView(null);
+                    setPendingModel(null);
+                  }
+                }}
+                onScroll={(event) => {
+                  if (composerHighlighterRef.current) {
+                    composerHighlighterRef.current.scrollTop =
+                      event.currentTarget.scrollTop;
+                    composerHighlighterRef.current.scrollLeft =
+                      event.currentTarget.scrollLeft;
+                  }
+                }}
+                onClick={(event) =>
                   setActiveTag(
                     tagQueryAt(
                       event.currentTarget.value,
                       event.currentTarget.selectionStart ?? draft.length,
                     ),
-                  );
+                  )
                 }
-              }}
-              onKeyDown={(event) => {
-                if (composerMenuOpen) {
-                  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-                    event.preventDefault();
-                    if (visibleMenuItems.length) {
-                      const direction = event.key === "ArrowDown" ? 1 : -1;
-                      setSlashSelectedIndex(
-                        (slashSelectedIndex +
-                          direction +
-                          visibleMenuItems.length) %
-                          visibleMenuItems.length,
-                      );
-                    }
-                    return;
-                  }
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    chooseComposerMenuItem();
-                    return;
-                  }
-                  if (event.key === "Escape") {
-                    event.preventDefault();
-                    closeComposerMenu();
-                    return;
-                  }
+                onKeyUp={(event) => {
                   if (
-                    event.key === "Backspace" &&
-                    slashView &&
-                    draft.length === 0
+                    event.key !== "ArrowDown" &&
+                    event.key !== "ArrowUp" &&
+                    event.key !== "Enter" &&
+                    event.key !== "Escape"
                   ) {
-                    event.preventDefault();
-                    if (slashView === "effort") {
-                      setSlashView("model");
-                      setPendingModel(null);
-                    } else {
-                      setSlashView(null);
-                      setDraft("/");
-                    }
-                    return;
+                    setActiveTag(
+                      tagQueryAt(
+                        event.currentTarget.value,
+                        event.currentTarget.selectionStart ?? draft.length,
+                      ),
+                    );
                   }
+                }}
+                onKeyDown={(event) => {
+                  if (composerMenuOpen) {
+                    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                      event.preventDefault();
+                      if (visibleMenuItems.length) {
+                        const direction = event.key === "ArrowDown" ? 1 : -1;
+                        setSlashSelectedIndex(
+                          (slashSelectedIndex +
+                            direction +
+                            visibleMenuItems.length) %
+                            visibleMenuItems.length,
+                        );
+                      }
+                      return;
+                    }
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      chooseComposerMenuItem();
+                      return;
+                    }
+                    if (event.key === "Escape") {
+                      event.preventDefault();
+                      closeComposerMenu();
+                      return;
+                    }
+                    if (
+                      event.key === "Backspace" &&
+                      slashView &&
+                      draft.length === 0
+                    ) {
+                      event.preventDefault();
+                      if (slashView === "effort") {
+                        setSlashView("model");
+                        setPendingModel(null);
+                      } else {
+                        setSlashView(null);
+                        setDraft("/");
+                      }
+                      return;
+                    }
+                  }
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    void submitDraft();
+                  }
+                }}
+                rows={1}
+                placeholder={
+                  folder ? "Ask Drawsy anything…" : "Choose a folder to begin…"
                 }
-                if (
-                  event.key === "Backspace" &&
-                  draft.length === 0 &&
-                  composerTags.length
-                ) {
-                  event.preventDefault();
-                  setComposerTags((current) => current.slice(0, -1));
-                  return;
-                }
-                if (event.key === "Enter" && !event.shiftKey) {
-                  event.preventDefault();
-                  void submitDraft();
-                }
-              }}
-              rows={1}
-              placeholder={
-                folder ? "Ask Drawsy anything…" : "Choose a folder to begin…"
-              }
-              aria-label="Message Drawsy AI"
-            />
+                aria-label="Message Drawsy AI"
+              />
+            </div>
           </div>
           <div className="drawsy-ai-chat__composer-menu">
             <div className="drawsy-ai-chat__composer-options">
