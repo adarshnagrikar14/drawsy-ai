@@ -33,6 +33,11 @@ export type ConnectorsOverview = {
   connections: ConnectorConnection[];
 };
 
+export type ConnectorAiSource = {
+  connectionId: string;
+  capability: ConnectorCapability;
+};
+
 type TokenProvider = () => Promise<string>;
 
 export class ConnectorsApiError extends Error {
@@ -55,6 +60,24 @@ export class ConnectorsApi {
 
   getOverview() {
     return this.request<ConnectorsOverview>("/v1/connectors");
+  }
+
+  async createAiGrant(input: {
+    sessionId: string;
+    turnId: string;
+    connectionId: string;
+    capabilities: ConnectorCapability[];
+  }) {
+    const result = await this.request<{
+      grant: string;
+      expiresAt: number;
+      connectionId?: string;
+      capabilities?: ConnectorCapability[];
+    }>("/v1/connectors/ai/grants", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+    return { grant: result.grant, expiresAt: result.expiresAt };
   }
 
   async connect(providerId: string) {

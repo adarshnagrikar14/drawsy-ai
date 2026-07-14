@@ -61,6 +61,23 @@ export type DrawsyAgentMetadata = {
 
 export type DrawsyAgentAccessMode = "workspace" | "readOnly";
 
+export type DrawsyConnectedSource = {
+  connectionId: string;
+  capability: "mail" | "calendar" | "drive" | "notion" | "slack" | "github";
+  label: string;
+  accountLabel: string;
+};
+
+export type DrawsyConnectorTurn = {
+  turnId: string;
+  sources: DrawsyConnectedSource[];
+  grants: Array<{
+    connectionId: string;
+    grant: string;
+    expiresAt: number;
+  }>;
+};
+
 export type DrawsyAgentControls = {
   accessMode: DrawsyAgentAccessMode;
   internetEnabled: boolean;
@@ -211,6 +228,7 @@ export const DrawsyAgentApi = {
       elementIds: string[];
       bounds: DrawsyCanvasContextBounds;
     }> = [],
+    connectors?: DrawsyConnectorTurn,
   ) =>
     parseResponse<{ accepted: true }>(
       await fetch(`${apiBase}/v1/sessions/${session.id}/turns`, {
@@ -219,7 +237,12 @@ export const DrawsyAgentApi = {
           authorization: `Bearer ${session.token}`,
           "content-type": "application/json",
         },
-        body: JSON.stringify({ message, ...tags, contexts }),
+        body: JSON.stringify({
+          message,
+          ...tags,
+          contexts,
+          ...(connectors ? { connectors } : {}),
+        }),
       }),
     ),
 
