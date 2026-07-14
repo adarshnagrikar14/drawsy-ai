@@ -55,6 +55,7 @@ const connected: ConnectorsOverview = {
       accountName: "Ada",
       accountEmail: "ada@example.com",
       accountAvatarUrl: null,
+      manageUrl: null,
       capabilities: ["mail", "calendar", "drive"],
       scopes: [],
       createdAt: 1,
@@ -115,5 +116,45 @@ describe("ConnectorsWorkspace", () => {
       screen.queryByRole("button", { name: "Connect Notion for Notion" }),
     ).not.toBeInTheDocument();
     expect(api.connect).not.toHaveBeenCalled();
+  });
+
+  it("links a GitHub installation to its provider-managed access settings", async () => {
+    const github = {
+      ...unavailableProviders[2],
+      configured: true,
+    };
+    const api = {
+      getOverview: vi.fn().mockResolvedValue({
+        providers: [
+          provider,
+          unavailableProviders[0],
+          unavailableProviders[1],
+          github,
+        ],
+        connections: [
+          {
+            id: "github-connection",
+            providerId: "github",
+            accountId: "account-1",
+            accountName: "adarsh",
+            accountEmail: null,
+            accountAvatarUrl: null,
+            manageUrl: "https://github.com/settings/installations/42",
+            capabilities: ["github"],
+            scopes: ["contents:read"],
+            createdAt: 1,
+            updatedAt: 1,
+          },
+        ],
+      }),
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+    } as unknown as ConnectorsApi;
+
+    render(<ConnectorsWorkspace api={api} onSignIn={vi.fn()} />);
+
+    expect(
+      await screen.findByRole("link", { name: "Manage access" }),
+    ).toHaveAttribute("href", "https://github.com/settings/installations/42");
   });
 });

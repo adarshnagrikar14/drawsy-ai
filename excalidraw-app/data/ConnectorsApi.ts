@@ -22,6 +22,7 @@ export type ConnectorConnection = {
   accountName: string;
   accountEmail: string | null;
   accountAvatarUrl: string | null;
+  manageUrl: string | null;
   capabilities: ConnectorCapability[];
   scopes: string[];
   createdAt: number;

@@ -213,6 +213,21 @@
   gap: 0.3rem;
   align-items: flex-end;
 
+  .connector-card__manage {
+    color: var(--color-on-surface);
+    font-family: var(--ui-font);
+    font-size: 0.58rem;
+    line-height: 1;
+    opacity: 0.42;
+    text-decoration: none;
+  }
+
+  .connector-card__manage:hover {
+    opacity: 0.72;
+    text-decoration: underline;
+    text-underline-offset: 0.16rem;
+  }
+
   button {
     min-width: 4.65rem;
     padding: 0.34rem 0.58rem;

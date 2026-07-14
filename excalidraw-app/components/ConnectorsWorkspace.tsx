@@ -248,6 +248,16 @@ export const ConnectorsWorkspace = ({
               </div>
               {provider?.configured && (
                 <div className="connector-card__controls">
+                  {connected && account.manageUrl && (
+                    <a
+                      className="connector-card__manage"
+                      href={account.manageUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Manage access
+                    </a>
+                  )}
                   <button
                     className={
                       connected
