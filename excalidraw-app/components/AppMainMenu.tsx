@@ -4,7 +4,6 @@ import {
   MoonIcon,
   RetryIcon,
   SunIcon,
-  chevronRight,
 } from "@excalidraw/excalidraw/components/icons";
 import { languages } from "@excalidraw/excalidraw/i18n";
 import { MainMenu } from "@excalidraw/excalidraw/index";
@@ -199,23 +198,15 @@ export const AppMainMenu: React.FC<{
       </MainMenu.Sub>
 
       <MainMenu.Separator />
-      <MainMenu.ItemLink
-        icon={ExcalLogo}
-        href={`${
-          import.meta.env.VITE_APP_PLUS_LP
-        }/plus?utm_source=excalidraw&utm_medium=app&utm_content=hamburger`}
-        className="drawsy-plus-menu-item"
-      >
+      <MainMenu.ItemCustom className="drawsy-plus-menu-item">
+        <span className="dropdown-menu-item__icon">{ExcalLogo}</span>
         <span className="drawsy-plus-menu-copy">
           <span className="drawsy-plus-menu-label">
             <strong>Drawsy+</strong>
-            <small>AI and connected workspace</small>
-          </span>
-          <span className="drawsy-plus-menu-arrow" aria-hidden="true">
-            {chevronRight}
+            <small>Stay tuned, Plus is coming!</small>
           </span>
         </span>
-      </MainMenu.ItemLink>
+      </MainMenu.ItemCustom>
       <MainMenu.Separator />
       {props.auth.status === "authenticated" ? (
         <MainMenu.ItemCustom className="drawsy-account-item">

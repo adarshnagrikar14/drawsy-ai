@@ -658,12 +658,22 @@
 }
 
 .excalidraw .dropdown-menu .drawsy-plus-menu-item {
-  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
   min-height: 3rem;
   height: auto;
+  margin-top: 0;
+  padding: 0 0.5rem;
 
-  .dropdown-menu-item__text {
-    padding-inline-end: 1.5rem;
+  .dropdown-menu-item__icon {
+    flex: 0 0 auto;
+
+    svg {
+      display: block;
+      width: 1rem;
+      height: 1rem;
+    }
   }
 }
 
@@ -698,22 +708,6 @@
     opacity: 0.64;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-}
-
-.drawsy-plus-menu-arrow {
-  display: grid;
-  position: absolute;
-  right: 0.25rem;
-  top: 50%;
-  flex: 0 0 auto;
-  place-items: center;
-  opacity: 0.5;
-  transform: translateY(-50%);
-
-  svg {
-    width: 1rem;
-    height: 1rem;
   }
 }
 
