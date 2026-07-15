@@ -201,11 +201,11 @@ export const ConnectorsWorkspace = ({
       <div className="connectors-board">
         <svg
           className="connectors-paths"
-          viewBox="0 0 1000 420"
+          viewBox="0 0 1000 520"
           preserveAspectRatio="none"
           aria-hidden="true"
         >
-          <path d="M500 210C420 210 390 70 300 70M500 210C580 210 610 70 700 70M500 210H300M500 210H700M500 210C420 210 390 350 300 350M500 210C580 210 610 350 700 350" />
+          <path d="M500 260C430 260 390 60 300 60M500 260C570 260 610 60 700 60M500 260C430 260 390 195 300 195M500 260C570 260 610 195 700 195M500 260C430 260 390 325 300 325M500 260C570 260 610 325 700 325M500 260C430 260 390 460 300 460M500 260C570 260 610 460 700 460" />
         </svg>
 
         {connectorCatalog.map((connector) => {

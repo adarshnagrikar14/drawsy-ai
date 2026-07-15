@@ -84,7 +84,7 @@
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 9rem minmax(0, 1fr);
-  grid-template-rows: repeat(3, minmax(5.1rem, auto));
+  grid-template-rows: repeat(4, minmax(5.1rem, auto));
   gap: 0.8rem clamp(2.25rem, 5vw, 4.5rem);
   align-items: center;
   justify-content: center;
@@ -110,7 +110,7 @@
 .connectors-hub {
   display: grid;
   grid-column: 2;
-  grid-row: 2;
+  grid-row: 2 / span 2;
   justify-items: center;
   gap: 0.45rem;
   align-items: center;
@@ -315,6 +315,14 @@
 .connector-card:nth-of-type(6) {
   grid-column: 3;
   grid-row: 3;
+}
+.connector-card:nth-of-type(7) {
+  grid-column: 1;
+  grid-row: 4;
+}
+.connector-card:nth-of-type(8) {
+  grid-column: 3;
+  grid-row: 4;
 }
 
 .connector-card__mark {
