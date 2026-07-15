@@ -1,6 +1,12 @@
 import type { ConnectorCapability } from "../data/ConnectorsApi";
 
-export type ConnectorTone = "coral" | "blue" | "green" | "violet" | "ink";
+export type ConnectorTone =
+  | "coral"
+  | "blue"
+  | "green"
+  | "violet"
+  | "orange"
+  | "ink";
 
 export const connectorCatalog: ReadonlyArray<{
   id: ConnectorCapability;
@@ -74,6 +80,14 @@ export const connectorCatalog: ReadonlyArray<{
     detail: "Find conversations, summaries, and follow-up details.",
     tone: "violet",
   },
+  {
+    id: "aws",
+    capability: "aws",
+    name: "AWS",
+    tagLabel: "aws",
+    detail: "Map live infrastructure and reason over its configuration.",
+    tone: "orange",
+  },
 ];
 
 export const ConnectorLogo = ({
@@ -140,6 +154,15 @@ export const ConnectorLogo = ({
         <path d="M16 12v12M12.5 15.5C8 11 5 13 7 18c1.5 3.5 5 3.5 9 1M19.5 15.5C24 11 27 13 25 18c-1.5 3.5-5 3.5-9 1" />
         <circle cx="16" cy="9" r="3" />
         <path d="M16 4V2M9.5 6 8 4.5M22.5 6 24 4.5M16 25v4" />
+      </svg>
+    );
+  }
+  if (capability === "aws") {
+    return (
+      <svg viewBox="0 0 32 32">
+        <path d="M8 22.5h16a4 4 0 0 0 .7-7.9A7.5 7.5 0 0 0 10.3 13 4.8 4.8 0 0 0 8 22.5Z" />
+        <path d="M11 25.5h10M13.5 28h5" />
+        <path d="M12 17.5h8M14 14.5h4" />
       </svg>
     );
   }

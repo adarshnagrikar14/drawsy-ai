@@ -117,4 +117,58 @@ describe("ConnectorsApi", () => {
     });
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it("opens AWS in a new tab and verifies the role without closing it", async () => {
+    const overview = { providers: [], connections: [] };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            setupUrl: "https://console.aws.amazon.com/cloudformation/home",
+            attemptId: "attempt-aws",
+            setupToken: "a".repeat(43),
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ status: "connected" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(overview), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const replace = vi.fn();
+    const close = vi.fn();
+    vi.spyOn(window, "open").mockReturnValue({
+      opener: window,
+      location: { replace },
+      close,
+    } as unknown as Window);
+    const api = new ConnectorsApi(() => Promise.resolve("firebase-token"));
+
+    await expect(api.connectAws("123456789012")).resolves.toEqual(overview);
+    expect(replace).toHaveBeenCalledWith(
+      "https://console.aws.amazon.com/cloudformation/home",
+    );
+    expect(close).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://backend.example/v1/connectors/aws/setup/verify",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          accountId: "123456789012",
+          setupToken: "a".repeat(43),
+        }),
+      }),
+    );
+  });
 });

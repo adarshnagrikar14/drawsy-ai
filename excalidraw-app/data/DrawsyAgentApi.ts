@@ -78,7 +78,8 @@ export type DrawsyConnectedSource = {
     | "slack"
     | "github"
     | "read-ai"
-    | "fireflies";
+    | "fireflies"
+    | "aws";
   label: string;
   accountLabel: string;
 };

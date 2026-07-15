@@ -6,7 +6,8 @@ export type ConnectorCapability =
   | "slack"
   | "github"
   | "read-ai"
-  | "fireflies";
+  | "fireflies"
+  | "aws";
 
 export type ConnectorProvider = {
   id: string;
@@ -204,6 +205,60 @@ export class ConnectorsApi {
     });
 
     return this.getOverview();
+  }
+
+  async connectAws(accountId: string) {
+    const setupTab = window.open("about:blank", "_blank");
+    if (!setupTab) {
+      throw new ConnectorsApiError(
+        0,
+        "new_tab_blocked",
+        "Allow Drawsy to open the AWS setup in a new tab.",
+      );
+    }
+    setupTab.opener = null;
+    let setup: {
+      setupUrl: string;
+      attemptId: string;
+      setupToken: string;
+    };
+    try {
+      setup = await this.request("/v1/connectors/aws/setup/start", {
+        method: "POST",
+        body: JSON.stringify({ accountId }),
+      });
+      setupTab.location.replace(setup.setupUrl);
+    } catch (error) {
+      setupTab.close();
+      throw error;
+    }
+
+    const deadline = Date.now() + 10 * 60 * 1000;
+    while (Date.now() < deadline) {
+      const result = await this.request<{
+        status: "pending" | "connected" | "failed";
+        error?: string;
+      }>("/v1/connectors/aws/setup/verify", {
+        method: "POST",
+        body: JSON.stringify({ accountId, setupToken: setup.setupToken }),
+      });
+      if (result.status === "connected") {
+        return this.getOverview();
+      }
+      if (result.status === "failed") {
+        throw new ConnectorsApiError(
+          0,
+          result.error || "aws_setup_failed",
+          "AWS access could not be verified. Review the stack and try again.",
+        );
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 1_500));
+    }
+    throw new ConnectorsApiError(
+      0,
+      "aws_setup_timeout",
+      "AWS setup took too long. Confirm the stack completed, then connect again.",
+    );
   }
 
   disconnect(connectionId: string) {
