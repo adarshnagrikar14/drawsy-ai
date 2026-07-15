@@ -2286,7 +2286,10 @@ const ExcalidrawWrapper = () => {
     [presentationElements],
   );
   const isPresentationCanvasActive =
-    presentationCanvasOpen && !kanbanOpen && !jiraWorkspaceOpen;
+    presentationCanvasOpen &&
+    !kanbanOpen &&
+    !jiraWorkspaceOpen &&
+    !connectorsOpen;
   const activePresentation = useMemo(
     () =>
       presentationIndex?.presentations.find(
@@ -3193,6 +3196,10 @@ const ExcalidrawWrapper = () => {
     appState: AppState,
     files: BinaryFiles,
   ) => {
+    if (kanbanOpen || connectorsOpen) {
+      return;
+    }
+
     if (
       presentationCanvasOpenRef.current ||
       appState.openSidebar?.tab === "presentation"
@@ -5192,14 +5199,19 @@ const ExcalidrawWrapper = () => {
   const comments = useCanvasComments({
     auth: drawsyAuth,
     canvasId:
-      isPresentationCanvasActive || jiraWorkspaceOpen
+      isPresentationCanvasActive ||
+      kanbanOpen ||
+      jiraWorkspaceOpen ||
+      connectorsOpen
         ? null
         : activeCanvas?.id || null,
     enabled:
       !!activeCanvas &&
       !isCollaborating &&
       !isPresentationCanvasActive &&
-      !jiraWorkspaceOpen,
+      !kanbanOpen &&
+      !jiraWorkspaceOpen &&
+      !connectorsOpen,
     sidebarOpen: commentsSidebarOpen,
   });
   const {
@@ -6735,7 +6747,6 @@ const ExcalidrawWrapper = () => {
                     appState: { openSidebar: null, openMenu: null },
                   });
                   void closeJiraWorkspace(true).then(() => {
-                    setPresentationCanvasActive(false);
                     setKanbanWorkspaceActive(false);
                     setConnectorsOpen(true);
                   });
@@ -6749,7 +6760,6 @@ const ExcalidrawWrapper = () => {
                     appState: { openSidebar: null, openMenu: null },
                   });
                   void closeJiraWorkspace(true).then(() => {
-                    setPresentationCanvasActive(false);
                     setKanbanWorkspaceActive(true);
                   });
                 }}
@@ -7274,6 +7284,8 @@ const ExcalidrawWrapper = () => {
         {drawsyAuth.status === "authenticated" &&
           !isCollaborating &&
           !kanbanOpen &&
+          !jiraWorkspaceOpen &&
+          !connectorsOpen &&
           !isPresentationCanvasActive && (
             <CommentPins
               comments={comments.comments}
@@ -7284,6 +7296,8 @@ const ExcalidrawWrapper = () => {
         {drawsyAuth.status === "authenticated" &&
           !isCollaborating &&
           !kanbanOpen &&
+          !jiraWorkspaceOpen &&
+          !connectorsOpen &&
           !isPresentationCanvasActive &&
           (comments.placing || comments.draftAnchor) && (
             <CommentDraftBubble

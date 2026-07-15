@@ -111,6 +111,30 @@ describe("useCanvasComments", () => {
     expect(list).toHaveBeenCalledTimes(1);
   });
 
+  it("removes comment state when the current surface is not a canvas", async () => {
+    const auth = getAuth("authenticated");
+    const { result, rerender } = renderHook(
+      ({ enabled }) =>
+        useCanvasComments({
+          auth,
+          canvasId: enabled ? "canvas-0001" : null,
+          enabled,
+          sidebarOpen: false,
+        }),
+      { initialProps: { enabled: true } },
+    );
+
+    await waitFor(() => expect(result.current.comments).toHaveLength(1));
+
+    rerender({ enabled: false });
+    await act(async () => undefined);
+
+    expect(result.current.comments).toEqual([]);
+    expect(result.current.selectedId).toBeNull();
+    expect(result.current.draftAnchor).toBeNull();
+    expect(list).toHaveBeenCalledTimes(1);
+  });
+
   it("creates immediately and preserves the optimistic comment during refresh", async () => {
     list.mockResolvedValue({ comments: [] });
     const request = deferred<{ comment: CanvasComment }>();
