@@ -61,6 +61,13 @@ export type DrawsyAgentMetadata = {
 
 export type DrawsyAgentAccessMode = "workspace" | "readOnly";
 
+export type DrawsySurfaceKind =
+  | "canvas"
+  | "presentation"
+  | "kanban"
+  | "jira"
+  | "neutral";
+
 export type DrawsyConnectedSource = {
   connectionId: string;
   capability: "mail" | "calendar" | "drive" | "notion" | "slack" | "github";
@@ -76,6 +83,15 @@ export type DrawsyConnectorTurn = {
     grant: string;
     expiresAt: number;
   }>;
+};
+
+export type DrawsyResourceId = "kanban" | "jira";
+
+export type DrawsyResourceTurn = {
+  turnId: string;
+  resources: DrawsyResourceId[];
+  grant: string;
+  expiresAt: number;
 };
 
 export type DrawsyAgentControls = {
@@ -164,9 +180,11 @@ export const DrawsyAgentApi = {
 
   createSession: async (input: {
     selectionId: string;
-    canvasId: string;
-    canvasName: string;
-    surfaceKind: "canvas" | "presentation";
+    canvasId?: string | null;
+    canvasName?: string | null;
+    surfaceKind: DrawsySurfaceKind;
+    surfaceId?: string | null;
+    surfaceName?: string | null;
   }) =>
     parseResponse<{ id: string; token: string; folderName: string }>(
       await fetch(`${apiBase}/v1/sessions`, {
@@ -229,6 +247,7 @@ export const DrawsyAgentApi = {
       bounds: DrawsyCanvasContextBounds;
     }> = [],
     connectors?: DrawsyConnectorTurn,
+    resources?: DrawsyResourceTurn,
   ) =>
     parseResponse<{ accepted: true }>(
       await fetch(`${apiBase}/v1/sessions/${session.id}/turns`, {
@@ -242,6 +261,7 @@ export const DrawsyAgentApi = {
           ...tags,
           contexts,
           ...(connectors ? { connectors } : {}),
+          ...(resources ? { resources } : {}),
         }),
       }),
     ),

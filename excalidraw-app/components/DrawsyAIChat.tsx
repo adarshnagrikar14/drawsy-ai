@@ -34,6 +34,7 @@ import {
   type DrawsyCanvasImageReplacement,
   type DrawsyCanvasOperations,
   type DrawsyCanvasSnapshot,
+  type DrawsySurfaceKind,
 } from "../data/DrawsyAgentApi";
 
 import {
@@ -49,6 +50,7 @@ import type {
   ConnectorsApi,
   ConnectorsOverview,
 } from "../data/ConnectorsApi";
+import type { AiResourceId, AiResourcesApi } from "../data/AiResourcesApi";
 
 const DrawsyMarkdown = lazy(() =>
   import("./DrawsyMarkdown").then((module) => ({
@@ -62,8 +64,12 @@ type DrawsyAIChatProps = {
   theme: "light" | "dark";
   canvasId: string | null;
   canvasName: string | null;
-  surfaceKind: "canvas" | "presentation";
+  surfaceKind: DrawsySurfaceKind;
+  surfaceId: string | null;
+  surfaceName: string | null;
   connectorsApi: ConnectorsApi | null;
+  aiResourcesApi: AiResourcesApi | null;
+  availableAiResources: AiResourceId[];
   readCanvas: (expectedCanvasId: string) => DrawsyCanvasSnapshot;
   applyCanvas: (
     expectedCanvasId: string,
@@ -133,6 +139,12 @@ type PathComposerTag = {
 type ComposerTag =
   | PathComposerTag
   | {
+      kind: "resource";
+      name: AiResourceId;
+      label: string;
+      tone: ConnectorTone;
+    }
+  | {
       kind: "connector";
       name: string;
       label: string;
@@ -143,6 +155,44 @@ type ComposerTag =
     };
 
 type ConnectorComposerTag = Extract<ComposerTag, { kind: "connector" }>;
+type ResourceComposerTag = Extract<ComposerTag, { kind: "resource" }>;
+
+const aiResourceCatalog: ReadonlyArray<{
+  id: AiResourceId;
+  name: string;
+  label: string;
+  detail: string;
+  tone: ConnectorTone;
+}> = [
+  {
+    id: "kanban",
+    name: "Kanban",
+    label: "kanban",
+    detail: "Read boards and update work in Drawsy.",
+    tone: "violet",
+  },
+  {
+    id: "jira",
+    name: "Jira",
+    label: "jira",
+    detail: "Read connected Jira projects, issues, boards, and sprints.",
+    tone: "blue",
+  },
+];
+
+const AiResourceLogo = ({ resource }: { resource: AiResourceId }) =>
+  resource === "kanban" ? (
+    <svg viewBox="0 0 32 32" aria-hidden="true">
+      <rect x="5" y="6" width="6" height="20" rx="1.5" />
+      <rect x="13" y="6" width="6" height="13" rx="1.5" />
+      <rect x="21" y="6" width="6" height="17" rx="1.5" />
+    </svg>
+  ) : (
+    <svg viewBox="0 0 32 32" aria-hidden="true">
+      <path d="M16 4 28 16 16 28 4 16Z" />
+      <path d="m16 10 6 6-6 6-6-6Z" />
+    </svg>
+  );
 
 const composerTagText = (tag: ComposerTag) =>
   `${tag.kind === "skill" ? "$" : "@"}${tag.label}`;
@@ -258,6 +308,18 @@ const toolActivityLabel = (activity: TimelineTool) => {
       ? { inProgress: "Checking Drive", completed: "Drive files ready" }
       : activity.tool === "list_github_repositories"
       ? { inProgress: "Checking repositories", completed: "Repositories ready" }
+      : activity.tool === "list_github_repository_contents"
+      ? {
+          inProgress: "Browsing repository",
+          completed: "Repository contents ready",
+        }
+      : activity.tool === "list_github_issues"
+      ? { inProgress: "Checking issues", completed: "Issues ready" }
+      : activity.tool === "list_github_pull_requests"
+      ? {
+          inProgress: "Checking pull requests",
+          completed: "Pull requests ready",
+        }
       : activity.tool === "list_notion_content"
       ? { inProgress: "Checking Notion", completed: "Notion content ready" }
       : activity.tool === "list_slack_channels"
@@ -266,7 +328,39 @@ const toolActivityLabel = (activity: TimelineTool) => {
       ? { inProgress: "Checking Slack", completed: "Slack messages ready" }
       : activity.tool === "read_connected_item"
       ? { inProgress: "Reading connected item", completed: "Source read" }
-      : { inProgress: "Working on canvas", completed: "Canvas tool finished" };
+      : activity.tool === "list_kanban_boards"
+      ? { inProgress: "Checking Kanban boards", completed: "Boards ready" }
+      : activity.tool === "read_current_kanban_board"
+      ? { inProgress: "Reading current board", completed: "Board ready" }
+      : activity.tool === "read_kanban_board"
+      ? { inProgress: "Reading Kanban board", completed: "Board ready" }
+      : activity.tool === "create_kanban_card"
+      ? { inProgress: "Creating Kanban card", completed: "Card created" }
+      : activity.tool === "update_kanban_card"
+      ? { inProgress: "Updating Kanban card", completed: "Card updated" }
+      : activity.tool === "move_kanban_card"
+      ? { inProgress: "Moving Kanban card", completed: "Card moved" }
+      : activity.tool === "create_kanban_checklist_item"
+      ? { inProgress: "Adding checklist item", completed: "Checklist updated" }
+      : activity.tool === "update_kanban_checklist_item"
+      ? { inProgress: "Updating checklist", completed: "Checklist updated" }
+      : activity.tool === "link_current_canvas_to_kanban_card"
+      ? { inProgress: "Linking current canvas", completed: "Canvas linked" }
+      : activity.tool === "list_jira_connections"
+      ? { inProgress: "Checking Jira connections", completed: "Jira ready" }
+      : activity.tool === "list_jira_projects"
+      ? { inProgress: "Checking Jira projects", completed: "Projects ready" }
+      : activity.tool === "search_jira_issues"
+      ? { inProgress: "Searching Jira issues", completed: "Issues ready" }
+      : activity.tool === "read_jira_issue"
+      ? { inProgress: "Reading Jira issue", completed: "Issue ready" }
+      : activity.tool === "list_jira_boards"
+      ? { inProgress: "Checking Jira boards", completed: "Boards ready" }
+      : activity.tool === "list_jira_sprints"
+      ? { inProgress: "Checking Jira sprints", completed: "Sprints ready" }
+      : activity.tool === "list_jira_backlog"
+      ? { inProgress: "Checking Jira backlog", completed: "Backlog ready" }
+      : { inProgress: "Using tool", completed: "Tool finished" };
 
   if (activity.status === "failed") {
     return activity.error || "Tool failed without details";
@@ -330,6 +424,7 @@ type SlashItem = {
     capability: ConnectorCapability;
     tone: ConnectorTone;
   };
+  resource?: { id: AiResourceId; tone: ConnectorTone };
   onSelect?: () => void;
 };
 
@@ -453,13 +548,17 @@ const SlashMenu = ({
           >
             <span
               className={`drawsy-ai-chat__slash-icon${
-                item.connector
-                  ? ` drawsy-ai-chat__slash-icon--${item.connector.tone}`
+                item.connector || item.resource
+                  ? ` drawsy-ai-chat__slash-icon--${
+                      item.connector?.tone || item.resource?.tone
+                    }`
                   : ""
               }`}
             >
               {item.connector ? (
                 <ConnectorLogo capability={item.connector.capability} />
+              ) : item.resource ? (
+                <AiResourceLogo resource={item.resource.id} />
               ) : (
                 <SlashIcon
                   type={item.icon || (view === "root" ? item.id : view)}
@@ -497,7 +596,11 @@ export const DrawsyAIChat = ({
   canvasId,
   canvasName,
   surfaceKind,
+  surfaceId,
+  surfaceName,
   connectorsApi,
+  aiResourcesApi,
+  availableAiResources,
   readCanvas,
   applyCanvas,
   captureCanvas,
@@ -682,12 +785,10 @@ export const DrawsyAIChat = ({
   }, [engineMenuOpen]);
 
   useEffect(() => {
-    if (engine !== "codex" || !folder || !canvasId) {
+    if (engine !== "codex" || !folder) {
       sessionRef.current = null;
-      setSessionStatus(folder && !canvasId ? "error" : "idle");
-      setSessionError(
-        folder && !canvasId ? "Open a canvas to start Codex." : null,
-      );
+      setSessionStatus("idle");
+      setSessionError(null);
       return;
     }
 
@@ -820,7 +921,7 @@ export const DrawsyAIChat = ({
         const session = createdSession;
         void (async () => {
           try {
-            if (event.data.canvasId !== canvasId) {
+            if (!canvasId || event.data.canvasId !== canvasId) {
               throw new Error("The active canvas changed. Please retry.");
             }
             let data: unknown;
@@ -884,6 +985,8 @@ export const DrawsyAIChat = ({
       canvasId,
       canvasName: canvasName || "Untitled",
       surfaceKind,
+      surfaceId,
+      surfaceName,
     })
       .then((session) => {
         createdSession = session;
@@ -915,7 +1018,15 @@ export const DrawsyAIChat = ({
         void DrawsyAgentApi.closeSession(createdSession);
       }
     };
-  }, [canvasId, canvasName, engine, folder, surfaceKind]);
+  }, [
+    canvasId,
+    canvasName,
+    engine,
+    folder,
+    surfaceId,
+    surfaceKind,
+    surfaceName,
+  ]);
 
   const selectedEngine = agentEngines.find((option) => option.id === engine)!;
   const slashQueryOpen =
@@ -1038,6 +1149,10 @@ export const DrawsyAIChat = ({
       const connectorTags = submittedTags.filter(
         (tag): tag is ConnectorComposerTag => tag.kind === "connector",
       );
+      const resourceTags = submittedTags.filter(
+        (tag): tag is ResourceComposerTag => tag.kind === "resource",
+      );
+      const resourceIds = [...new Set(resourceTags.map((tag) => tag.name))];
       const turnId = crypto.randomUUID();
       const connectorCapabilities = new Map<string, Set<ConnectorCapability>>();
       connectorTags.forEach((tag) => {
@@ -1076,6 +1191,16 @@ export const DrawsyAIChat = ({
             ),
           )
         : [];
+      const resourceGrant = resourceIds.length
+        ? await aiResourcesApi?.createGrant({
+            sessionId: session.id,
+            turnId,
+            resources: resourceIds,
+          })
+        : null;
+      if (resourceIds.length && !resourceGrant) {
+        throw new Error("Drawsy resources are unavailable.");
+      }
       await DrawsyAgentApi.startTurn(
         session,
         message,
@@ -1108,6 +1233,14 @@ export const DrawsyAIChat = ({
                 accountLabel: tag.accountLabel,
               })),
               grants: connectorGrants,
+            }
+          : undefined,
+        resourceGrant
+          ? {
+              turnId,
+              resources: resourceIds,
+              grant: resourceGrant.grant,
+              expiresAt: resourceGrant.expiresAt,
             }
           : undefined,
       );
@@ -1269,6 +1402,27 @@ export const DrawsyAIChat = ({
       ];
     }),
   );
+  const resourceTagItems: SlashItem[] = aiResourceCatalog
+    .filter((resource) => availableAiResources.includes(resource.id))
+    .map((resource) => ({
+      id: `resource:${resource.id}`,
+      title: resource.name,
+      description: resource.detail,
+      resource: { id: resource.id, tone: resource.tone },
+      selected: composerTags.some(
+        (tag) => tag.kind === "resource" && tag.name === resource.id,
+      ),
+      onSelect: () =>
+        addComposerTag(
+          {
+            kind: "resource",
+            name: resource.id,
+            label: resource.label,
+            tone: resource.tone,
+          },
+          activeTag,
+        ),
+    }));
   if (connectorsError && !connectorTagItems.length) {
     connectorTagItems.push({
       id: "connectors-unavailable",
@@ -1301,6 +1455,7 @@ export const DrawsyAIChat = ({
             ),
         }))
       : [
+          ...resourceTagItems,
           ...connectorTagItems,
           ...(controls?.plugins || []).map((plugin) => ({
             id: plugin.id,
@@ -1934,7 +2089,15 @@ export const DrawsyAIChat = ({
               (sessionStatus === "starting"
                 ? "Starting local Codex…"
                 : sessionStatus === "ready" && folder
-                ? `${folder.name} · current canvas only`
+                ? surfaceKind === "canvas"
+                  ? `${folder.name} · current canvas only`
+                  : surfaceKind === "presentation"
+                  ? `${folder.name} · current presentation only`
+                  : surfaceKind === "kanban"
+                  ? `${folder.name} · Kanban surface`
+                  : surfaceKind === "jira"
+                  ? `${folder.name} · Jira surface`
+                  : `${folder.name} · no Drawsy context`
                 : "Local Codex · no internet")}
           </span>
           {agentMetadata && !sessionError && (

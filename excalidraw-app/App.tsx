@@ -144,6 +144,7 @@ import { KanbanApi } from "./data/KanbanApi";
 import { PresentationApi } from "./data/PresentationApi";
 import { JiraApi, type JiraConnection } from "./data/JiraApi";
 import { ConnectorsApi } from "./data/ConnectorsApi";
+import { AiResourcesApi } from "./data/AiResourcesApi";
 import { PresentationSync } from "./data/PresentationSync";
 import {
   PRESENTATION_CLIENT_ID,
@@ -2075,6 +2076,10 @@ const ExcalidrawWrapper = () => {
   );
   const connectorsApi = useMemo(
     () => (drawsyAuth.user ? new ConnectorsApi(drawsyAuth.getIdToken) : null),
+    [drawsyAuth.getIdToken, drawsyAuth.user],
+  );
+  const aiResourcesApi = useMemo(
+    () => (drawsyAuth.user ? new AiResourcesApi(drawsyAuth.getIdToken) : null),
     [drawsyAuth.getIdToken, drawsyAuth.user],
   );
 
@@ -4682,6 +4687,31 @@ const ExcalidrawWrapper = () => {
   const drawsyCanvasName = isPresentationCanvasActive
     ? activePresentation?.title || null
     : activeCanvas?.title || null;
+  const drawsySurfaceKind = connectorsOpen
+    ? ("neutral" as const)
+    : kanbanOpen
+    ? ("kanban" as const)
+    : jiraWorkspaceOpen
+    ? ("jira" as const)
+    : isPresentationCanvasActive
+    ? ("presentation" as const)
+    : activeCanvas
+    ? ("canvas" as const)
+    : ("neutral" as const);
+  const drawsySurfaceId = kanbanOpen
+    ? kanbanBoardReady
+      ? kanbanBoard.id
+      : null
+    : drawsyCanvasId;
+  const drawsySurfaceName = connectorsOpen
+    ? "Connectors"
+    : kanbanOpen
+    ? kanbanBoardReady
+      ? kanbanBoard.title
+      : "Kanban"
+    : jiraWorkspaceOpen
+    ? "Jira Workspace"
+    : drawsyCanvasName;
   const isCurrentDrawsyCanvas = useCallback(
     (expectedCanvasId: string) => {
       if (!excalidrawAPI || kanbanOpen || jiraWorkspaceOpen || connectorsOpen) {
@@ -7475,8 +7505,15 @@ const ExcalidrawWrapper = () => {
           theme={editorTheme}
           canvasId={drawsyCanvasId}
           canvasName={drawsyCanvasName}
-          surfaceKind={isPresentationCanvasActive ? "presentation" : "canvas"}
+          surfaceKind={drawsySurfaceKind}
+          surfaceId={drawsySurfaceId}
+          surfaceName={drawsySurfaceName}
           connectorsApi={connectorsApi}
+          aiResourcesApi={aiResourcesApi}
+          availableAiResources={[
+            ...(kanbanApi ? (["kanban"] as const) : []),
+            ...(jiraConnections.length ? (["jira"] as const) : []),
+          ]}
           readCanvas={readDrawsyCanvas}
           applyCanvas={applyDrawsyCanvas}
           captureCanvas={captureDrawsyCanvas}
