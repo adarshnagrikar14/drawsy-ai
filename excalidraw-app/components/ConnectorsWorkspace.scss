@@ -6,23 +6,24 @@
   min-height: 0;
   flex-direction: column;
   box-sizing: border-box;
-  padding: clamp(4.75rem, 9vh, 6rem) clamp(1rem, 2.6vw, 3rem) 1rem;
+  padding: clamp(3.25rem, 5vh, 4rem) clamp(1rem, 2.6vw, 3rem) 1rem;
   overflow: hidden;
   color: var(--color-on-surface);
   font-family: "Excalifont", "Virgil", var(--ui-font);
 }
 
 .connectors-heading {
-  width: min(42rem, 100%);
+  width: min(64rem, 100%);
   flex: 0 0 auto;
   margin: 0 auto clamp(0.85rem, 1.8vh, 1.35rem);
   text-align: center;
 
   h2 {
     margin: 0.35rem 0 0.55rem;
-    font-size: clamp(2rem, 3.4vw, 3rem);
+    font-size: clamp(2.35rem, 3.6vw, 3.35rem);
     font-weight: 500;
     line-height: 1.08;
+    white-space: nowrap;
   }
   p {
     margin: 0;
@@ -600,6 +601,10 @@
     grid-row: auto;
     width: 100%;
     transform: none;
+  }
+
+  .connectors-heading h2 {
+    white-space: normal;
   }
 }
 
