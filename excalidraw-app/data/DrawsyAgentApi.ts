@@ -70,7 +70,15 @@ export type DrawsySurfaceKind =
 
 export type DrawsyConnectedSource = {
   connectionId: string;
-  capability: "mail" | "calendar" | "drive" | "notion" | "slack" | "github";
+  capability:
+    | "mail"
+    | "calendar"
+    | "drive"
+    | "notion"
+    | "slack"
+    | "github"
+    | "read-ai"
+    | "fireflies";
   label: string;
   accountLabel: string;
 };

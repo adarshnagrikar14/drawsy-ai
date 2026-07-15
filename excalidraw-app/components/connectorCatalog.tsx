@@ -58,6 +58,22 @@ export const connectorCatalog: ReadonlyArray<{
     detail: "Connect code, issues, and pull requests.",
     tone: "ink",
   },
+  {
+    id: "read-ai",
+    capability: "read-ai",
+    name: "Read AI",
+    tagLabel: "read",
+    detail: "Bring meeting notes, decisions, and transcripts into context.",
+    tone: "blue",
+  },
+  {
+    id: "fireflies",
+    capability: "fireflies",
+    name: "Fireflies",
+    tagLabel: "fireflies",
+    detail: "Find conversations, summaries, and follow-up details.",
+    tone: "violet",
+  },
 ];
 
 export const ConnectorLogo = ({
@@ -106,6 +122,24 @@ export const ConnectorLogo = ({
         <circle cx="25" cy="12" r="2" />
         <circle cx="20" cy="25" r="2" />
         <circle cx="7" cy="20" r="2" />
+      </svg>
+    );
+  }
+  if (capability === "read-ai") {
+    return (
+      <svg viewBox="0 0 32 32">
+        <path d="M7 6.5h18v19H7z" />
+        <path d="M11 11h10M11 15h7M11 19h4" />
+        <path d="m18 20 2.5 2.5L25 18" />
+      </svg>
+    );
+  }
+  if (capability === "fireflies") {
+    return (
+      <svg viewBox="0 0 32 32">
+        <path d="M16 12v12M12.5 15.5C8 11 5 13 7 18c1.5 3.5 5 3.5 9 1M19.5 15.5C24 11 27 13 25 18c-1.5 3.5-5 3.5-9 1" />
+        <circle cx="16" cy="9" r="3" />
+        <path d="M16 4V2M9.5 6 8 4.5M22.5 6 24 4.5M16 25v4" />
       </svg>
     );
   }

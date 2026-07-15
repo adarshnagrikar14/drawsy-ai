@@ -4,7 +4,9 @@ export type ConnectorCapability =
   | "drive"
   | "notion"
   | "slack"
-  | "github";
+  | "github"
+  | "read-ai"
+  | "fireflies";
 
 export type ConnectorProvider = {
   id: string;
