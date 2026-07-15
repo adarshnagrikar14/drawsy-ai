@@ -38,6 +38,9 @@ export const ConnectorsWorkspace = ({
   const [activeProviderId, setActiveProviderId] = useState<string | null>(null);
   const [signingIn, setSigningIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [awsSetupOpen, setAwsSetupOpen] = useState(false);
+  const [awsAccountId, setAwsAccountId] = useState("");
+  const [awsSetupWaiting, setAwsSetupWaiting] = useState(false);
 
   useEffect(() => {
     if (!api) {
@@ -112,6 +115,38 @@ export const ConnectorsWorkspace = ({
     }
   };
 
+  const beginConnect = (provider: ConnectorProvider) => {
+    if (provider.id === "aws") {
+      setError(null);
+      setAwsSetupOpen(true);
+      return;
+    }
+    void connect(provider);
+  };
+
+  const connectAws = async () => {
+    if (!api || !/^\d{12}$/.test(awsAccountId)) {
+      return;
+    }
+    setActiveProviderId("aws");
+    setAwsSetupWaiting(true);
+    setError(null);
+    try {
+      setOverview(await api.connectAws(awsAccountId));
+      setAwsSetupOpen(false);
+      setAwsAccountId("");
+    } catch (nextError) {
+      setError(
+        nextError instanceof Error
+          ? nextError.message
+          : "AWS could not be connected.",
+      );
+    } finally {
+      setAwsSetupWaiting(false);
+      setActiveProviderId(null);
+    }
+  };
+
   const disconnect = async (provider: ConnectorProvider) => {
     if (!api || !overview) {
       return;
@@ -173,6 +208,81 @@ export const ConnectorsWorkspace = ({
         </p>
       </header>
 
+      {awsSetupOpen && (
+        <div className="aws-setup-backdrop" role="presentation">
+          <form
+            className="aws-setup-sheet"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="aws-setup-title"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void connectAws();
+            }}
+          >
+            <button
+              className="aws-setup-sheet__close"
+              type="button"
+              aria-label="Close AWS setup"
+              onClick={() => setAwsSetupOpen(false)}
+            >
+              ×
+            </button>
+            <span className="aws-setup-sheet__mark" aria-hidden="true">
+              <ConnectorLogo capability="aws" />
+            </span>
+            <div className="aws-setup-sheet__copy">
+              <h3 id="aws-setup-title">
+                {awsSetupWaiting ? "Waiting for AWS" : "Connect AWS"}
+              </h3>
+              <p>
+                {awsSetupWaiting
+                  ? "Finish creating the read-only stack in the AWS tab. Drawsy will verify it here."
+                  : "Enter the account you want Drawsy to inspect. You’ll review the read-only role in AWS."}
+              </p>
+            </div>
+            {!awsSetupWaiting && (
+              <label className="aws-setup-sheet__field">
+                <span>AWS account ID</span>
+                <input
+                  autoFocus
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  maxLength={12}
+                  placeholder="123456789012"
+                  value={awsAccountId}
+                  onChange={(event) =>
+                    setAwsAccountId(event.target.value.replace(/\D/g, ""))
+                  }
+                />
+              </label>
+            )}
+            <div className="aws-setup-sheet__actions">
+              {!awsSetupWaiting && (
+                <button
+                  className="aws-setup-sheet__cancel"
+                  type="button"
+                  onClick={() => setAwsSetupOpen(false)}
+                >
+                  Cancel
+                </button>
+              )}
+              <button
+                className="aws-setup-sheet__primary"
+                type={awsSetupWaiting ? "button" : "submit"}
+                disabled={!awsSetupWaiting && !/^\d{12}$/.test(awsAccountId)}
+                onClick={
+                  awsSetupWaiting ? () => setAwsSetupOpen(false) : undefined
+                }
+              >
+                {awsSetupWaiting ? "Hide" : "Open AWS setup"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {!api && (
         <div className="connectors-feedback">
           <span>{error || "Sign in to manage your connections."}</span>
@@ -201,11 +311,15 @@ export const ConnectorsWorkspace = ({
       <div className="connectors-board">
         <svg
           className="connectors-paths"
-          viewBox="0 0 1000 520"
+          viewBox="0 0 1000 560"
           preserveAspectRatio="none"
           aria-hidden="true"
         >
-          <path d="M500 260C430 260 390 60 300 60M500 260C570 260 610 60 700 60M500 260C430 260 390 195 300 195M500 260C570 260 610 195 700 195M500 260C430 260 390 325 300 325M500 260C570 260 610 325 700 325M500 260C430 260 390 460 300 460M500 260C570 260 610 460 700 460" />
+          <path d="M500 280C420 235 270 85 90 55M500 280C455 205 420 40 350 45M500 280C555 195 600 95 665 70M500 280C625 225 745 65 910 50M500 280C405 245 290 300 185 265M500 280C615 245 710 335 820 300M500 280C385 335 275 450 115 500M500 280C445 355 545 415 485 490M500 280C625 345 740 470 875 505" />
+          <path
+            className="connectors-paths__web"
+            d="M90 55C185 5 265 90 350 45M350 45C470 0 555 115 665 70M665 70C760 20 835 95 910 50M90 55C35 165 95 225 185 265M910 50C970 165 910 245 820 300M185 265C80 350 50 430 115 500M115 500C245 550 355 450 485 490M485 490C620 540 745 455 875 505M875 505C960 425 935 355 820 300"
+          />
         </svg>
 
         {connectorCatalog.map((connector) => {
@@ -269,7 +383,7 @@ export const ConnectorsWorkspace = ({
                     onClick={() =>
                       void (connected
                         ? disconnect(provider)
-                        : connect(provider))
+                        : beginConnect(provider))
                     }
                     aria-label={`${connected ? "Disconnect" : "Connect"} ${
                       provider.name

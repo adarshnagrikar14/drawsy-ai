@@ -157,4 +157,41 @@ describe("ConnectorsWorkspace", () => {
       await screen.findByRole("link", { name: "Manage access" }),
     ).toHaveAttribute("href", "https://github.com/settings/installations/42");
   });
+
+  it("collects the AWS account before opening its guided setup", async () => {
+    const awsProvider = {
+      id: "aws",
+      name: "AWS",
+      capabilities: ["aws"],
+      executionMode: "provider_api",
+      availability: "preview",
+      configured: true,
+    } as const;
+    const api = {
+      getOverview: vi.fn().mockResolvedValue({
+        providers: [awsProvider],
+        connections: [],
+      }),
+      connect: vi.fn(),
+      connectAws: vi.fn().mockResolvedValue({
+        providers: [awsProvider],
+        connections: [],
+      }),
+      disconnect: vi.fn(),
+    } as unknown as ConnectorsApi;
+
+    render(<ConnectorsWorkspace api={api} onSignIn={vi.fn()} />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Connect AWS for AWS" }),
+    );
+    fireEvent.change(screen.getByLabelText("AWS account ID"), {
+      target: { value: "1234a56789012" },
+    });
+    expect(screen.getByLabelText("AWS account ID")).toHaveValue("123456789012");
+    fireEvent.click(screen.getByRole("button", { name: "Open AWS setup" }));
+
+    await waitFor(() => {
+      expect(api.connectAws).toHaveBeenCalledWith("123456789012");
+    });
+  });
 });
