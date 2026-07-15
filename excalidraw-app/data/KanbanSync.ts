@@ -209,7 +209,6 @@ const reconcileMoves = (
     beforeId: string | null,
     afterId: string | null,
   ) => KanbanCommand,
-  existingSet: Set<string>,
 ) => {
   const simulated = currentIds.filter((id) => desiredIds.includes(id));
   const commands: KanbanCommand[] = [];
@@ -223,8 +222,13 @@ const reconcileMoves = (
     }
     simulated.splice(simulated.indexOf(id), 1);
     simulated.splice(index, 0, id);
-    const adjacent = resolveNeighbors(desiredIds, index, existingSet);
-    commands.push(createCommand(id, adjacent.beforeId, adjacent.afterId));
+    commands.push(
+      createCommand(
+        id,
+        index > 0 ? simulated[index - 1] : null,
+        index + 1 < simulated.length ? simulated[index + 1] : null,
+      ),
+    );
   });
   return commands;
 };
@@ -340,7 +344,6 @@ export const createKanbanCommands = (
           },
         });
       },
-      existingColumns,
     ),
   );
 
@@ -438,7 +441,6 @@ export const createKanbanCommands = (
             payload: { columnId: column.id, beforeId, afterId },
           });
         },
-        existingCards,
       ).filter((candidate) => {
         const remote = remoteCards.get(candidate.entityId!);
         const desiredColumn = desired.columns.find((entry) =>
@@ -547,7 +549,6 @@ export const createKanbanCommands = (
             payload: { beforeId, afterId },
           });
         },
-        existingChecklist,
       ).filter((candidate) => remoteChecklist.has(candidate.entityId!)),
     );
     for (const item of desiredItems) {

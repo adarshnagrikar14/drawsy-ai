@@ -174,6 +174,43 @@ describe("KanbanSync reconciliation", () => {
     expect(createKanbanCommands(remote, desired, identity())).toEqual([]);
   });
 
+  it("uses currently adjacent bounds for a multi-card reorder", () => {
+    const remote = snapshot();
+    remote.cards = ["a", "b", "c", "d"].map((id, index) => ({
+      ...remote.cards[0],
+      id: `card-${id}`,
+      rank: `a${index}`,
+      title: `Card ${id.toUpperCase()}`,
+    }));
+    const desired = remoteSnapshotToKanbanBoard(remote);
+    desired.columns[0].cardIds = ["card-b", "card-d", "card-c", "card-a"];
+
+    const moves = createKanbanCommands(remote, desired, identity()).filter(
+      (command) => command.type === "moveCard",
+    );
+
+    expect(moves).toEqual([
+      expect.objectContaining({
+        entityId: "card-b",
+        payload: expect.objectContaining({ beforeId: null, afterId: "card-a" }),
+      }),
+      expect.objectContaining({
+        entityId: "card-d",
+        payload: expect.objectContaining({
+          beforeId: "card-b",
+          afterId: "card-a",
+        }),
+      }),
+      expect.objectContaining({
+        entityId: "card-c",
+        payload: expect.objectContaining({
+          beforeId: "card-d",
+          afterId: "card-a",
+        }),
+      }),
+    ]);
+  });
+
   it("creates only the new card and its checklist item", () => {
     const remote = snapshot();
     const local: KanbanBoard = remoteSnapshotToKanbanBoard(remote);
