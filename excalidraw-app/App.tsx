@@ -41,6 +41,7 @@ import {
   randomId,
   sceneCoordsToViewportCoords,
   viewportCoordsToSceneCoords,
+  isWritableElement,
 } from "@excalidraw/common";
 import polyfill from "@excalidraw/excalidraw/polyfill";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -132,7 +133,7 @@ import {
 } from "./data/DrawsyAgentApi";
 import {
   getLocalPreviewTitle,
-  normalizeLocalPreviewUrl,
+  normalizeLivePreviewUrl,
   type DrawsyLivePreview,
 } from "./data/LivePreview";
 
@@ -2267,6 +2268,39 @@ const ExcalidrawWrapper = () => {
     );
   const [framePresenter, setFramePresenter] =
     useState<FramePresenterState | null>(null);
+
+  useEffect(() => {
+    const openDrawsyAI = (event: KeyboardEvent) => {
+      if (
+        event.key.toLowerCase() !== "k" ||
+        event.repeat ||
+        (!event.metaKey && !event.ctrlKey) ||
+        event.altKey ||
+        event.shiftKey ||
+        isWritableElement(event.target) ||
+        framePresenter ||
+        drawsyAuth.status !== "authenticated" ||
+        !excalidrawAPI
+      ) {
+        return;
+      }
+
+      const hasSelectedElements = Object.values(
+        excalidrawAPI.getAppState().selectedElementIds,
+      ).some(Boolean);
+      if (hasSelectedElements) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      setDrawsyAIChatOpen(true);
+    };
+
+    window.addEventListener("keydown", openDrawsyAI, true);
+    return () => window.removeEventListener("keydown", openDrawsyAI, true);
+  }, [drawsyAuth.status, excalidrawAPI, framePresenter]);
+
   const [presentationLaserActive, setPresentationLaserActive] = useState(false);
   const [presentationTransitionActive, setPresentationTransitionActive] =
     useState(false);
@@ -4942,7 +4976,10 @@ const ExcalidrawWrapper = () => {
         throw new Error("The active canvas changed. Please retry.");
       }
 
-      const url = normalizeLocalPreviewUrl(request.url);
+      const url = normalizeLivePreviewUrl(
+        request.url,
+        import.meta.env.VITE_APP_DRAWSY_PREVIEW_ORIGIN,
+      );
       const previewId = request.previewId?.trim() || crypto.randomUUID();
       const title = request.title?.trim() || getLocalPreviewTitle(url);
       const width = request.width ?? 960;
@@ -7194,6 +7231,9 @@ const ExcalidrawWrapper = () => {
               isCollabEnabled={!isCollabDisabled}
               isPresentationMode={isPresentationCanvasActive}
               onOpenPresentationPanel={openPresentationPanel}
+              authStatus={drawsyAuth.status}
+              onDrawsyAISelect={() => setDrawsyAIChatOpen(true)}
+              onSignIn={() => void drawsyAuth.signIn().catch(() => undefined)}
             />
           )}
         <OverwriteConfirmDialog>

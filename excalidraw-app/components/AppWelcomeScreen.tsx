@@ -1,7 +1,8 @@
-import { loginIcon } from "@excalidraw/excalidraw/components/icons";
+import { loginIcon, MagicIcon } from "@excalidraw/excalidraw/components/icons";
 import { POINTER_EVENTS } from "@excalidraw/common";
 import { useI18n } from "@excalidraw/excalidraw/i18n";
 import { WelcomeScreen } from "@excalidraw/excalidraw/index";
+import { getShortcutKey } from "@excalidraw/excalidraw/shortcut";
 import React from "react";
 
 import { isExcalidrawPlusSignedUser } from "../app_constants";
@@ -11,6 +12,9 @@ export const AppWelcomeScreen: React.FC<{
   isCollabEnabled: boolean;
   isPresentationMode?: boolean;
   onOpenPresentationPanel?: () => void;
+  authStatus: "loading" | "anonymous" | "authenticated";
+  onDrawsyAISelect: () => void;
+  onSignIn: () => void;
 }> = React.memo((props) => {
   const { t } = useI18n();
   let headingContent;
@@ -164,16 +168,23 @@ export const AppWelcomeScreen: React.FC<{
               onSelect={() => props.onCollabDialogOpen()}
             />
           )}
-          {!isExcalidrawPlusSignedUser && (
-            <WelcomeScreen.Center.MenuItemLink
-              href={`${
-                import.meta.env.VITE_APP_PLUS_LP
-              }/plus?utm_source=excalidraw&utm_medium=app&utm_content=welcomeScreenGuest`}
+          {props.authStatus === "authenticated" && (
+            <WelcomeScreen.Center.MenuItem
+              onSelect={props.onDrawsyAISelect}
+              shortcut={getShortcutKey("CtrlOrCmd+K")}
+              icon={MagicIcon}
+            >
+              Drawsy AI
+            </WelcomeScreen.Center.MenuItem>
+          )}
+          {props.authStatus === "anonymous" && (
+            <WelcomeScreen.Center.MenuItem
+              onSelect={props.onSignIn}
               shortcut={null}
               icon={loginIcon}
             >
               Sign up
-            </WelcomeScreen.Center.MenuItemLink>
+            </WelcomeScreen.Center.MenuItem>
           )}
         </WelcomeScreen.Center.Menu>
       </WelcomeScreen.Center>
