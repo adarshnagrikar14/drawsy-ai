@@ -1,3 +1,4 @@
+import { applyDarkModeFilter } from "@excalidraw/common";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -83,7 +84,6 @@ flowchart TD
       document,
       origin: { x: 100, y: 200 },
       source: { sourceId: "project-one", hash: "content-one" },
-      theme: "dark",
       parseMermaid: async () => ({
         elements: [{ type: "rectangle", x: 0, y: 0, width: 240, height: 120 }],
         files: {},
@@ -105,7 +105,14 @@ flowchart TD
     expect(getDrawDocumentMetadata(frames[0]!)).toMatchObject({
       sourceId: "project-one",
       hash: "content-one",
-      theme: "dark",
+      rendererVersion: 3,
     });
+    const generatedText = rendered.elements.find(
+      (element) => element.type === "text",
+    );
+    expect(generatedText?.strokeColor).toBe("#1b1b1f");
+    expect(applyDarkModeFilter(generatedText!.strokeColor, true)).not.toBe(
+      generatedText?.strokeColor,
+    );
   });
 });

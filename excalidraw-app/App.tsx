@@ -4772,6 +4772,7 @@ const ExcalidrawWrapper = () => {
         }
 
         const {
+          DRAW_DOCUMENT_RENDERER_VERSION,
           createDrawDocumentElements,
           getDrawDocumentMetadata,
           parseDrawDocument,
@@ -4793,7 +4794,6 @@ const ExcalidrawWrapper = () => {
         const current = excalidrawAPI.getSceneElementsIncludingDeleted();
         const visible = getNonDeletedElements(current);
         const appState = excalidrawAPI.getAppState();
-        const canvasTheme = appState.theme;
         const existingSourceElements = visible.filter(
           (element) =>
             getDrawDocumentMetadata(element)?.sourceId === source.sourceId,
@@ -4802,7 +4802,8 @@ const ExcalidrawWrapper = () => {
           existingSourceElements.some(
             (element) =>
               getDrawDocumentMetadata(element)?.hash === source.hash &&
-              getDrawDocumentMetadata(element)?.theme === canvasTheme,
+              getDrawDocumentMetadata(element)?.rendererVersion ===
+                DRAW_DOCUMENT_RENDERER_VERSION,
           )
         ) {
           return;
@@ -4839,7 +4840,6 @@ const ExcalidrawWrapper = () => {
           document,
           origin,
           source: { sourceId: source.sourceId, hash: source.hash },
-          theme: canvasTheme,
           parseMermaid: parseMermaidToExcalidraw,
         });
         if (
@@ -4873,15 +4873,15 @@ const ExcalidrawWrapper = () => {
 
         const refreshed = existingSourceElements.length > 0;
         const skipped = rendered.mermaidErrors + document.unsupportedBlockCount;
-        excalidrawAPI.setToast({
-          message: skipped
-            ? `DRAW.md ${refreshed ? "refreshed" : "added"}; ${skipped} block${
-                skipped === 1 ? "" : "s"
-              } could not be displayed.`
-            : refreshed
-            ? "DRAW.md refreshed in place."
-            : "DRAW.md found — added to the right of your canvas.",
-        });
+        if (skipped || !refreshed) {
+          excalidrawAPI.setToast({
+            message: skipped
+              ? `${skipped} DRAW.md block${
+                  skipped === 1 ? "" : "s"
+                } could not be displayed.`
+              : "DRAW.md found — added to the right of your canvas.",
+          });
+        }
       } catch (error) {
         if (requestId !== drawDocumentRequestRef.current) {
           return;
@@ -4897,6 +4897,7 @@ const ExcalidrawWrapper = () => {
     },
     [drawsyCanvasId, drawsySurfaceKind, excalidrawAPI, isCurrentDrawsyCanvas],
   );
+
   const readDrawsyCanvas = useCallback(
     (expectedCanvasId: string): DrawsyCanvasSnapshot => {
       if (!excalidrawAPI || !isCurrentDrawsyCanvas(expectedCanvasId)) {

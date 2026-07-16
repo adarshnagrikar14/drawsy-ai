@@ -41,8 +41,8 @@ type DrawDocumentMetadata = {
   path: "DRAW.md";
   sourceId: string;
   hash: string;
-  theme: "light" | "dark";
   section: number;
+  rendererVersion?: number;
 };
 
 type MermaidParser = (definition: string) => Promise<MermaidToExcalidrawResult>;
@@ -51,6 +51,7 @@ const DRAW_DOCUMENT_GAP = 180;
 const FRAME_PADDING = 56;
 const CONTENT_WIDTH = 720;
 const BLOCK_GAP = 28;
+export const DRAW_DOCUMENT_RENDERER_VERSION = 3;
 
 const appendTextElement = ({
   elements,
@@ -215,15 +216,14 @@ export const parseDrawDocument = (source: string): DrawDocument => {
 const metadataFor = (
   source: DrawDocumentSource,
   section: number,
-  theme: "light" | "dark",
 ): { drawsy: DrawDocumentMetadata } => ({
   drawsy: {
     objectType: "draw_document",
     path: "DRAW.md",
     sourceId: source.sourceId,
     hash: source.hash,
-    theme,
     section,
+    rendererVersion: DRAW_DOCUMENT_RENDERER_VERSION,
   },
 });
 
@@ -234,8 +234,7 @@ export const getDrawDocumentMetadata = (
   return value?.objectType === "draw_document" &&
     value.path === "DRAW.md" &&
     typeof value.sourceId === "string" &&
-    typeof value.hash === "string" &&
-    (value.theme === "light" || value.theme === "dark")
+    typeof value.hash === "string"
     ? (value as DrawDocumentMetadata)
     : null;
 };
@@ -244,13 +243,11 @@ export const createDrawDocumentElements = async ({
   document,
   origin,
   source,
-  theme,
   parseMermaid,
 }: {
   document: DrawDocument;
   origin: { x: number; y: number };
   source: DrawDocumentSource;
-  theme: "light" | "dark";
   parseMermaid: MermaidParser;
 }): Promise<{
   elements: ExcalidrawElement[];
@@ -259,15 +256,17 @@ export const createDrawDocumentElements = async ({
 }> => {
   const elements: ExcalidrawElement[] = [];
   const files: BinaryFiles = {};
-  const primary = theme === "dark" ? "#f1f3f5" : "#1b1b1f";
-  const secondary = theme === "dark" ? "#adb5bd" : "#5f6368";
-  const frameStroke = theme === "dark" ? "#868e96" : "#9aa0a6";
+  // Excalidraw stores canonical colors and applies its dark-mode filter while
+  // rendering. Supplying pre-inverted theme colors would invert them twice.
+  const primary = "#1b1b1f";
+  const secondary = "#5f6368";
+  const frameStroke = "#9aa0a6";
   let cursorX = origin.x;
   let mermaidErrors = 0;
 
   for (const [sectionIndex, section] of document.sections.entries()) {
     const sectionElements: ExcalidrawElement[] = [];
-    const meta = metadataFor(source, sectionIndex, theme);
+    const meta = metadataFor(source, sectionIndex);
     const layout = {
       cursorX,
       cursorY: origin.y + FRAME_PADDING,

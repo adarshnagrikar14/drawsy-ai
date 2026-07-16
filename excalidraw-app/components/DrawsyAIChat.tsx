@@ -674,7 +674,7 @@ export const DrawsyAIChat = ({
     if (folder && onFolderSelectedRef.current) {
       void onFolderSelectedRef.current(folder);
     }
-  }, [canvasId, folder, surfaceKind, theme]);
+  }, [canvasId, folder, surfaceKind]);
 
   useEffect(() => {
     if (activeTag?.trigger !== "@") {
