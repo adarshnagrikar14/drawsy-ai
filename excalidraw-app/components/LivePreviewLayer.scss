@@ -1,0 +1,221 @@
+.drawsy-live-preview-layer {
+  position: absolute;
+  z-index: var(--zIndex-layerUI);
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.excalidraw:has(.drawsy-live-preview-layer.has-visible-preview) {
+  .scroll-back-to-content {
+    display: none;
+  }
+}
+
+.drawsy-live-preview {
+  position: absolute;
+  display: flex;
+  box-sizing: border-box;
+  min-width: 360px;
+  min-height: 260px;
+  flex-direction: column;
+  overflow: hidden;
+  transform-origin: top left;
+  border: 1px solid color-mix(in srgb, var(--color-on-surface) 18%, transparent);
+  border-radius: 14px;
+  background: var(--color-surface-lowest);
+  box-shadow: 0 22px 50px rgb(0 0 0 / 22%), 0 3px 10px rgb(0 0 0 / 14%);
+  pointer-events: auto;
+
+  &.is-manipulating {
+    iframe {
+      pointer-events: none;
+    }
+  }
+
+  &.is-collapsed {
+    min-height: 0;
+  }
+
+  &:fullscreen {
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    border: 0;
+    border-radius: 0;
+    transform: none !important;
+  }
+}
+
+.drawsy-live-preview__chrome {
+  display: grid;
+  box-sizing: border-box;
+  height: 44px;
+  min-height: 44px;
+  grid-template-columns: 86px minmax(0, 1fr) 86px;
+  align-items: center;
+  padding: 0 14px;
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--color-on-surface) 12%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--color-surface-high) 88%,
+    var(--color-surface-lowest)
+  );
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+
+  &:active {
+    cursor: grabbing;
+  }
+}
+
+.drawsy-live-preview__traffic-lights {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.drawsy-live-preview__traffic-light {
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 0.5px rgb(0 0 0 / 18%);
+  cursor: default;
+
+  &.is-close {
+    background: #ff5f57;
+  }
+
+  &.is-minimize {
+    background: #febc2e;
+  }
+
+  &.is-fullscreen {
+    background: #28c840;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 3px;
+  }
+}
+
+.drawsy-live-preview__title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  color: color-mix(in srgb, var(--color-on-surface) 78%, transparent);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 12px;
+  font-weight: 550;
+  letter-spacing: 0.005em;
+
+  span:last-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.drawsy-live-preview__frame {
+  width: 100%;
+  min-height: 0;
+  flex: 1;
+  border: 0;
+  background: white;
+}
+
+.drawsy-live-preview__resize {
+  position: absolute;
+  z-index: 2;
+
+  &.is-n,
+  &.is-s {
+    left: var(--drawsy-preview-edge-inset);
+    width: calc(100% - var(--drawsy-preview-edge-span));
+    height: var(--drawsy-preview-edge-hit);
+    cursor: ns-resize;
+  }
+
+  &.is-n {
+    top: var(--drawsy-preview-edge-offset);
+  }
+
+  &.is-s {
+    bottom: var(--drawsy-preview-edge-offset);
+  }
+
+  &.is-e,
+  &.is-w {
+    top: var(--drawsy-preview-edge-inset);
+    width: var(--drawsy-preview-edge-hit);
+    height: calc(100% - var(--drawsy-preview-edge-span));
+    cursor: ew-resize;
+  }
+
+  &.is-e {
+    right: var(--drawsy-preview-edge-offset);
+  }
+
+  &.is-w {
+    left: var(--drawsy-preview-edge-offset);
+  }
+
+  &.is-ne,
+  &.is-se,
+  &.is-sw,
+  &.is-nw {
+    width: var(--drawsy-preview-corner-hit);
+    height: var(--drawsy-preview-corner-hit);
+  }
+
+  &.is-ne,
+  &.is-sw {
+    cursor: nesw-resize;
+  }
+
+  &.is-se,
+  &.is-nw {
+    cursor: nwse-resize;
+  }
+
+  &.is-ne,
+  &.is-nw {
+    top: var(--drawsy-preview-corner-offset);
+  }
+
+  &.is-se,
+  &.is-sw {
+    bottom: var(--drawsy-preview-corner-offset);
+  }
+
+  &.is-ne,
+  &.is-se {
+    right: var(--drawsy-preview-corner-offset);
+  }
+
+  &.is-sw,
+  &.is-nw {
+    left: var(--drawsy-preview-corner-offset);
+  }
+
+  &.is-se::after {
+    position: absolute;
+    right: var(--drawsy-preview-grip-offset);
+    bottom: var(--drawsy-preview-grip-offset);
+    width: var(--drawsy-preview-grip-size);
+    height: var(--drawsy-preview-grip-size);
+    border-right: 1px solid
+      color-mix(in srgb, var(--color-on-surface) 34%, transparent);
+    border-bottom: 1px solid
+      color-mix(in srgb, var(--color-on-surface) 34%, transparent);
+    content: "";
+  }
+}
