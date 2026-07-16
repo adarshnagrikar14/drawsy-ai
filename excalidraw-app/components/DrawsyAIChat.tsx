@@ -34,6 +34,7 @@ import {
   type DrawsyCanvasImageReplacement,
   type DrawsyCanvasOperations,
   type DrawsyCanvasSnapshot,
+  type DrawsyLivePreviewRequest,
   type DrawsySurfaceKind,
 } from "../data/DrawsyAgentApi";
 
@@ -83,6 +84,10 @@ type DrawsyAIChatProps = {
     expectedCanvasId: string,
     replacement: DrawsyCanvasImageReplacement,
   ) => void;
+  attachLivePreview: (
+    expectedCanvasId: string,
+    request: DrawsyLivePreviewRequest,
+  ) => { previewId: string };
   contextCaptures: DrawsyCanvasContextCapture[];
   onRemoveContext: (captureId: string) => void;
   onClearContexts: () => void;
@@ -609,6 +614,7 @@ export const DrawsyAIChat = ({
   applyCanvas,
   captureCanvas,
   replaceCanvasImage,
+  attachLivePreview,
   contextCaptures,
   onRemoveContext,
   onClearContexts,
@@ -657,6 +663,7 @@ export const DrawsyAIChat = ({
     applyCanvas,
     captureCanvas,
     replaceCanvasImage,
+    attachLivePreview,
   });
 
   useEffect(() => {
@@ -721,8 +728,15 @@ export const DrawsyAIChat = ({
       applyCanvas,
       captureCanvas,
       replaceCanvasImage,
+      attachLivePreview,
     };
-  }, [applyCanvas, captureCanvas, readCanvas, replaceCanvasImage]);
+  }, [
+    applyCanvas,
+    attachLivePreview,
+    captureCanvas,
+    readCanvas,
+    replaceCanvasImage,
+  ]);
 
   useEffect(() => {
     if (isOpen && contextCaptures.length) {
@@ -967,7 +981,7 @@ export const DrawsyAIChat = ({
                 elementIds: capture.elementIds,
                 bounds: capture.bounds,
               };
-            } else {
+            } else if (event.data.action === "replaceImage") {
               if (!event.data.imageReplacement) {
                 throw new Error("The canvas image replacement is missing.");
               }
@@ -976,6 +990,14 @@ export const DrawsyAIChat = ({
                 event.data.imageReplacement,
               );
               data = { ok: true };
+            } else {
+              if (!event.data.previewRequest) {
+                throw new Error("The live preview request is missing.");
+              }
+              data = canvasHandlersRef.current.attachLivePreview(
+                event.data.canvasId,
+                event.data.previewRequest,
+              );
             }
             await DrawsyAgentApi.respondToCanvas(session, {
               requestId: event.data.requestId,

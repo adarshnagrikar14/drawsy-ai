@@ -52,6 +52,16 @@ export type DrawsyCanvasImageReplacement = {
   naturalHeight: number;
 };
 
+export type DrawsyLivePreviewRequest = {
+  previewId?: string;
+  url: string;
+  title?: string;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+};
+
 export type DrawsyAgentMetadata = {
   model: string;
   modelProvider: string;
@@ -167,11 +177,12 @@ export type DrawsyBridgeEvent =
       type: "canvas.request";
       data: {
         requestId: string;
-        action: "read" | "apply" | "capture" | "replaceImage";
+        action: "read" | "apply" | "capture" | "replaceImage" | "preview";
         canvasId: string;
         operations?: DrawsyCanvasOperations;
         contextRequest?: DrawsyCanvasContextRequest;
         imageReplacement?: DrawsyCanvasImageReplacement;
+        previewRequest?: DrawsyLivePreviewRequest;
       };
     }
   | { type: "error"; data: { message: string; code: string } };

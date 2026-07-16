@@ -125,7 +125,16 @@ import { JiraWorkspacePlaceholder } from "./components/JiraWorkspacePlaceholder"
 import { JiraWorkspace } from "./components/JiraWorkspace";
 import { ConnectorsWorkspace } from "./components/ConnectorsWorkspace";
 import { DrawsyAIChat } from "./components/DrawsyAIChat";
-import { DrawsyAgentApi } from "./data/DrawsyAgentApi";
+import { LivePreviewLayer } from "./components/LivePreviewLayer";
+import {
+  DrawsyAgentApi,
+  type DrawsyLivePreviewRequest,
+} from "./data/DrawsyAgentApi";
+import {
+  getLocalPreviewTitle,
+  normalizeLocalPreviewUrl,
+  type DrawsyLivePreview,
+} from "./data/LivePreview";
 
 import { KanbanShareDialog } from "./components/KanbanShareDialog";
 import {
@@ -2196,6 +2205,7 @@ const ExcalidrawWrapper = () => {
   const [drawsyContextCaptures, setDrawsyContextCaptures] = useState<
     DrawsyCanvasContextCapture[]
   >([]);
+  const [livePreviews, setLivePreviews] = useState<DrawsyLivePreview[]>([]);
   const [jiraConnected, setJiraConnected] = useState(false);
   const [jiraConnections, setJiraConnections] = useState<JiraConnection[]>([]);
   const jiraWorkspaceRestoreRef = useRef(JiraWorkspaceStore.loadActive());
@@ -4922,6 +4932,117 @@ const ExcalidrawWrapper = () => {
       };
     },
     [drawsyCanvasName, excalidrawAPI, isCurrentDrawsyCanvas],
+  );
+  const attachDrawsyLivePreview = useCallback(
+    (
+      expectedCanvasId: string,
+      request: DrawsyLivePreviewRequest,
+    ): { previewId: string } => {
+      if (!excalidrawAPI || !isCurrentDrawsyCanvas(expectedCanvasId)) {
+        throw new Error("The active canvas changed. Please retry.");
+      }
+
+      const url = normalizeLocalPreviewUrl(request.url);
+      const previewId = request.previewId?.trim() || crypto.randomUUID();
+      const title = request.title?.trim() || getLocalPreviewTitle(url);
+      const width = request.width ?? 960;
+      const height = request.height ?? 640;
+      const currentForCanvas = livePreviews.filter(
+        (preview) => preview.canvasId === expectedCanvasId,
+      );
+      const existing = currentForCanvas.find(
+        (preview) => preview.id === previewId,
+      );
+
+      let x = request.x ?? existing?.x;
+      let y = request.y ?? existing?.y;
+      if (x === undefined || y === undefined) {
+        const elements = getNonDeletedElements(
+          excalidrawAPI.getSceneElementsIncludingDeleted(),
+        );
+        const previewBounds = currentForCanvas
+          .filter((preview) => preview.id !== previewId)
+          .map((preview) => ({
+            minX: preview.x,
+            minY: preview.y,
+            maxX: preview.x + preview.width,
+          }));
+        const elementBounds = elements.length
+          ? (() => {
+              const [minX, minY, maxX] = getCommonBounds(elements);
+              return { minX, minY, maxX };
+            })()
+          : null;
+        const bounds = [
+          ...(elementBounds ? [elementBounds] : []),
+          ...previewBounds,
+        ];
+
+        if (bounds.length) {
+          x ??= Math.max(...bounds.map((bound) => bound.maxX)) + 160;
+          y ??= Math.min(...bounds.map((bound) => bound.minY));
+        } else {
+          const origin = viewportCoordsToSceneCoords(
+            { clientX: 120, clientY: 140 },
+            excalidrawAPI.getAppState(),
+          );
+          x ??= origin.x;
+          y ??= origin.y;
+        }
+      }
+
+      setLivePreviews((current) => {
+        const next: DrawsyLivePreview = {
+          id: previewId,
+          canvasId: expectedCanvasId,
+          url,
+          title,
+          x,
+          y,
+          width,
+          height,
+          collapsed: existing?.collapsed ?? false,
+        };
+        const existingIndex = current.findIndex(
+          (preview) =>
+            preview.canvasId === expectedCanvasId && preview.id === previewId,
+        );
+        if (existingIndex < 0) {
+          return [...current, next];
+        }
+        const updated = [...current];
+        updated[existingIndex] = next;
+        return updated;
+      });
+
+      return { previewId };
+    },
+    [excalidrawAPI, isCurrentDrawsyCanvas, livePreviews],
+  );
+
+  const updateDrawsyLivePreview = useCallback(
+    (previewId: string, patch: Partial<DrawsyLivePreview>) => {
+      setLivePreviews((current) =>
+        current.map((preview) =>
+          preview.canvasId === drawsyCanvasId && preview.id === previewId
+            ? { ...preview, ...patch }
+            : preview,
+        ),
+      );
+    },
+    [drawsyCanvasId],
+  );
+
+  const closeDrawsyLivePreview = useCallback(
+    (previewId: string) => {
+      setLivePreviews((current) =>
+        current.filter(
+          (preview) =>
+            preview.canvasId !== drawsyCanvasId || preview.id !== previewId,
+        ),
+      );
+    },
+    [drawsyCanvasId],
   );
   const applyDrawsyCanvas = useCallback(
     (expectedCanvasId: string, operations: DrawsyCanvasOperations) => {
@@ -7665,6 +7786,15 @@ const ExcalidrawWrapper = () => {
             ref={debugCanvasRef}
           />
         )}
+        {!framePresenter && drawsyCanvasId && (
+          <LivePreviewLayer
+            previews={livePreviews.filter(
+              (preview) => preview.canvasId === drawsyCanvasId,
+            )}
+            onChange={updateDrawsyLivePreview}
+            onClose={closeDrawsyLivePreview}
+          />
+        )}
       </Excalidraw>
       {!framePresenter && (
         <DrawsyAIChat
@@ -7685,6 +7815,7 @@ const ExcalidrawWrapper = () => {
           applyCanvas={applyDrawsyCanvas}
           captureCanvas={captureDrawsyCanvas}
           replaceCanvasImage={replaceDrawsyCanvasImage}
+          attachLivePreview={attachDrawsyLivePreview}
           contextCaptures={drawsyContextCaptures}
           onRemoveContext={(captureId) =>
             setDrawsyContextCaptures((current) =>
