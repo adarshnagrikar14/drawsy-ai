@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   getLocalPreviewTitle,
-  normalizeLocalPreviewUrl,
+  normalizeLivePreviewUrl,
   resizeLivePreview,
   type DrawsyLivePreview,
 } from "./LivePreview";
@@ -13,7 +13,7 @@ describe("local live preview URLs", () => {
     "http://127.0.0.1:3000/app",
     "https://[::1]:4173/",
   ])("accepts loopback URL %s", (value) => {
-    expect(normalizeLocalPreviewUrl(value)).toBe(value);
+    expect(normalizeLivePreviewUrl(value)).toBe(value);
   });
 
   it.each([
@@ -22,7 +22,28 @@ describe("local live preview URLs", () => {
     "file:///tmp/index.html",
     "not a URL",
   ])("rejects non-loopback URL %s", (value) => {
-    expect(() => normalizeLocalPreviewUrl(value)).toThrow();
+    expect(() => normalizeLivePreviewUrl(value)).toThrow();
+  });
+
+  it("accepts only HTTPS hosts beneath the configured preview origin", () => {
+    expect(
+      normalizeLivePreviewUrl(
+        "https://a1.preview.adarsh.rocks/dashboard#local",
+        "https://preview.adarsh.rocks",
+      ),
+    ).toBe("https://a1.preview.adarsh.rocks/dashboard");
+    expect(() =>
+      normalizeLivePreviewUrl(
+        "https://preview.adarsh.rocks.evil.example/dashboard",
+        "https://preview.adarsh.rocks",
+      ),
+    ).toThrow();
+    expect(() =>
+      normalizeLivePreviewUrl(
+        "http://a1.preview.adarsh.rocks/dashboard",
+        "https://preview.adarsh.rocks",
+      ),
+    ).toThrow();
   });
 
   it("creates a quiet address title", () => {

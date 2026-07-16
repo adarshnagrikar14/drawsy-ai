@@ -63,7 +63,10 @@ export const resizeLivePreview = (
 
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
-export const normalizeLocalPreviewUrl = (value: string) => {
+export const normalizeLivePreviewUrl = (
+  value: string,
+  trustedRemoteOrigin?: string,
+) => {
   let url: URL;
   try {
     url = new URL(value);
@@ -71,13 +74,28 @@ export const normalizeLocalPreviewUrl = (value: string) => {
     throw new Error("The live preview URL is invalid.");
   }
 
-  if (
-    !["http:", "https:"].includes(url.protocol) ||
-    !LOOPBACK_HOSTS.has(url.hostname) ||
-    url.username ||
-    url.password
-  ) {
-    throw new Error("Live previews must use a local loopback URL.");
+  const isLoopback =
+    ["http:", "https:"].includes(url.protocol) &&
+    LOOPBACK_HOSTS.has(url.hostname);
+  let isTrustedRemote = false;
+  if (trustedRemoteOrigin) {
+    try {
+      const trusted = new URL(trustedRemoteOrigin);
+      isTrustedRemote =
+        url.protocol === "https:" &&
+        trusted.protocol === "https:" &&
+        url.port === trusted.port &&
+        (url.hostname === trusted.hostname ||
+          url.hostname.endsWith(`.${trusted.hostname}`));
+    } catch {
+      isTrustedRemote = false;
+    }
+  }
+
+  if ((!isLoopback && !isTrustedRemote) || url.username || url.password) {
+    throw new Error(
+      "Live previews must use a local loopback URL or the trusted Drawsy preview origin.",
+    );
   }
 
   url.hash = "";
