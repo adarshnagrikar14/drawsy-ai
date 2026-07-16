@@ -65,7 +65,7 @@ const ready = true;
     });
   });
 
-  it("lays sections beside each other without overlapping", async () => {
+  it("stacks sections vertically without overlapping", async () => {
     const document = parseDrawDocument(`# System
 
 \`\`\`mermaid
@@ -94,7 +94,8 @@ flowchart TD
       (element) => element.type === "frame",
     );
     expect(frames).toHaveLength(2);
-    expect(frames[1]!.x).toBeGreaterThan(frames[0]!.x + frames[0]!.width);
+    expect(frames[1]!.x).toBe(frames[0]!.x);
+    expect(frames[1]!.y).toBeGreaterThan(frames[0]!.y + frames[0]!.height);
     expect(
       rendered.elements
         .filter((element) => element.type !== "frame")
@@ -105,7 +106,7 @@ flowchart TD
     expect(getDrawDocumentMetadata(frames[0]!)).toMatchObject({
       sourceId: "project-one",
       hash: "content-one",
-      rendererVersion: 3,
+      rendererVersion: 4,
     });
     const generatedText = rendered.elements.find(
       (element) => element.type === "text",

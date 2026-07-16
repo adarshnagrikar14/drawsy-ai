@@ -51,7 +51,7 @@ const DRAW_DOCUMENT_GAP = 180;
 const FRAME_PADDING = 56;
 const CONTENT_WIDTH = 720;
 const BLOCK_GAP = 28;
-export const DRAW_DOCUMENT_RENDERER_VERSION = 3;
+export const DRAW_DOCUMENT_RENDERER_VERSION = 4;
 
 const appendTextElement = ({
   elements,
@@ -261,16 +261,16 @@ export const createDrawDocumentElements = async ({
   const primary = "#1b1b1f";
   const secondary = "#5f6368";
   const frameStroke = "#9aa0a6";
-  let cursorX = origin.x;
+  let frameY = origin.y;
   let mermaidErrors = 0;
 
   for (const [sectionIndex, section] of document.sections.entries()) {
     const sectionElements: ExcalidrawElement[] = [];
     const meta = metadataFor(source, sectionIndex);
     const layout = {
-      cursorX,
-      cursorY: origin.y + FRAME_PADDING,
-      contentMaxX: cursorX + CONTENT_WIDTH,
+      cursorX: origin.x,
+      cursorY: frameY + FRAME_PADDING,
+      contentMaxX: origin.x + CONTENT_WIDTH,
     };
 
     appendTextElement({
@@ -322,7 +322,7 @@ export const createDrawDocumentElements = async ({
         }
         Object.assign(files, parsed.files || {});
         const [minX, minY, maxX, maxY] = getCommonBounds(converted);
-        const offsetX = cursorX + FRAME_PADDING - minX;
+        const offsetX = origin.x + FRAME_PADDING - minX;
         const offsetY = layout.cursorY - minY;
         for (const element of converted) {
           const positioned = newElementWith(element, {
@@ -338,7 +338,7 @@ export const createDrawDocumentElements = async ({
         layout.cursorY += maxY - minY + BLOCK_GAP;
         layout.contentMaxX = Math.max(
           layout.contentMaxX,
-          cursorX + FRAME_PADDING + (maxX - minX),
+          origin.x + FRAME_PADDING + (maxX - minX),
         );
       } catch {
         mermaidErrors += 1;
@@ -356,15 +356,15 @@ export const createDrawDocumentElements = async ({
 
     const width = Math.max(
       CONTENT_WIDTH + FRAME_PADDING * 2,
-      layout.contentMaxX - cursorX + FRAME_PADDING,
+      layout.contentMaxX - origin.x + FRAME_PADDING,
     );
     const height = Math.max(
       240,
-      layout.cursorY - origin.y + FRAME_PADDING - BLOCK_GAP,
+      layout.cursorY - frameY + FRAME_PADDING - BLOCK_GAP,
     );
     const frame = newFrameElement({
-      x: cursorX,
-      y: origin.y,
+      x: origin.x,
+      y: frameY,
       width,
       height,
       name: section.title,
@@ -381,7 +381,7 @@ export const createDrawDocumentElements = async ({
         : newElementWith(element, { frameId: frame.id }),
     );
     elements.push(frame, ...framed);
-    cursorX += width + DRAW_DOCUMENT_GAP;
+    frameY += height + DRAW_DOCUMENT_GAP;
   }
 
   return { elements, files, mermaidErrors };
