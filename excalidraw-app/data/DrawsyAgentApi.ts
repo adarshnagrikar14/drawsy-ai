@@ -61,6 +61,16 @@ export type DrawsyAgentMetadata = {
 
 export type DrawsyAgentAccessMode = "workspace" | "readOnly";
 
+export type DrawsyDrawDocument =
+  | { exists: false }
+  | {
+      exists: true;
+      name: "DRAW.md";
+      content: string;
+      hash: string;
+      sourceId: string;
+    };
+
 export type DrawsySurfaceKind =
   | "canvas"
   | "presentation"
@@ -185,6 +195,15 @@ export const DrawsyAgentApi = {
   pickFolder: async () =>
     parseResponse<{ selectionId: string; name: string }>(
       await fetch(`${apiBase}/v1/folders/pick`, { method: "POST" }),
+    ),
+
+  readDrawDocument: async (selectionId: string) =>
+    parseResponse<DrawsyDrawDocument>(
+      await fetch(
+        `${apiBase}/v1/folders/${encodeURIComponent(
+          selectionId,
+        )}/draw-document`,
+      ),
     ),
 
   createSession: async (input: {

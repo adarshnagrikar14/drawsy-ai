@@ -86,6 +86,10 @@ type DrawsyAIChatProps = {
   contextCaptures: DrawsyCanvasContextCapture[];
   onRemoveContext: (captureId: string) => void;
   onClearContexts: () => void;
+  onFolderSelected?: (folder: {
+    selectionId: string;
+    name: string;
+  }) => void | Promise<void>;
 };
 
 type AgentEngine = "opencode" | "codex";
@@ -608,6 +612,7 @@ export const DrawsyAIChat = ({
   contextCaptures,
   onRemoveContext,
   onClearContexts,
+  onFolderSelected,
 }: DrawsyAIChatProps) => {
   const [draft, setDraft] = useState("");
   const [timeline, setTimeline] = useState<TimelineItem[]>([]);
@@ -646,6 +651,7 @@ export const DrawsyAIChat = ({
   const stickToBottomRef = useRef(true);
   const copiedMessageTimerRef = useRef<number | null>(null);
   const sessionRef = useRef<AgentSession | null>(null);
+  const onFolderSelectedRef = useRef(onFolderSelected);
   const canvasHandlersRef = useRef({
     readCanvas,
     applyCanvas,
@@ -659,6 +665,16 @@ export const DrawsyAIChat = ({
       return next.length === current.length ? current : next;
     });
   }, [draft]);
+
+  useEffect(() => {
+    onFolderSelectedRef.current = onFolderSelected;
+  }, [onFolderSelected]);
+
+  useEffect(() => {
+    if (folder && onFolderSelectedRef.current) {
+      void onFolderSelectedRef.current(folder);
+    }
+  }, [canvasId, folder, surfaceKind, theme]);
 
   useEffect(() => {
     if (activeTag?.trigger !== "@") {

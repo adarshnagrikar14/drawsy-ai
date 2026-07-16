@@ -125,6 +125,7 @@ import { JiraWorkspacePlaceholder } from "./components/JiraWorkspacePlaceholder"
 import { JiraWorkspace } from "./components/JiraWorkspace";
 import { ConnectorsWorkspace } from "./components/ConnectorsWorkspace";
 import { DrawsyAIChat } from "./components/DrawsyAIChat";
+import { DrawsyAgentApi } from "./data/DrawsyAgentApi";
 
 import { KanbanShareDialog } from "./components/KanbanShareDialog";
 import {
@@ -2147,6 +2148,7 @@ const ExcalidrawWrapper = () => {
   const workspaceSyncInFlightRef = useRef<Promise<void> | null>(null);
   const workspaceSceneFingerprintsRef = useRef(new Map<string, string>());
   const workspaceSwitchingRef = useRef(false);
+  const drawDocumentRequestRef = useRef(0);
   const workspaceScopeRef = useRef<string | null | undefined>(undefined);
   const presentationSaveTimerRef = useRef<number | null>(null);
   const presentationSyncTimerRef = useRef<number | null>(null);
@@ -4744,6 +4746,156 @@ const ExcalidrawWrapper = () => {
       jiraWorkspaceOpen,
       kanbanOpen,
     ],
+  );
+  const showDrawDocumentForFolder = useCallback(
+    async (folder: { selectionId: string; name: string }) => {
+      if (
+        !excalidrawAPI ||
+        !drawsyCanvasId ||
+        (drawsySurfaceKind !== "canvas" && drawsySurfaceKind !== "presentation")
+      ) {
+        return;
+      }
+
+      const expectedCanvasId = drawsyCanvasId;
+      const requestId = ++drawDocumentRequestRef.current;
+      try {
+        const source = await DrawsyAgentApi.readDrawDocument(
+          folder.selectionId,
+        );
+        if (
+          requestId !== drawDocumentRequestRef.current ||
+          !isCurrentDrawsyCanvas(expectedCanvasId) ||
+          !source.exists
+        ) {
+          return;
+        }
+
+        const {
+          createDrawDocumentElements,
+          getDrawDocumentMetadata,
+          parseDrawDocument,
+        } = await import("./data/DrawDocument");
+        if (
+          requestId !== drawDocumentRequestRef.current ||
+          !isCurrentDrawsyCanvas(expectedCanvasId)
+        ) {
+          return;
+        }
+        const document = parseDrawDocument(source.content);
+        if (!document.mermaidBlockCount) {
+          excalidrawAPI.setToast({
+            message: "DRAW.md needs at least one fenced Mermaid block.",
+          });
+          return;
+        }
+
+        const current = excalidrawAPI.getSceneElementsIncludingDeleted();
+        const visible = getNonDeletedElements(current);
+        const appState = excalidrawAPI.getAppState();
+        const canvasTheme = appState.theme;
+        const existingSourceElements = visible.filter(
+          (element) =>
+            getDrawDocumentMetadata(element)?.sourceId === source.sourceId,
+        );
+        if (
+          existingSourceElements.some(
+            (element) =>
+              getDrawDocumentMetadata(element)?.hash === source.hash &&
+              getDrawDocumentMetadata(element)?.theme === canvasTheme,
+          )
+        ) {
+          return;
+        }
+
+        let origin: { x: number; y: number };
+        if (existingSourceElements.length) {
+          const [minX, minY] = getCommonBounds(existingSourceElements);
+          origin = { x: minX, y: minY };
+        } else {
+          const unrelated = visible.filter(
+            (element) =>
+              getDrawDocumentMetadata(element)?.sourceId !== source.sourceId,
+          );
+          if (unrelated.length) {
+            const [, minY, maxX] = getCommonBounds(unrelated);
+            origin = {
+              x: maxX + Math.max(180, 160 / appState.zoom.value),
+              y: minY,
+            };
+          } else {
+            const visibleOrigin = viewportCoordsToSceneCoords(
+              { clientX: 96, clientY: 150 },
+              appState,
+            );
+            origin = { x: visibleOrigin.x, y: visibleOrigin.y };
+          }
+        }
+
+        const { parseMermaidToExcalidraw } = await import(
+          "@excalidraw/mermaid-to-excalidraw"
+        );
+        const rendered = await createDrawDocumentElements({
+          document,
+          origin,
+          source: { sourceId: source.sourceId, hash: source.hash },
+          theme: canvasTheme,
+          parseMermaid: parseMermaidToExcalidraw,
+        });
+        if (
+          requestId !== drawDocumentRequestRef.current ||
+          !isCurrentDrawsyCanvas(expectedCanvasId)
+        ) {
+          return;
+        }
+
+        const oldIds = new Set(
+          existingSourceElements.map((element) => element.id),
+        );
+        const next = current.map((element) =>
+          oldIds.has(element.id)
+            ? newElementWith(element, { isDeleted: true }, true)
+            : element,
+        );
+        const normalized = restoreElements(
+          [...next, ...rendered.elements],
+          current,
+          { repairBindings: true },
+        );
+        const incomingFiles = Object.values(rendered.files);
+        if (incomingFiles.length) {
+          excalidrawAPI.addFiles(incomingFiles);
+        }
+        excalidrawAPI.updateScene({
+          elements: normalized,
+          captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+        });
+
+        const refreshed = existingSourceElements.length > 0;
+        const skipped = rendered.mermaidErrors + document.unsupportedBlockCount;
+        excalidrawAPI.setToast({
+          message: skipped
+            ? `DRAW.md ${refreshed ? "refreshed" : "added"}; ${skipped} block${
+                skipped === 1 ? "" : "s"
+              } could not be displayed.`
+            : refreshed
+            ? "DRAW.md refreshed in place."
+            : "DRAW.md found — added to the right of your canvas.",
+        });
+      } catch (error) {
+        if (requestId !== drawDocumentRequestRef.current) {
+          return;
+        }
+        console.error("Failed to display DRAW.md", error);
+        excalidrawAPI.setToast({
+          message:
+            error instanceof Error
+              ? error.message
+              : "DRAW.md could not be displayed.",
+        });
+      }
+    },
+    [drawsyCanvasId, drawsySurfaceKind, excalidrawAPI, isCurrentDrawsyCanvas],
   );
   const readDrawsyCanvas = useCallback(
     (expectedCanvasId: string): DrawsyCanvasSnapshot => {
@@ -7539,6 +7691,7 @@ const ExcalidrawWrapper = () => {
             )
           }
           onClearContexts={() => setDrawsyContextCaptures([])}
+          onFolderSelected={showDrawDocumentForFolder}
           onClose={() => setDrawsyAIChatOpen(false)}
         />
       )}
