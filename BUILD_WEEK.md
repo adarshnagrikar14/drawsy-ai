@@ -50,6 +50,7 @@ These foundations made the Build Week extensions possible, but they are not part
 ### July 17: hosted reliability and product finish
 
 - Added hosted preview origin support and production client endpoints.
+- Added OpenCode alongside Codex behind the same Drawsy MCP contract, including runtime discovery of free tool-capable models and session-only provider-key model selection.
 - Improved AI progress cleanup, connector geometry, toolbar responsiveness, theme synchronization, canvas-response error handling, and non-retryable sync behavior.
 - Added targeted tests for Markdown, connector APIs, `DRAW.md`, live previews, Kanban ordering, canvas comments, themes, and core editor integration.
 

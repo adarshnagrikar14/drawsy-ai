@@ -32,7 +32,7 @@ The product combines:
 
 - the Excalidraw editor and its open, editable scene model;
 - Drawsy workspaces for canvases, presentations, Kanban, Jira, and connected sources;
-- a model-flexible agent surface: Codex or local OpenCode, with the same workspace contract, visible tool progress, and Markdown responses;
+- a model-flexible agent surface: Codex or OpenCode, with the same workspace contract, visible tool progress, and Markdown responses;
 - deterministic visual documentation through `DRAW.md`;
 - real-time collaboration and remote asset storage; and
 - local coding workspaces with interactive previews embedded back into the canvas.
@@ -44,7 +44,7 @@ Drawsy existed before OpenAI Build Week. In accordance with the [official rules]
 During that window, Drawsy gained:
 
 - **A native AI sidebar** that makes room beside the workspace instead of covering it, with model, permission, and context controls; streaming activity; rich Markdown; copy actions; attachments; and workspace-aware states.
-- **A provider-flexible local agent bridge**: Codex and OpenCode can operate through the same Drawsy session contract. OpenCode discovers currently active, free, tool-capable models at runtime and can accept a provider API key for that session without adding a product login or OAuth flow.
+- **A provider-flexible agent bridge**: Codex and OpenCode operate through the same Drawsy session contract locally or in the hosted runtime. OpenCode discovers currently active, free, tool-capable models at runtime. A provider API key can add that provider's live, tool-capable models for one Drawsy AI session without adding a product login or OAuth flow.
 - **A canvas protocol for agents** to read and edit the current canvas or presentation without receiving automatic access to unrelated workspaces.
 - **Multimodal selection context**: select canvas elements and press `C` to attach a visual crop plus the original source images, allowing annotations and editable image sources to travel together.
 - **Connector-aware prompts** with account-aware `@` tags for sources such as Gmail, Calendar, Drive, GitHub, Notion, meeting tools, and AWS. Access is added to a turn; ordinary prompts remain ordinary prompts.
@@ -59,7 +59,7 @@ These are not disconnected demos. Each one closes a different gap between thinki
 
 #### The canvas can hold the running software
 
-Codex or local OpenCode can build or run a project in the selected workspace and attach its live local service as an interactive canvas element. The preview moves and resizes like part of the board, keeps framework hot reload, receives its own isolated runtime port, and lives in session-local preview state instead of being synchronized as permanent canvas data.
+Codex or OpenCode can build or run a project in the selected workspace and attach its live service as an interactive canvas element. The preview moves and resizes like part of the board, keeps framework hot reload, receives its own isolated runtime port, and lives in session-local preview state instead of being synchronized as permanent canvas data.
 
 ![A local Snake game running inside a movable Drawsy canvas preview](./.github/assets/drawsy-live-preview.png)
 
@@ -67,7 +67,7 @@ Codex or local OpenCode can build or run a project in the selected workspace and
 
 This is more than a model switcher. Drawsy gives every supported runtime the same surface-scoped MCP: the current canvas or presentation, explicit visual captures, connected-source tags, local Kanban/Jira resources, and the selected coding folder. A model gains no hidden canvas route or account access simply because it is selected.
 
-Codex is available through its app-server integration. OpenCode runs locally in a fresh, folder-contained session and dynamically lists its live free models rather than shipping a stale model catalogue. A person can optionally add a provider API key for that one OpenCode session; the key stays in the local process and its disposable runtime, and is discarded when the session ends. This makes the model layer replaceable while the Drawsy safety, context, and editing experience stay consistent.
+Codex is available through its app-server integration. OpenCode runs in a fresh, folder-contained session locally or in the hosted runtime and dynamically lists its live free models rather than shipping a stale model catalogue. Adding a provider API key refreshes the selectable tool-capable models from that provider for that one OpenCode session. The key is never persisted in browser storage, the Drawsy database, or the selected workspace; it exists only in the bridge session and disposable OpenCode runtime, and is discarded when that session closes or the bridge restarts. This makes the model layer replaceable while the Drawsy safety, context, and editing experience stay consistent.
 
 #### Connected context is visible and optional
 
@@ -86,7 +86,7 @@ Drawsy separates connecting an account from using it in a prompt. People can see
 This frontend and five supporting repositories form the complete implementation used for judging. The supporting repositories are **private for now** because they contain deployment and security-sensitive service code; judge access is granted directly. They may be published later after a dedicated security and release review.
 
 - [`drawsy-ai-backend`](https://github.com/adarshnagrikar14/drawsy-ai-backend) — authenticated workspaces, Kanban/Jira resources, connectors, grants, and provider execution.
-- [`drawsy-ai-mcp`](https://github.com/adarshnagrikar14/drawsy-ai-mcp) — surface-scoped Drawsy MCP, Codex app-server bridge, sandbox, canvas tools, and live-preview runtime.
+- [`drawsy-ai-mcp`](https://github.com/adarshnagrikar14/drawsy-ai-mcp) — surface-scoped Drawsy MCP, Codex/OpenCode bridge, sandbox, canvas tools, dynamic model selection, and live-preview runtime.
 - [`draws-ai-wss`](https://github.com/adarshnagrikar14/draws-ai-wss) — Excalidraw-compatible real-time collaboration service.
 - [`drawsy-ai-store`](https://github.com/adarshnagrikar14/drawsy-ai-store) — encrypted share-link scene storage.
 - [`drawsy-ai-libraries`](https://github.com/adarshnagrikar14/drawsy-ai-libraries) — Drawsy's Excalidraw-compatible library catalog.
@@ -101,7 +101,7 @@ flowchart LR
   Client --> Canvas["Excalidraw canvas"]
   Client --> Surfaces["Presentation · Kanban · Jira"]
   Client <--> Bridge["Drawsy agent bridge"]
-  Bridge <--> Agents["Codex app-server · local OpenCode"]
+  Bridge <--> Agents["Codex app-server · OpenCode runtime"]
   Bridge <--> CanvasMCP["Drawsy canvas MCP"]
   Bridge <--> Sources["Connected sources"]
   CanvasMCP <--> Canvas
@@ -124,7 +124,7 @@ Suggested flow:
 3. Ask it to inspect or modify the current canvas.
 4. Select a meaningful group of elements and press `C`; the visual context appears in the composer.
 5. If a source is connected, type `@` and choose it for that prompt.
-6. Open a local folder containing `DRAW.md` to render its project map, or ask either local runtime to run an app and attach its live preview.
+6. Open a selected folder containing `DRAW.md` to render its project map, or ask either runtime to run an app and attach its live preview.
 
 Some connector scenarios require the corresponding account to be connected. The core canvas and UI remain usable without connectors.
 
