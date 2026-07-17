@@ -91,7 +91,7 @@ This frontend and five supporting repositories form the complete implementation 
 - [`drawsy-ai-store`](https://github.com/adarshnagrikar14/drawsy-ai-store) — encrypted share-link scene storage.
 - [`drawsy-ai-libraries`](https://github.com/adarshnagrikar14/drawsy-ai-libraries) — Drawsy's Excalidraw-compatible library catalog.
 
-The precise qualifying boundary, commit range, engineering record, and Codex collaboration are documented in [BUILD_WEEK.md](./BUILD_WEEK.md).
+The qualifying record, engineering notes, and Codex collaboration are documented in [BUILD_WEEK.md](./BUILD_WEEK.md).
 
 ## How it works
 
