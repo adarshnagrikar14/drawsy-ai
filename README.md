@@ -52,6 +52,28 @@ During that window, Drawsy gained:
 - **Interactive live previews**: an agent-started local app can appear as a movable, resizable browser window on the infinite canvas while preserving hot reload.
 - **Presentation-aware assistance**, theme synchronization, clearer tool states, and targeted reliability fixes around sync and canvas responses.
 
+### Three Drawsy-native innovations
+
+These are not disconnected demos. Each one closes a different gap between thinking, source context, and working software while keeping the result inside the same visual workspace.
+
+#### The canvas can hold the running software
+
+Codex can build or run a project in the selected workspace and attach its live local service as an interactive canvas element. The preview moves and resizes like part of the board, keeps framework hot reload, receives its own isolated runtime port, and lives in session-local preview state instead of being synchronized as permanent canvas data.
+
+![A playable application running inside a resizable Drawsy canvas preview](./.github/assets/drawsy-live-preview.png)
+
+#### Connected context is visible and optional
+
+Drawsy separates connecting an account from using it in a prompt. People can see which sources are connected, then explicitly attach the relevant account or capability with `@` only when a task needs it. The model receives a short-lived grant for that turn—not the provider's OAuth credentials—and an untagged conversation remains unaffected.
+
+![Drawsy connected context workspace with user-controlled sources](./.github/assets/drawsy-connected-context.png)
+
+#### A project document can become an editable visual map
+
+`DRAW.md` combines readable Markdown with Mermaid diagrams. Opening a folder renders that document as native Excalidraw frames, text, and geometry beside existing work—without AI or network access. The file remains canonical; later edits refresh only its generated elements in place.
+
+![A DRAW.md project document rendered as editable Drawsy canvas content](./.github/assets/drawsy-draw-md.png)
+
 ### Build Week repository set
 
 This frontend and five supporting repositories form the complete implementation used for judging. The supporting repositories are **private for now** because they contain deployment and security-sensitive service code; judge access is granted directly. They may be published later after a dedicated security and release review.
