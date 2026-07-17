@@ -129,6 +129,7 @@ export type DrawsyAgentControls = {
   models: Array<{
     id: string;
     model: string;
+    providerId?: string;
     displayName: string;
     description: string;
     efforts: Array<{ id: string; description: string }>;
@@ -152,6 +153,11 @@ export type DrawsyAgentControls = {
     name: string;
     toolCount: number;
     authStatus: string;
+  }>;
+  apiKeyProviders: Array<{
+    id: string;
+    name: string;
+    label: string;
   }>;
 };
 
@@ -219,6 +225,7 @@ export const DrawsyAgentApi = {
 
   createSession: async (input: {
     selectionId: string;
+    engine?: "codex" | "opencode";
     canvasId?: string | null;
     canvasName?: string | null;
     surfaceKind: DrawsySurfaceKind;
@@ -343,6 +350,7 @@ export const DrawsyAgentApi = {
     session: { id: string; token: string },
     settings: {
       model?: string;
+      modelProvider?: string;
       effort?: string;
       accessMode?: DrawsyAgentAccessMode;
       internetEnabled?: boolean;
@@ -359,6 +367,24 @@ export const DrawsyAgentApi = {
           "content-type": "application/json",
         },
         body: JSON.stringify(settings),
+      }),
+    ),
+
+  setProviderApiKey: async (
+    session: { id: string; token: string },
+    input: { providerId: string; apiKey: string },
+  ) =>
+    parseResponse<{
+      agent: DrawsyAgentMetadata;
+      controls: DrawsyAgentControls;
+    }>(
+      await fetch(`${apiBase}/v1/sessions/${session.id}/provider-key`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${session.token}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(input),
       }),
     ),
 
