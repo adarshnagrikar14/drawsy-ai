@@ -415,6 +415,7 @@ const uploadContextCapture = async (
 type SlashView =
   | "model"
   | "effort"
+  | "apiKey"
   | "permissions"
   | "internet"
   | "skills"
@@ -598,6 +599,62 @@ const SlashMenu = ({
   </div>
 );
 
+const ProviderKeyMenu = ({
+  provider,
+  value,
+  saving,
+  error,
+  onChange,
+  onBack,
+  onSave,
+}: {
+  provider: { id: string; name: string; label: string };
+  value: string;
+  saving: boolean;
+  error: string | null;
+  onChange: (value: string) => void;
+  onBack: () => void;
+  onSave: () => void;
+}) => (
+  <div className="drawsy-ai-chat__provider-key-menu">
+    <div className="drawsy-ai-chat__slash-heading">
+      <button type="button" onClick={onBack} aria-label="Back to providers">
+        {chevronRight}
+      </button>
+      <span>{provider.name}</span>
+    </div>
+    <p>{provider.label}. It is removed when this OpenCode session ends.</p>
+    <input
+      type="password"
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      placeholder="Paste API key"
+      autoComplete="off"
+      spellCheck={false}
+      aria-label={`${provider.name} API key`}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          onBack();
+        }
+        if (event.key === "Enter") {
+          event.preventDefault();
+          onSave();
+        }
+      }}
+    />
+    {error && <p className="drawsy-ai-chat__provider-key-error">{error}</p>}
+    <button
+      type="button"
+      className="drawsy-ai-chat__provider-key-save"
+      disabled={!value.trim() || saving}
+      onClick={onSave}
+    >
+      {saving ? "Adding…" : "Use for this session"}
+    </button>
+  </div>
+);
+
 export const DrawsyAIChat = ({
   isOpen,
   onClose,
@@ -650,6 +707,14 @@ export const DrawsyAIChat = ({
   const [slashView, setSlashView] = useState<SlashView | null>(null);
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
   const [pendingModel, setPendingModel] = useState<string | null>(null);
+  const [pendingApiKeyProvider, setPendingApiKeyProvider] = useState<{
+    id: string;
+    name: string;
+    label: string;
+  } | null>(null);
+  const [apiKey, setApiKey] = useState("");
+  const [apiKeySaving, setApiKeySaving] = useState(false);
+  const [apiKeyError, setApiKeyError] = useState<string | null>(null);
   const engineSwitcherRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const composerHighlighterRef = useRef<HTMLDivElement>(null);
@@ -815,7 +880,7 @@ export const DrawsyAIChat = ({
   }, [engineMenuOpen]);
 
   useEffect(() => {
-    if (engine !== "codex" || !folder) {
+    if (!folder) {
       sessionRef.current = null;
       setSessionStatus("idle");
       setSessionError(null);
@@ -1029,6 +1094,7 @@ export const DrawsyAIChat = ({
 
     void DrawsyAgentApi.createSession({
       selectionId: folder.selectionId,
+      engine,
       canvasId,
       canvasName: canvasName || "Untitled",
       surfaceKind,
@@ -1094,11 +1160,10 @@ export const DrawsyAIChat = ({
     !draft.slice(1).includes(" ") &&
     !draft.includes("\n");
   const slashMenuOpen =
-    engine === "codex" &&
     sessionStatus === "ready" &&
     (slashQueryOpen || slashView !== null);
   const tagMenuOpen =
-    engine === "codex" && sessionStatus === "ready" && activeTag !== null;
+    sessionStatus === "ready" && activeTag !== null;
   const composerMenuOpen = slashMenuOpen || tagMenuOpen;
 
   useEffect(() => {
@@ -1123,7 +1188,7 @@ export const DrawsyAIChat = ({
           setControlsError(
             error instanceof Error
               ? error.message
-              : "Codex controls could not load.",
+              : "Agent controls could not load.",
           );
         }
       })
@@ -1169,34 +1234,6 @@ export const DrawsyAIChat = ({
     }
     const message = writtenMessage || "Work with this canvas selection.";
     const submittedTags = tagsPresentInText(composerTags, message);
-    if (engine !== "codex") {
-      setTimeline((current) => [
-        ...current,
-        {
-          kind: "message",
-          id: crypto.randomUUID(),
-          role: "user",
-          text: message,
-          tags: submittedTags,
-          contexts: submittedContexts.map((capture) => ({
-            id: capture.id,
-            previewDataURL: capture.preview.dataURL,
-            elementCount: capture.elementIds.length,
-            sourceCount: capture.sourceImages.length,
-          })),
-        },
-        {
-          kind: "message",
-          id: crypto.randomUUID(),
-          role: "error",
-          text: "OpenCode is not connected in this local Codex build.",
-        },
-      ]);
-      setDraft("");
-      setComposerTags([]);
-      setActiveTag(null);
-      return;
-    }
     const session = sessionRef.current;
     if (!session || sessionStatus !== "ready") {
       if (!folder) {
@@ -1335,7 +1372,7 @@ export const DrawsyAIChat = ({
           text:
             error instanceof Error
               ? error.message
-              : "Codex could not start the turn.",
+              : "The agent could not start the turn.",
         },
       ]);
     }
@@ -1343,6 +1380,7 @@ export const DrawsyAIChat = ({
 
   const updateAgentSettings = async (settings: {
     model?: string;
+    modelProvider?: string;
     effort?: string;
     accessMode?: DrawsyAgentAccessMode;
     internetEnabled?: boolean;
@@ -1363,7 +1401,7 @@ export const DrawsyAIChat = ({
       textareaRef.current?.focus();
     } catch (error) {
       setControlsError(
-        error instanceof Error ? error.message : "Codex setting did not apply.",
+        error instanceof Error ? error.message : "Agent setting did not apply.",
       );
     } finally {
       setControlsLoading(false);
@@ -1374,6 +1412,56 @@ export const DrawsyAIChat = ({
     setDraft("");
     setSlashView(view);
     setPendingModel(null);
+  };
+
+  const saveProviderApiKey = async () => {
+    const session = sessionRef.current;
+    const provider = pendingApiKeyProvider;
+    if (!session || !provider || !apiKey.trim() || apiKeySaving) {
+      return;
+    }
+    setApiKeySaving(true);
+    setApiKeyError(null);
+    try {
+      const result = await DrawsyAgentApi.setProviderApiKey(session, {
+        providerId: provider.id,
+        apiKey,
+      });
+      setAgentMetadata(result.agent);
+      setControls(result.controls);
+      setApiKey("");
+      setPendingApiKeyProvider(null);
+      setSlashView("model");
+    } catch (error) {
+      setApiKeyError(
+        error instanceof Error ? error.message : "The API key could not be used.",
+      );
+    } finally {
+      setApiKeySaving(false);
+    }
+  };
+
+  const switchEngine = (nextEngine: AgentEngine) => {
+    if (nextEngine === engine) {
+      setEngineMenuOpen(false);
+      return;
+    }
+    setEngine(nextEngine);
+    setEngineMenuOpen(false);
+    setTimeline([]);
+    setDraft("");
+    setComposerTags([]);
+    setActiveTag(null);
+    setSlashView(null);
+    setPendingModel(null);
+    setPendingApiKeyProvider(null);
+    setApiKey("");
+    setApiKeyError(null);
+    setControls(null);
+    setAgentMetadata(null);
+    setSessionError(null);
+    setTurnRunning(false);
+    onClearContexts();
   };
 
   const addComposerTag = (
@@ -1562,28 +1650,49 @@ export const DrawsyAIChat = ({
   let slashItems = slashRootItems;
   if (slashView === "model") {
     slashTitle = "Model";
-    slashItems = (controls?.models || []).map((model) => ({
-      id: model.id,
-      title: model.displayName,
-      description: model.description,
-      selected: agentMetadata?.model === model.model,
-      meta: model.isDefault ? "Default" : undefined,
-      onSelect: () => {
-        if (model.efforts.length > 1) {
-          setPendingModel(model.model);
-          setSlashView("effort");
-          return;
-        }
-        void updateAgentSettings({
-          model: model.model,
-          effort: model.efforts[0]?.id || model.defaultEffort,
-        });
-      },
-    }));
+    slashItems = [
+      ...(controls?.models || []).map((model) => ({
+        id: model.id,
+        title: model.displayName,
+        description: model.description,
+        selected:
+          agentMetadata?.model === model.model &&
+          (!model.providerId || agentMetadata.modelProvider === model.providerId),
+        meta: model.isDefault ? "Default" : undefined,
+        onSelect: () => {
+          if (model.efforts.length > 1) {
+            setPendingModel(model.id);
+            setSlashView("effort");
+            return;
+          }
+          void updateAgentSettings({
+            model: model.model,
+            modelProvider: model.providerId,
+            effort: model.efforts[0]?.id || model.defaultEffort,
+          });
+        },
+      })),
+      ...(engine === "opencode" && (controls?.apiKeyProviders.length || 0) > 0
+        ? [
+            {
+              id: "session-api-key",
+              title: "Use your API key",
+              description: "Connect a provider for this session only",
+              icon: "code",
+              onSelect: () => {
+                setPendingApiKeyProvider(null);
+                setApiKey("");
+                setApiKeyError(null);
+                setSlashView("apiKey");
+              },
+            },
+          ]
+        : []),
+    ];
   } else if (slashView === "effort") {
     slashTitle = "Reasoning";
     const model = controls?.models.find(
-      (option) => option.model === pendingModel,
+      (option) => option.id === pendingModel,
     );
     slashItems = (model?.efforts || []).map((effort) => ({
       id: effort.id,
@@ -1593,7 +1702,24 @@ export const DrawsyAIChat = ({
         agentMetadata?.model === model?.model &&
         agentMetadata?.reasoningEffort === effort.id,
       onSelect: () =>
-        void updateAgentSettings({ model: model?.model, effort: effort.id }),
+        void updateAgentSettings({
+          model: model?.model,
+          modelProvider: model?.providerId,
+          effort: effort.id,
+        }),
+    }));
+  } else if (slashView === "apiKey") {
+    slashTitle = "Session API key";
+    slashItems = (controls?.apiKeyProviders || []).map((provider) => ({
+      id: provider.id,
+      title: provider.name,
+      description: provider.label,
+      icon: "code",
+      onSelect: () => {
+        setPendingApiKeyProvider(provider);
+        setApiKey("");
+        setApiKeyError(null);
+      },
     }));
   } else if (slashView === "permissions") {
     slashTitle = "Permissions";
@@ -1743,10 +1869,7 @@ export const DrawsyAIChat = ({
                       aria-selected={selected}
                       className="drawsy-ai-chat__engine-option"
                       key={option.id}
-                      onClick={() => {
-                        setEngine(option.id);
-                        setEngineMenuOpen(false);
-                      }}
+                      onClick={() => switchEngine(option.id)}
                     >
                       <span className="drawsy-ai-chat__engine-option-mark">
                         <EngineMark engine={option.id} theme={theme} />
@@ -1897,7 +2020,21 @@ export const DrawsyAIChat = ({
             </svg>
           </button>
         )}
-        {composerMenuOpen && (
+        {composerMenuOpen && pendingApiKeyProvider ? (
+          <ProviderKeyMenu
+            provider={pendingApiKeyProvider}
+            value={apiKey}
+            saving={apiKeySaving}
+            error={apiKeyError}
+            onChange={setApiKey}
+            onBack={() => {
+              setPendingApiKeyProvider(null);
+              setApiKey("");
+              setApiKeyError(null);
+            }}
+            onSave={() => void saveProviderApiKey()}
+          />
+        ) : composerMenuOpen && (
           <SlashMenu
             title={
               tagMenuOpen
@@ -1929,6 +2066,11 @@ export const DrawsyAIChat = ({
               } else if (slashView === "effort") {
                 setSlashView("model");
                 setPendingModel(null);
+              } else if (slashView === "apiKey") {
+                setPendingApiKeyProvider(null);
+                setApiKey("");
+                setApiKeyError(null);
+                setSlashView("model");
               } else {
                 setSlashView(null);
                 setDraft("/");
@@ -2129,7 +2271,7 @@ export const DrawsyAIChat = ({
               disabled={
                 (!draft.trim() && !contextCaptures.length) ||
                 turnRunning ||
-                (engine === "codex" && sessionStatus !== "ready")
+                sessionStatus !== "ready"
               }
               aria-label="Send message"
             >
@@ -2147,7 +2289,7 @@ export const DrawsyAIChat = ({
           >
             {sessionError ||
               (sessionStatus === "starting"
-                ? "Starting local Codex…"
+                ? `Starting local ${selectedEngine.label}…`
                 : sessionStatus === "ready" && folder
                 ? surfaceKind === "canvas"
                   ? `${folder.name} · current canvas only`
@@ -2158,7 +2300,7 @@ export const DrawsyAIChat = ({
                   : surfaceKind === "jira"
                   ? `${folder.name} · Jira surface`
                   : `${folder.name} · no Drawsy context`
-                : "Local Codex · no internet")}
+                : `Local ${selectedEngine.label} · no internet`)}
           </span>
           {agentMetadata && !sessionError && (
             <span>
