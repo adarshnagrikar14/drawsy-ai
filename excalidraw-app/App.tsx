@@ -148,7 +148,7 @@ import {
   type KanbanBoard,
 } from "./data/KanbanStore";
 import { useDrawsyAuth } from "./auth/useDrawsyAuth";
-import { WorkspaceApi } from "./data/WorkspaceApi";
+import { WorkspaceApi, WorkspaceApiError } from "./data/WorkspaceApi";
 import { WorkspaceSync } from "./data/WorkspaceSync";
 import { JiraWorkspaceStore } from "./data/JiraWorkspaceStore";
 import { KanbanApi } from "./data/KanbanApi";
@@ -2056,6 +2056,11 @@ const getWorkspaceSceneFingerprint = (
 
 const WORKSPACE_SYNC_IDLE_TIMEOUT = 3000;
 const WORKSPACE_SYNC_RETRY_TIMEOUT = 5000;
+const isRetryableWorkspaceSyncError = (error: unknown) =>
+  !(error instanceof WorkspaceApiError) ||
+  error.status === 408 ||
+  error.status === 429 ||
+  error.status >= 500;
 
 const ExcalidrawWrapper = () => {
   const excalidrawAPI = useExcalidrawAPI();
@@ -4175,10 +4180,17 @@ const ExcalidrawWrapper = () => {
         .catch((error) => {
           console.error("Workspace sync failed", error);
           setWorkspaceSyncStatus("error");
+          const retryable = isRetryableWorkspaceSyncError(error);
           excalidrawAPI?.setToast({
-            message: "Workspace saved locally. Cloud sync will retry.",
+            message: retryable
+              ? "Workspace saved locally. Cloud sync will retry."
+              : `Workspace saved locally. ${
+                  error instanceof Error
+                    ? error.message
+                    : "Cloud sync is paused."
+                }`,
           });
-          if (workspaceSyncRetryTimerRef.current === null) {
+          if (retryable && workspaceSyncRetryTimerRef.current === null) {
             workspaceSyncRetryTimerRef.current = window.setTimeout(() => {
               workspaceSyncRetryTimerRef.current = null;
               setWorkspaceSyncRetry((value) => value + 1);
@@ -4271,10 +4283,17 @@ const ExcalidrawWrapper = () => {
         .catch((error) => {
           console.error("Presentation sync failed", error);
           setPresentationSyncStatus("error");
+          const retryable = isRetryableWorkspaceSyncError(error);
           excalidrawAPI?.setToast({
-            message: "Presentation saved locally. Cloud sync will retry.",
+            message: retryable
+              ? "Presentation saved locally. Cloud sync will retry."
+              : `Presentation saved locally. ${
+                  error instanceof Error
+                    ? error.message
+                    : "Cloud sync is paused."
+                }`,
           });
-          if (presentationSyncRetryTimerRef.current === null) {
+          if (retryable && presentationSyncRetryTimerRef.current === null) {
             presentationSyncRetryTimerRef.current = window.setTimeout(() => {
               presentationSyncRetryTimerRef.current = null;
               setPresentationSyncRetry((value) => value + 1);

@@ -141,7 +141,7 @@ export class WorkspaceApi {
       return undefined as T;
     }
 
-    const data = (await response.json()) as {
+    const data = (await response.json().catch(() => ({}))) as {
       error?: { code?: string; message?: string };
     } & T;
     if (!response.ok) {
