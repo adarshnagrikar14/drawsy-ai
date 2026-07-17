@@ -284,6 +284,16 @@ describe("<Excalidraw/>", () => {
       expect(queryByTestId(container, "toggle-dark-mode")).toBe(null);
     });
 
+    it("should not let restored scene state override a controlled theme", async () => {
+      await render(<Excalidraw theme={THEME.DARK} />);
+
+      act(() => {
+        h.app.updateScene({ appState: { theme: THEME.LIGHT } });
+      });
+
+      expect(h.state.theme).toBe(THEME.DARK);
+    });
+
     it("should show theme mode toggle when `UIOptions.canvasActions.toggleTheme` is true", async () => {
       const { container } = await render(
         <Excalidraw

@@ -2794,7 +2794,7 @@ class App extends React.Component<AppProps, AppState> {
       let viewModeEnabled = actionResult?.appState?.viewModeEnabled || false;
       let zenModeEnabled = actionResult?.appState?.zenModeEnabled || false;
       const theme =
-        actionResult?.appState?.theme || this.props.theme || THEME.LIGHT;
+        this.props.theme || actionResult?.appState?.theme || THEME.LIGHT;
       const name = actionResult?.appState?.name ?? this.state.name;
       const errorMessage =
         actionResult?.appState?.errorMessage ?? this.state.errorMessage;
@@ -4598,13 +4598,19 @@ class App extends React.Component<AppProps, AppState> {
       captureUpdate?: SceneData["captureUpdate"];
     }) => {
       const { elements, appState, collaborators, captureUpdate } = sceneData;
+      const controlledAppState = appState
+        ? {
+            ...appState,
+            ...(this.props.theme ? { theme: this.props.theme } : {}),
+          }
+        : null;
 
       if (captureUpdate) {
         const nextElements = elements ? elements : undefined;
-        const observedAppState = appState
+        const observedAppState = controlledAppState
           ? getObservedAppState({
               ...this.store.snapshot.appState,
-              ...appState,
+              ...controlledAppState,
             })
           : undefined;
 
@@ -4615,8 +4621,8 @@ class App extends React.Component<AppProps, AppState> {
         });
       }
 
-      if (appState) {
-        this.setState(appState as Pick<AppState, K> | null);
+      if (controlledAppState) {
+        this.setState(controlledAppState as Pick<AppState, K> | null);
       }
 
       if (elements) {
