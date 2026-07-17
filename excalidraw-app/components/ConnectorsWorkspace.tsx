@@ -315,11 +315,7 @@ export const ConnectorsWorkspace = ({
           preserveAspectRatio="none"
           aria-hidden="true"
         >
-          <path d="M500 280C420 235 270 85 90 55M500 280C455 205 420 40 350 45M500 280C555 195 600 95 665 70M500 280C625 225 745 65 910 50M500 280C405 245 290 300 185 265M500 280C615 245 710 335 820 300M500 280C385 335 275 450 115 500M500 280C445 355 545 415 485 490M500 280C625 345 740 470 875 505" />
-          <path
-            className="connectors-paths__web"
-            d="M90 55C185 5 265 90 350 45M350 45C470 0 555 115 665 70M665 70C760 20 835 95 910 50M90 55C35 165 95 225 185 265M910 50C970 165 910 245 820 300M185 265C80 350 50 430 115 500M115 500C245 550 355 450 485 490M485 490C620 540 745 455 875 505M875 505C960 425 935 355 820 300"
-          />
+          <path d="M500 280C400 215 245 105 90 55M500 280C450 190 410 85 350 45M500 280C550 190 600 105 665 70M500 280C620 215 760 105 910 50M500 280C390 270 285 270 185 265M500 280C610 275 720 290 820 300M500 280C390 345 250 445 115 500M500 280C475 360 500 425 485 490M500 280C620 350 760 455 875 505" />
         </svg>
 
         {connectorCatalog.map((connector) => {
@@ -368,8 +364,12 @@ export const ConnectorsWorkspace = ({
                       href={account.manageUrl}
                       target="_blank"
                       rel="noreferrer"
+                      aria-label="Manage access"
+                      title="Manage access"
                     >
-                      Manage access
+                      <svg viewBox="0 0 20 20" aria-hidden="true">
+                        <path d="M8 5h-3v10h10v-3M11 4h5v5M16 4l-7 7" />
+                      </svg>
                     </a>
                   )}
                   <button
