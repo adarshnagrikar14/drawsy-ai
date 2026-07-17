@@ -4,7 +4,7 @@
 
 Do not open a public issue for a suspected vulnerability or include exploit details in a pull request.
 
-Use [GitHub's private vulnerability reporting](https://github.com/adarshnagrikar14/excal-ai/security/advisories/new) and include:
+Use [GitHub's private vulnerability reporting](https://github.com/adarshnagrikar14/drawsy-ai/security/advisories/new) and include:
 
 - the affected route, component, or workflow;
 - reproduction steps and impact;

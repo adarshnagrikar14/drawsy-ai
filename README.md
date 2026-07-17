@@ -131,7 +131,7 @@ Some connector scenarios require the corresponding account to be connected. The 
 ### Start the web client
 
 ```bash
-git clone https://github.com/adarshnagrikar14/excal-ai.git
+git clone https://github.com/adarshnagrikar14/drawsy-ai.git
 cd excal-ai
 yarn install
 yarn start

@@ -29,7 +29,7 @@ Requirements:
 - Yarn 1.22.22
 
 ```bash
-git clone https://github.com/adarshnagrikar14/excal-ai.git
+git clone https://github.com/adarshnagrikar14/drawsy-ai.git
 cd excal-ai
 yarn install
 yarn start

@@ -5,9 +5,9 @@ This document separates the pre-existing Drawsy product from the work being prep
 ## Eligibility boundary
 
 - **Submission window opened:** July 13, 2026 at 9:00 AM PT / 9:30 PM IST.
-- **Last pre-window commit:** [`6580babb`](https://github.com/adarshnagrikar14/excal-ai/commit/6580babb8cc90f72839e26c68e1ad469ec341d38) — Connectors workspace routing and connection state.
-- **First qualifying commit:** [`09f6903d`](https://github.com/adarshnagrikar14/excal-ai/commit/09f6903d) — Drawsy AI chat component, committed July 13 at 9:57 PM IST.
-- **Auditable range:** [`6580babb...master`](https://github.com/adarshnagrikar14/excal-ai/compare/6580babb8cc90f72839e26c68e1ad469ec341d38...master).
+- **Last pre-window commit:** [`6580babb`](https://github.com/adarshnagrikar14/drawsy-ai/commit/6580babb8cc90f72839e26c68e1ad469ec341d38) — Connectors workspace routing and connection state.
+- **First qualifying commit:** [`09f6903d`](https://github.com/adarshnagrikar14/drawsy-ai/commit/09f6903d) — Drawsy AI chat component, committed July 13 at 9:57 PM IST.
+- **Auditable range:** [`6580babb...master`](https://github.com/adarshnagrikar14/drawsy-ai/compare/6580babb8cc90f72839e26c68e1ad469ec341d38...master).
 
 At the start of this documentation pass, that range contained 44 committed changes across 38 files: 7,441 additions and 294 deletions. Git history remains the canonical evidence as the project continues through the submission window.
 

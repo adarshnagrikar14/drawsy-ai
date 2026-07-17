@@ -22,7 +22,7 @@ Unacceptable behavior includes harassment, discriminatory language, personal att
 
 Project maintainers may remove, edit, or reject comments, commits, code, issues, and other contributions that conflict with this Code of Conduct. They may temporarily or permanently restrict participation when necessary.
 
-Report conduct concerns privately through [GitHub's private reporting channel](https://github.com/adarshnagrikar14/excal-ai/security/advisories/new). Reports will be handled as confidentially as reasonably possible. Maintainers who are the subject of a report must recuse themselves from its review.
+Report conduct concerns privately through [GitHub's private reporting channel](https://github.com/adarshnagrikar14/drawsy-ai/security/advisories/new). Reports will be handled as confidentially as reasonably possible. Maintainers who are the subject of a report must recuse themselves from its review.
 
 ## Attribution
 
