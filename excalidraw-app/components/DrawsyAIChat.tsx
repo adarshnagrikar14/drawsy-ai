@@ -836,6 +836,7 @@ export const DrawsyAIChat = ({
       if (event.type === "session.ready") {
         setAgentMetadata(event.data.agent);
         setSessionStatus("ready");
+        setSessionError(null);
         return;
       }
       if (event.type === "tool.status") {
@@ -1042,6 +1043,19 @@ export const DrawsyAIChat = ({
         if (cancelled || controller.signal.aborted) {
           return;
         }
+        sessionRef.current = null;
+        setTurnRunning(false);
+        setTimeline((current) =>
+          current.map((item) =>
+            item.kind === "tool" && item.status === "inProgress"
+              ? {
+                  ...item,
+                  status: "failed",
+                  error: "The Drawsy AI session ended before this finished.",
+                }
+              : item,
+          ),
+        );
         setSessionStatus("error");
         setSessionError(
           error instanceof Error ? error.message : "Drawsy AI could not start.",
