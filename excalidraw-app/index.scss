@@ -800,6 +800,7 @@
 
 .plus-banner {
   display: flex;
+  flex: 0 0 auto;
   justify-content: center;
   cursor: pointer;
   align-items: center;
@@ -814,6 +815,7 @@
   box-sizing: border-box;
   height: var(--lg-button-size);
   appearance: none;
+  white-space: nowrap;
 
   border: none;
   box-shadow: 0 0 0 1px var(--color-surface-lowest);
@@ -832,6 +834,22 @@
   &:active {
     background-color: var(--color-primary-darker);
   }
+}
+
+.drawsy-top-right-toolbar {
+  flex: 0 0 auto;
+  min-width: max-content;
+
+  > * {
+    flex: 0 0 auto;
+  }
+}
+
+.layer-ui__wrapper__top-right > .UserList__wrapper {
+  flex: 1 1 0;
+  width: auto;
+  min-width: calc(var(--avatar-size) + var(--userList-padding) * 2);
+  overflow: hidden;
 }
 
 .plus-banner.active {

@@ -6974,7 +6974,7 @@ const ExcalidrawWrapper = () => {
           }
 
           return (
-            <div className="excalidraw-ui-top-right">
+            <div className="excalidraw-ui-top-right drawsy-top-right-toolbar">
               {collabError.message && <CollabError collabError={collabError} />}
               {excalidrawAPI?.getEditorInterface().formFactor === "desktop" && (
                 <TopRightToolbar
