@@ -37,7 +37,7 @@ The product combines:
 - real-time collaboration and remote asset storage; and
 - local coding workspaces with interactive previews embedded back into the canvas.
 
-## #BuildWeek Special
+## #Build Week Special
 
 Drawsy existed before OpenAI Build Week. In accordance with the [official rules](https://openai.devpost.com/rules), the submission claims only the meaningful extensions created after **July 13, 2026 at 9:00 AM PT**.
 
@@ -51,6 +51,16 @@ During that window, Drawsy gained:
 - **`DRAW.md` rendering** that converts mixed Markdown and Mermaid into normal editable Excalidraw elements, places them beside existing work, and updates only its own generated content.
 - **Interactive live previews**: an agent-started local app can appear as a movable, resizable browser window on the infinite canvas while preserving hot reload.
 - **Presentation-aware assistance**, theme synchronization, clearer tool states, and targeted reliability fixes around sync and canvas responses.
+
+### Build Week repository set
+
+This frontend and five supporting repositories form the complete implementation used for judging. The supporting repositories are **private for now** because they contain deployment and security-sensitive service code; judge access is granted directly. They may be published later after a dedicated security and release review.
+
+- [`drawsy-ai-backend`](https://github.com/adarshnagrikar14/drawsy-ai-backend) — authenticated workspaces, Kanban/Jira resources, connectors, grants, and provider execution.
+- [`drawsy-ai-mcp`](https://github.com/adarshnagrikar14/drawsy-ai-mcp) — surface-scoped Drawsy MCP, Codex app-server bridge, sandbox, canvas tools, and live-preview runtime.
+- [`draws-ai-wss`](https://github.com/adarshnagrikar14/draws-ai-wss) — Excalidraw-compatible real-time collaboration service.
+- [`drawsy-ai-store`](https://github.com/adarshnagrikar14/drawsy-ai-store) — encrypted share-link scene storage.
+- [`drawsy-ai-libraries`](https://github.com/adarshnagrikar14/drawsy-ai-libraries) — Drawsy's Excalidraw-compatible library catalog.
 
 The precise qualifying boundary, commit range, engineering record, and Codex collaboration are documented in [BUILD_WEEK.md](./BUILD_WEEK.md).
 

@@ -1,6 +1,6 @@
 # OpenAI Build Week 2026 — Drawsy contribution record
 
-This document separates the pre-existing Drawsy product from the work submitted to [OpenAI Build Week](https://openai.devpost.com/). It follows the official rule that an existing project is evaluated only on meaningful extensions created after the submission period began.
+This document separates the pre-existing Drawsy product from the work being prepared for submission to [OpenAI Build Week](https://openai.devpost.com/). It follows the official rule that an existing project is evaluated only on meaningful extensions created after the submission period began.
 
 ## Eligibility boundary
 
@@ -75,7 +75,7 @@ Codex running GPT-5.6 was the implementation partner throughout the qualifying w
 - live previews are native-feeling canvas elements, local to the coding session, and never collaboration-synced; and
 - connector and canvas behavior must fail honestly rather than force a flattering result.
 
-Timestamped Codex task logs and the required `/feedback` Codex Session ID are supplied through the Devpost submission. They are not embedded in the public repository because task history can contain local paths and operational context.
+Timestamped Codex task logs and the required `/feedback` Codex Session ID will be supplied through the Devpost submission. They are not embedded in the public repository because task history can contain local paths and operational context.
 
 ## Technical implementation
 
@@ -88,14 +88,24 @@ The qualifying client work is concentrated in:
 - `excalidraw-app/components/connectorCatalog.tsx` and `data/ConnectorsApi.ts` — source metadata, account discovery, and turn grants; and
 - `excalidraw-app/App.tsx` — surface orchestration, canvas operations, selection capture, image replacement, presentation support, and preview attachment.
 
-The public repository is the Drawsy web client. Supporting private repositories for the backend, MCP/agent bridge, collaboration server, storage API, and signer are shared with `testing@devpost.com` and `build-week-event@openai.com` for judging.
+The public repository is the Drawsy web client. The five supporting private repositories listed below are shared with `testing@devpost.com` and `build-week-event@openai.com` for judging. The smaller storage-signer service currently remains part of the internal deployment bundle rather than a separate GitHub repository.
+
+### Supporting repository evidence
+
+The five supporting repositories remain private pending a dedicated security and public-release review. Judges receive direct access.
+
+- [`drawsy-ai-backend`](https://github.com/adarshnagrikar14/drawsy-ai-backend): pre-existing service meaningfully extended after the cutoff with AI grants, provider execution, first-party resource tools, remote MCP providers, GitHub App access, and AWS cross-account inventory.
+- [`drawsy-ai-mcp`](https://github.com/adarshnagrikar14/drawsy-ai-mcp): created entirely during the submission window as the surface-scoped Codex and Drawsy MCP bridge.
+- [`draws-ai-wss`](https://github.com/adarshnagrikar14/draws-ai-wss): pre-existing Excalidraw collaboration fork; Build Week changes are limited to Node 22 and deployment packaging.
+- [`drawsy-ai-store`](https://github.com/adarshnagrikar14/drawsy-ai-store): pre-existing Excalidraw store fork; Build Week changes are limited to hosted CORS typing, deployment packaging, and production-secret hygiene.
+- [`drawsy-ai-libraries`](https://github.com/adarshnagrikar14/drawsy-ai-libraries): pre-existing Excalidraw library catalog with no qualifying Build Week commits; included as a runtime dependency, not claimed as new work.
 
 ## Reproduce and evaluate
 
 - **Hosted product:** [drawsy.adarsh.rocks](https://drawsy.adarsh.rocks)
 - **Local client:** follow [README.md](./README.md#local-development)
 - **Validation:** `yarn test:typecheck`, `yarn test:app --watch=false`, and `yarn build`
-- **Demo video:** supplied on the Devpost submission as a public YouTube link
+- **Demo video:** to be supplied on the Devpost submission as a public YouTube link
 
 The hosted product is the recommended evaluation path because AI, connectors, storage, collaboration, and isolated previews depend on the supporting services.
 
