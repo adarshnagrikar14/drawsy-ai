@@ -158,6 +158,14 @@ export type DrawsyAgentControls = {
     id: string;
     name: string;
     label: string;
+    fields: Array<{
+      key: string;
+      label: string;
+      placeholder?: string;
+      type: "text" | "select";
+      options?: Array<{ label: string; value: string; hint?: string }>;
+      when?: { key: string; op: "eq" | "neq"; value: string };
+    }>;
   }>;
 };
 
@@ -372,7 +380,11 @@ export const DrawsyAgentApi = {
 
   setProviderApiKey: async (
     session: { id: string; token: string },
-    input: { providerId: string; apiKey: string },
+    input: {
+      providerId: string;
+      apiKey: string;
+      metadata?: Record<string, string>;
+    },
   ) =>
     parseResponse<{
       agent: DrawsyAgentMetadata;

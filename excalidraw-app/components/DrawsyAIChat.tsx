@@ -4,6 +4,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from "react";
 
@@ -516,6 +517,7 @@ const SlashMenu = ({
   selectedIndex,
   loading,
   error,
+  filter,
   onBack,
   onHover,
 }: {
@@ -525,6 +527,12 @@ const SlashMenu = ({
   selectedIndex: number;
   loading: boolean;
   error: string | null;
+  filter?: {
+    value: string;
+    placeholder: string;
+    onChange: (value: string) => void;
+    onKeyDown: (event: ReactKeyboardEvent<HTMLInputElement>) => void;
+  };
   onBack: () => void;
   onHover: (index: number) => void;
 }) => (
@@ -536,6 +544,19 @@ const SlashMenu = ({
         </button>
         <span>{title}</span>
       </div>
+    )}
+    {filter && (
+      <label className="drawsy-ai-chat__slash-filter">
+        <input
+          autoFocus
+          type="search"
+          value={filter.value}
+          placeholder={filter.placeholder}
+          aria-label="Search providers"
+          onChange={(event) => filter.onChange(event.target.value)}
+          onKeyDown={filter.onKeyDown}
+        />
+      </label>
     )}
     <div className="drawsy-ai-chat__slash-list">
       {loading ? (
@@ -599,20 +620,37 @@ const SlashMenu = ({
   </div>
 );
 
+const isVisibleProviderField = (
+  field: DrawsyAgentControls["apiKeyProviders"][number]["fields"][number],
+  metadata: Record<string, string>,
+) => {
+  if (!field.when) {
+    return true;
+  }
+  const current = metadata[field.when.key] || "";
+  return field.when.op === "eq"
+    ? current === field.when.value
+    : current !== field.when.value;
+};
+
 const ProviderKeyMenu = ({
   provider,
   value,
+  metadata,
   saving,
   error,
   onChange,
+  onMetadataChange,
   onBack,
   onSave,
 }: {
-  provider: { id: string; name: string; label: string };
+  provider: DrawsyAgentControls["apiKeyProviders"][number];
   value: string;
+  metadata: Record<string, string>;
   saving: boolean;
   error: string | null;
   onChange: (value: string) => void;
+  onMetadataChange: (key: string, value: string) => void;
   onBack: () => void;
   onSave: () => void;
 }) => (
@@ -643,6 +681,41 @@ const ProviderKeyMenu = ({
         }
       }}
     />
+    {provider.fields
+      .filter((field) => isVisibleProviderField(field, metadata))
+      .map((field) => (
+        <label className="drawsy-ai-chat__provider-key-field" key={field.key}>
+          <span>{field.label}</span>
+          {field.type === "select" ? (
+            <select
+              value={metadata[field.key] || ""}
+              onChange={(event) =>
+                onMetadataChange(field.key, event.target.value)
+              }
+              aria-label={field.label}
+            >
+              <option value="">Select an option</option>
+              {(field.options || []).map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              type="text"
+              value={metadata[field.key] || ""}
+              onChange={(event) =>
+                onMetadataChange(field.key, event.target.value)
+              }
+              placeholder={field.placeholder || field.label}
+              autoComplete="off"
+              spellCheck={false}
+              aria-label={field.label}
+            />
+          )}
+        </label>
+      ))}
     {error && <p className="drawsy-ai-chat__provider-key-error">{error}</p>}
     <button
       type="button"
@@ -711,8 +784,13 @@ export const DrawsyAIChat = ({
     id: string;
     name: string;
     label: string;
+    fields: DrawsyAgentControls["apiKeyProviders"][number]["fields"];
   } | null>(null);
+  const [providerSearch, setProviderSearch] = useState("");
   const [apiKey, setApiKey] = useState("");
+  const [apiKeyMetadata, setApiKeyMetadata] = useState<Record<string, string>>(
+    {},
+  );
   const [apiKeySaving, setApiKeySaving] = useState(false);
   const [apiKeyError, setApiKeyError] = useState<string | null>(null);
   const engineSwitcherRef = useRef<HTMLDivElement>(null);
@@ -1160,10 +1238,8 @@ export const DrawsyAIChat = ({
     !draft.slice(1).includes(" ") &&
     !draft.includes("\n");
   const slashMenuOpen =
-    sessionStatus === "ready" &&
-    (slashQueryOpen || slashView !== null);
-  const tagMenuOpen =
-    sessionStatus === "ready" && activeTag !== null;
+    sessionStatus === "ready" && (slashQueryOpen || slashView !== null);
+  const tagMenuOpen = sessionStatus === "ready" && activeTag !== null;
   const composerMenuOpen = slashMenuOpen || tagMenuOpen;
 
   useEffect(() => {
@@ -1204,7 +1280,7 @@ export const DrawsyAIChat = ({
 
   useEffect(() => {
     setSlashSelectedIndex(0);
-  }, [activeTag, draft, slashView]);
+  }, [activeTag, draft, slashView, providerSearch]);
 
   const chooseFolder = async () => {
     if (folderPicking) {
@@ -1426,15 +1502,20 @@ export const DrawsyAIChat = ({
       const result = await DrawsyAgentApi.setProviderApiKey(session, {
         providerId: provider.id,
         apiKey,
+        metadata: apiKeyMetadata,
       });
       setAgentMetadata(result.agent);
       setControls(result.controls);
       setApiKey("");
+      setApiKeyMetadata({});
       setPendingApiKeyProvider(null);
+      setProviderSearch("");
       setSlashView("model");
     } catch (error) {
       setApiKeyError(
-        error instanceof Error ? error.message : "The API key could not be used.",
+        error instanceof Error
+          ? error.message
+          : "The API key could not be used.",
       );
     } finally {
       setApiKeySaving(false);
@@ -1657,7 +1738,8 @@ export const DrawsyAIChat = ({
         description: model.description,
         selected:
           agentMetadata?.model === model.model &&
-          (!model.providerId || agentMetadata.modelProvider === model.providerId),
+          (!model.providerId ||
+            agentMetadata.modelProvider === model.providerId),
         meta: model.isDefault ? "Default" : undefined,
         onSelect: () => {
           if (model.efforts.length > 1) {
@@ -1682,6 +1764,8 @@ export const DrawsyAIChat = ({
               onSelect: () => {
                 setPendingApiKeyProvider(null);
                 setApiKey("");
+                setApiKeyMetadata({});
+                setProviderSearch("");
                 setApiKeyError(null);
                 setSlashView("apiKey");
               },
@@ -1691,9 +1775,7 @@ export const DrawsyAIChat = ({
     ];
   } else if (slashView === "effort") {
     slashTitle = "Reasoning";
-    const model = controls?.models.find(
-      (option) => option.id === pendingModel,
-    );
+    const model = controls?.models.find((option) => option.id === pendingModel);
     slashItems = (model?.efforts || []).map((effort) => ({
       id: effort.id,
       title: effort.id.charAt(0).toUpperCase() + effort.id.slice(1),
@@ -1710,17 +1792,26 @@ export const DrawsyAIChat = ({
     }));
   } else if (slashView === "apiKey") {
     slashTitle = "Session API key";
-    slashItems = (controls?.apiKeyProviders || []).map((provider) => ({
-      id: provider.id,
-      title: provider.name,
-      description: provider.label,
-      icon: "code",
-      onSelect: () => {
-        setPendingApiKeyProvider(provider);
-        setApiKey("");
-        setApiKeyError(null);
-      },
-    }));
+    const query = providerSearch.trim().toLowerCase();
+    slashItems = (controls?.apiKeyProviders || [])
+      .filter(
+        (provider) =>
+          !query ||
+          provider.name.toLowerCase().includes(query) ||
+          provider.id.toLowerCase().includes(query),
+      )
+      .map((provider) => ({
+        id: provider.id,
+        title: provider.name,
+        description: provider.label,
+        icon: "code",
+        onSelect: () => {
+          setPendingApiKeyProvider(provider);
+          setApiKey("");
+          setApiKeyMetadata({});
+          setApiKeyError(null);
+        },
+      }));
   } else if (slashView === "permissions") {
     slashTitle = "Permissions";
     slashItems = [
@@ -1807,10 +1898,38 @@ export const DrawsyAIChat = ({
     }
   };
 
+  const handleProviderSearchKeyDown = (
+    event: ReactKeyboardEvent<HTMLInputElement>,
+  ) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setSlashSelectedIndex((index) =>
+        Math.min(index + 1, Math.max(visibleMenuItems.length - 1, 0)),
+      );
+      return;
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setSlashSelectedIndex((index) => Math.max(index - 1, 0));
+      return;
+    }
+    if (event.key === "Enter") {
+      event.preventDefault();
+      chooseComposerMenuItem();
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setProviderSearch("");
+      setSlashView("model");
+    }
+  };
+
   const closeComposerMenu = () => {
     setActiveTag(null);
     setSlashView(null);
     setPendingModel(null);
+    setProviderSearch("");
     if (slashQueryOpen) {
       setDraft("");
     }
@@ -2024,60 +2143,79 @@ export const DrawsyAIChat = ({
           <ProviderKeyMenu
             provider={pendingApiKeyProvider}
             value={apiKey}
+            metadata={apiKeyMetadata}
             saving={apiKeySaving}
             error={apiKeyError}
             onChange={setApiKey}
+            onMetadataChange={(key, value) =>
+              setApiKeyMetadata((current) => ({ ...current, [key]: value }))
+            }
             onBack={() => {
               setPendingApiKeyProvider(null);
               setApiKey("");
+              setApiKeyMetadata({});
               setApiKeyError(null);
             }}
             onSave={() => void saveProviderApiKey()}
           />
-        ) : composerMenuOpen && (
-          <SlashMenu
-            title={
-              tagMenuOpen
-                ? activeTag?.trigger === "$"
-                  ? "Tag a skill"
-                  : "Tag a source or plugin"
-                : slashTitle
-            }
-            view={tagMenuOpen ? "tag" : currentSlashView}
-            items={visibleMenuItems}
-            selectedIndex={slashSelectedIndex}
-            loading={
-              (controlsLoading &&
-                (tagMenuOpen || currentSlashView !== "root")) ||
-              (tagMenuOpen && activeTag?.trigger === "@" && connectorsLoading)
-            }
-            error={
-              tagMenuOpen &&
-              activeTag?.trigger === "@" &&
-              connectorTagItems.length
-                ? null
-                : tagMenuOpen || currentSlashView !== "root"
-                ? controlsError
-                : null
-            }
-            onBack={() => {
-              if (tagMenuOpen) {
-                setActiveTag(null);
-              } else if (slashView === "effort") {
-                setSlashView("model");
-                setPendingModel(null);
-              } else if (slashView === "apiKey") {
-                setPendingApiKeyProvider(null);
-                setApiKey("");
-                setApiKeyError(null);
-                setSlashView("model");
-              } else {
-                setSlashView(null);
-                setDraft("/");
+        ) : (
+          composerMenuOpen && (
+            <SlashMenu
+              title={
+                tagMenuOpen
+                  ? activeTag?.trigger === "$"
+                    ? "Tag a skill"
+                    : "Tag a source or plugin"
+                  : slashTitle
               }
-            }}
-            onHover={setSlashSelectedIndex}
-          />
+              view={tagMenuOpen ? "tag" : currentSlashView}
+              items={visibleMenuItems}
+              selectedIndex={slashSelectedIndex}
+              loading={
+                (controlsLoading &&
+                  (tagMenuOpen || currentSlashView !== "root")) ||
+                (tagMenuOpen && activeTag?.trigger === "@" && connectorsLoading)
+              }
+              error={
+                tagMenuOpen &&
+                activeTag?.trigger === "@" &&
+                connectorTagItems.length
+                  ? null
+                  : tagMenuOpen || currentSlashView !== "root"
+                  ? controlsError
+                  : null
+              }
+              filter={
+                slashView === "apiKey"
+                  ? {
+                      value: providerSearch,
+                      placeholder: "Search API providers",
+                      onChange: setProviderSearch,
+                      onKeyDown: handleProviderSearchKeyDown,
+                    }
+                  : undefined
+              }
+              onBack={() => {
+                if (tagMenuOpen) {
+                  setActiveTag(null);
+                } else if (slashView === "effort") {
+                  setSlashView("model");
+                  setPendingModel(null);
+                } else if (slashView === "apiKey") {
+                  setPendingApiKeyProvider(null);
+                  setApiKey("");
+                  setApiKeyMetadata({});
+                  setApiKeyError(null);
+                  setProviderSearch("");
+                  setSlashView("model");
+                } else {
+                  setSlashView(null);
+                  setDraft("/");
+                }
+              }}
+              onHover={setSlashSelectedIndex}
+            />
+          )
         )}
         <form
           className="drawsy-ai-chat__composer"
