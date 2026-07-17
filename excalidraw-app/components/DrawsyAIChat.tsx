@@ -951,6 +951,9 @@ export const DrawsyAIChat = ({
       if (event.type === "canvas.request" && createdSession) {
         const session = createdSession;
         void (async () => {
+          let response:
+            | { requestId: string; ok: true; data: unknown }
+            | { requestId: string; ok: false; error: string };
           try {
             if (!canvasId || event.data.canvasId !== canvasId) {
               throw new Error("The active canvas changed. Please retry.");
@@ -1000,20 +1003,25 @@ export const DrawsyAIChat = ({
                 event.data.previewRequest,
               );
             }
-            await DrawsyAgentApi.respondToCanvas(session, {
+            response = {
               requestId: event.data.requestId,
               ok: true,
               data,
-            });
+            };
           } catch (error) {
-            await DrawsyAgentApi.respondToCanvas(session, {
+            response = {
               requestId: event.data.requestId,
               ok: false,
               error:
                 error instanceof Error
                   ? error.message
                   : "Canvas operation failed.",
-            });
+            };
+          }
+          try {
+            await DrawsyAgentApi.respondToCanvas(session, response);
+          } catch (error) {
+            console.warn("Canvas response was not accepted", error);
           }
         })();
       }
