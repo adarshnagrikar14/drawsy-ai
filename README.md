@@ -88,6 +88,8 @@ Drawsy does not wait to dump a finished diagram onto the board. It applies struc
 
 The resulting layout review is evidence, not a rigid template: it reports text/container problems, unintended node overlaps, and connectors crossing unrelated nodes. For diagrams where meaning depends on relationships, the agent also reviews a rendered capture for readable labels and unambiguous source-to-target routes. It repairs only relevant findings; it does not encode subject-specific diagram rules, move unrelated content, or claim that layout checks prove factual correctness.
 
+![A streamed, editable autophagy pathway on a Drawsy canvas](./.github/assets/drawsy-precision-diagram.png)
+
 ### Build Week repository set
 
 This frontend and five supporting repositories form the complete implementation used for judging. The supporting repositories are **private for now** because they contain deployment and security-sensitive service code; judge access is granted directly. They may be published later after a dedicated security and release review.
