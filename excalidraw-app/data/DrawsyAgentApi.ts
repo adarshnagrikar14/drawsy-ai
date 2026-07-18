@@ -12,6 +12,22 @@ export type DrawsyCanvasOperations = {
   files: DrawsyCanvasFile[];
 };
 
+export type DrawsyCanvasLayoutIssue = {
+  kind:
+    | "overlap"
+    | "text_overflow"
+    | "unbound_text"
+    | "connector_collision";
+  elementIds: string[];
+  message: string;
+};
+
+export type DrawsyCanvasLayoutReport = {
+  canvasId: string;
+  elementCount: number;
+  issues: DrawsyCanvasLayoutIssue[];
+};
+
 export type DrawsyCanvasFile = {
   id: string;
   mimeType: "image/png" | "image/jpeg" | "image/gif" | "image/webp";
@@ -191,7 +207,13 @@ export type DrawsyBridgeEvent =
       type: "canvas.request";
       data: {
         requestId: string;
-        action: "read" | "apply" | "capture" | "replaceImage" | "preview";
+        action:
+          | "read"
+          | "apply"
+          | "inspect"
+          | "capture"
+          | "replaceImage"
+          | "preview";
         canvasId: string;
         operations?: DrawsyCanvasOperations;
         contextRequest?: DrawsyCanvasContextRequest;

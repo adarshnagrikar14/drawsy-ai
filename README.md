@@ -51,9 +51,10 @@ During that window, Drawsy gained:
 - **Drawsy resource tags** for local Kanban and Jira context and actions.
 - **`DRAW.md` rendering** that converts mixed Markdown and Mermaid into normal editable Excalidraw elements, places them beside existing work, and updates only its own generated content.
 - **Interactive live previews**: an agent-started local app can appear as a movable, resizable browser window on the infinite canvas while preserving hot reload.
+- **Precision diagram delivery**: complex visual work arrives in coherent, visible passes. Drawsy uses Excalidraw-native text reflow after the required fonts are available, checks the rendered scene for binding, overlap, overflow, and route problems, then reviews relationship-heavy diagrams as rendered visuals before completion.
 - **Presentation-aware assistance**, theme synchronization, clearer tool states, and targeted reliability fixes around sync and canvas responses.
 
-### Four Drawsy-native innovations
+### Five Drawsy-native innovations
 
 These are not disconnected demos. Each one closes a different gap between thinking, source context, and working software while keeping the result inside the same visual workspace.
 
@@ -80,6 +81,12 @@ Drawsy separates connecting an account from using it in a prompt. People can see
 `DRAW.md` combines readable Markdown with Mermaid diagrams. Opening a folder renders that document as native Excalidraw frames, text, and geometry beside existing work—without AI or network access. The file remains canonical; later edits refresh only its generated elements in place.
 
 ![A DRAW.md project document rendered as editable Drawsy canvas content](./.github/assets/drawsy-draw-md.png)
+
+#### Complex diagrams stay editable while they become precise
+
+Drawsy does not wait to dump a finished diagram onto the board. It applies structural anchors, routes, labels, and annotations in visible passes, then reads the actual rendered result. The client uses Excalidraw's native text-editing geometry—rather than model-guessed label bounds—to wrap, place, and resize bound text correctly once the needed fonts are available.
+
+The resulting layout review is evidence, not a rigid template: it reports text/container problems, unintended node overlaps, and connectors crossing unrelated nodes. For diagrams where meaning depends on relationships, the agent also reviews a rendered capture for readable labels and unambiguous source-to-target routes. It repairs only relevant findings; it does not encode subject-specific diagram rules, move unrelated content, or claim that layout checks prove factual correctness.
 
 ### Build Week repository set
 

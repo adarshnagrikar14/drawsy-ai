@@ -33,6 +33,7 @@ import {
   type DrawsyCanvasContextCapture,
   type DrawsyCanvasContextRequest,
   type DrawsyCanvasImageReplacement,
+  type DrawsyCanvasLayoutReport,
   type DrawsyCanvasOperations,
   type DrawsyCanvasSnapshot,
   type DrawsyLivePreviewRequest,
@@ -76,7 +77,10 @@ type DrawsyAIChatProps = {
   applyCanvas: (
     expectedCanvasId: string,
     operations: DrawsyCanvasOperations,
-  ) => void;
+  ) => Promise<void>;
+  inspectCanvasLayout: (
+    expectedCanvasId: string,
+  ) => DrawsyCanvasLayoutReport;
   captureCanvas: (
     expectedCanvasId: string,
     request: DrawsyCanvasContextRequest,
@@ -742,6 +746,7 @@ export const DrawsyAIChat = ({
   availableAiResources,
   readCanvas,
   applyCanvas,
+  inspectCanvasLayout,
   captureCanvas,
   replaceCanvasImage,
   attachLivePreview,
@@ -804,6 +809,7 @@ export const DrawsyAIChat = ({
   const canvasHandlersRef = useRef({
     readCanvas,
     applyCanvas,
+    inspectCanvasLayout,
     captureCanvas,
     replaceCanvasImage,
     attachLivePreview,
@@ -869,6 +875,7 @@ export const DrawsyAIChat = ({
     canvasHandlersRef.current = {
       readCanvas,
       applyCanvas,
+      inspectCanvasLayout,
       captureCanvas,
       replaceCanvasImage,
       attachLivePreview,
@@ -877,6 +884,7 @@ export const DrawsyAIChat = ({
     applyCanvas,
     attachLivePreview,
     captureCanvas,
+    inspectCanvasLayout,
     readCanvas,
     replaceCanvasImage,
   ]);
@@ -1105,7 +1113,7 @@ export const DrawsyAIChat = ({
             if (event.data.action === "read") {
               data = canvasHandlersRef.current.readCanvas(event.data.canvasId);
             } else if (event.data.action === "apply") {
-              canvasHandlersRef.current.applyCanvas(
+              await canvasHandlersRef.current.applyCanvas(
                 event.data.canvasId,
                 event.data.operations || {
                   upsertElements: [],
@@ -1114,6 +1122,10 @@ export const DrawsyAIChat = ({
                 },
               );
               data = { ok: true };
+            } else if (event.data.action === "inspect") {
+              data = canvasHandlersRef.current.inspectCanvasLayout(
+                event.data.canvasId,
+              );
             } else if (event.data.action === "capture") {
               if (!event.data.contextRequest) {
                 throw new Error("The canvas context request is missing.");
