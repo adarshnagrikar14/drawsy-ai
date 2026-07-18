@@ -231,6 +231,11 @@ const apiBase =
 const parseResponse = async <T>(response: Response): Promise<T> => {
   const body = (await response.json().catch(() => ({}))) as T & ApiErrorBody;
   if (!response.ok) {
+    if (response.status === 413) {
+      throw new Error(
+        "The selected visual context is too large to upload. Select a smaller area and try again.",
+      );
+    }
     throw new Error(
       body.error?.message || `Drawsy AI request failed (${response.status}).`,
     );

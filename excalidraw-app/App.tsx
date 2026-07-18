@@ -490,6 +490,11 @@ const getPresentationFrames = (elements: readonly ExcalidrawElement[]) => {
 
 const PRESENTATION_BUILD_DURATION_MS = 320;
 const PRESENTATION_SLIDE_FADE_DURATION_MS = 160;
+// The bridge accepts context assets up to 8 MiB. Keep rendered previews below
+// that limit so a detailed selection remains uploadable without changing its
+// source images.
+const CONTEXT_PREVIEW_UPLOAD_TARGET_BYTES = 7 * 1024 * 1024;
+const MIN_CONTEXT_PREVIEW_DIMENSION = 256;
 
 type FramePresenterState = {
   frameIds: string[];
@@ -5661,19 +5666,49 @@ const ExcalidrawWrapper = () => {
       const exportElements = exportingFrame
         ? [...capturedElements, exportingFrame]
         : capturedElements;
-      const previewBlob = await exportToBlob({
-        elements: exportElements,
-        appState: {
-          ...appState,
-          exportBackground: true,
-          exportEmbedScene: false,
-          viewBackgroundColor: appState.viewBackgroundColor,
-        },
-        files,
-        maxWidthOrHeight: request.maxDimension,
-        exportPadding: exportingFrame ? 0 : 24,
-        exportingFrame,
-      });
+      const exportPreview = (maxDimension: number) =>
+        exportToBlob({
+          elements: exportElements,
+          appState: {
+            ...appState,
+            exportBackground: true,
+            exportEmbedScene: false,
+            viewBackgroundColor: appState.viewBackgroundColor,
+          },
+          files,
+          maxWidthOrHeight: maxDimension,
+          exportPadding: exportingFrame ? 0 : 24,
+          exportingFrame,
+        });
+      let previewDimension = request.maxDimension;
+      let previewBlob = await exportPreview(previewDimension);
+      while (
+        previewBlob.size > CONTEXT_PREVIEW_UPLOAD_TARGET_BYTES &&
+        previewDimension > MIN_CONTEXT_PREVIEW_DIMENSION
+      ) {
+        const nextDimension = Math.max(
+          MIN_CONTEXT_PREVIEW_DIMENSION,
+          Math.floor(
+            previewDimension *
+              Math.min(
+                0.9,
+                Math.sqrt(
+                  CONTEXT_PREVIEW_UPLOAD_TARGET_BYTES / previewBlob.size,
+                ) * 0.9,
+              ),
+          ),
+        );
+        if (nextDimension >= previewDimension) {
+          break;
+        }
+        previewDimension = nextDimension;
+        previewBlob = await exportPreview(previewDimension);
+      }
+      if (previewBlob.size > CONTEXT_PREVIEW_UPLOAD_TARGET_BYTES) {
+        throw new Error(
+          "The selected area is too detailed to attach as one image. Select a smaller area and try again.",
+        );
+      }
 
       const sourceImages: DrawsyCanvasContextCapture["sourceImages"] = [];
       const sourceFileIds = new Set<FileId>();
