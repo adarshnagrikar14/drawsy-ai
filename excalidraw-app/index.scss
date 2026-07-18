@@ -88,6 +88,35 @@
     }
   }
 
+  .drawsy-ai-chat-welcome-hint {
+    position: absolute;
+    right: clamp(0.3rem, 1vw, 0.75rem);
+    bottom: clamp(5.25rem, 10vh, 7.5rem);
+    display: flex;
+    width: min(20.5rem, 48vw);
+    align-items: flex-end;
+    justify-content: flex-end;
+    gap: 0.1rem;
+    pointer-events: none;
+
+    > div {
+      max-width: 12.5rem;
+      text-align: center;
+      transform: translateY(-0.7rem);
+    }
+
+    &__arrow {
+      width: 7.75rem;
+      height: 5rem;
+      flex: 0 0 auto;
+      overflow: visible;
+      stroke: currentColor;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-width: 2.4;
+    }
+  }
+
   // The welcome hint belongs to the + canvas menu, not the adjacent app menu.
   .welcome-screen-decor-hint--menu {
     margin-inline-start: calc(
@@ -159,6 +188,12 @@
 
   @media (max-height: 780px), (max-width: 1080px) {
     .drawsy-ai-welcome-hint {
+      display: none;
+    }
+  }
+
+  @media (max-height: 620px), (max-width: 920px) {
+    .drawsy-ai-chat-welcome-hint {
       display: none;
     }
   }

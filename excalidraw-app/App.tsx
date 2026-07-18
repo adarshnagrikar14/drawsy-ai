@@ -7602,6 +7602,7 @@ const ExcalidrawWrapper = () => {
               isPresentationMode={isPresentationCanvasActive}
               onOpenPresentationPanel={openPresentationPanel}
               authStatus={drawsyAuth.status}
+              isDrawsyAIChatOpen={drawsyAIChatOpen}
               onDrawsyAISelect={() => setDrawsyAIChatOpen(true)}
               onSignIn={() => void drawsyAuth.signIn().catch(() => undefined)}
             />

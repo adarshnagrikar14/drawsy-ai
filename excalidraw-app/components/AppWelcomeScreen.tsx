@@ -17,6 +17,7 @@ export const AppWelcomeScreen: React.FC<{
   isPresentationMode?: boolean;
   onOpenPresentationPanel?: () => void;
   authStatus: "loading" | "anonymous" | "authenticated";
+  isDrawsyAIChatOpen: boolean;
   onDrawsyAISelect: () => void;
   onSignIn: () => void;
 }> = React.memo((props) => {
@@ -204,17 +205,36 @@ export const AppWelcomeScreen: React.FC<{
             </WelcomeScreen.Center.MenuItem>
           )}
         </WelcomeScreen.Center.Menu>
-        {props.authStatus === "authenticated" && (
-          <div
-            className="excalifont welcome-screen-decor welcome-screen-decor-hint drawsy-ai-welcome-hint"
-            aria-hidden="true"
-          >
-            <div className="welcome-screen-decor-hint__label">
-              Ask Drawsy AI to shape the canvas.
+        {props.authStatus === "authenticated" &&
+          !props.isDrawsyAIChatOpen && (
+            <div
+              className="excalifont welcome-screen-decor welcome-screen-decor-hint drawsy-ai-welcome-hint"
+              aria-hidden="true"
+            >
+              <div className="welcome-screen-decor-hint__label">
+                Ask Drawsy AI to shape the canvas.
+              </div>
+              {WelcomeScreenMenuArrow}
             </div>
-            {WelcomeScreenMenuArrow}
-          </div>
-        )}
+          )}
+        {props.authStatus === "authenticated" &&
+          props.isDrawsyAIChatOpen && (
+            <div
+              className="excalifont welcome-screen-decor drawsy-ai-chat-welcome-hint"
+              aria-hidden="true"
+            >
+              <div>Select a folder, then choose a model.</div>
+              <svg
+                className="drawsy-ai-chat-welcome-hint__arrow"
+                viewBox="0 0 172 100"
+                fill="none"
+              >
+                <path d="M8 58c47-8 98-11 124 8 9 7 16 14 22 16" />
+                <path d="m154 82-16 5" />
+                <path d="m154 82-11-14" />
+              </svg>
+            </div>
+          )}
       </WelcomeScreen.Center>
     </WelcomeScreen>
   );
