@@ -38,7 +38,10 @@ import {
   DEFAULT_SIDEBAR,
   THEME,
   FONT_FAMILY,
+  DEFAULT_FONT_FAMILY,
+  getLineHeight,
   randomId,
+  arrayToMap,
   sceneCoordsToViewportCoords,
   viewportCoordsToSceneCoords,
   isWritableElement,
@@ -75,14 +78,20 @@ import { Button } from "@excalidraw/excalidraw/components/Button";
 import {
   getNonDeletedElements,
   getCommonBounds,
+  getElementBounds,
   isElementLink,
   isFrameLikeElement,
   isInvisiblySmallElement,
+  isLinearElement,
+  isTextElement,
   newElement,
   newFrameElement,
   newLinearElement,
   newTextElement,
+  redrawTextBoundingBox,
+  Scene,
 } from "@excalidraw/element";
+import { Fonts } from "@excalidraw/excalidraw/fonts/Fonts";
 import { pointFrom } from "@excalidraw/math";
 import {
   bumpElementVersions,
@@ -103,6 +112,9 @@ import type {
   FileId,
   ExcalidrawElement,
   ExcalidrawFrameLikeElement,
+  ExcalidrawLinearElement,
+  ExcalidrawTextElement,
+  FontFamilyValues,
   NonDeletedExcalidrawElement,
   OrderedExcalidrawElement,
 } from "@excalidraw/element/types";
@@ -129,6 +141,7 @@ import { DrawsyAIChat } from "./components/DrawsyAIChat";
 import { LivePreviewLayer } from "./components/LivePreviewLayer";
 import {
   DrawsyAgentApi,
+  type DrawsyCanvasLayoutReport,
   type DrawsyLivePreviewRequest,
 } from "./data/DrawsyAgentApi";
 import {
@@ -2061,6 +2074,69 @@ const isRetryableWorkspaceSyncError = (error: unknown) =>
   error.status === 408 ||
   error.status === 429 ||
   error.status >= 500;
+
+type DrawsyLayoutBounds = {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+};
+
+const layoutBoundsOverlap = (
+  first: DrawsyLayoutBounds,
+  second: DrawsyLayoutBounds,
+) => ({
+  width: Math.min(first.right, second.right) - Math.max(first.left, second.left),
+  height:
+    Math.min(first.bottom, second.bottom) - Math.max(first.top, second.top),
+});
+
+const layoutBoundsContainPoint = (
+  bounds: DrawsyLayoutBounds,
+  point: { x: number; y: number },
+  inset = 0,
+) =>
+  point.x >= bounds.left - inset &&
+  point.x <= bounds.right + inset &&
+  point.y >= bounds.top - inset &&
+  point.y <= bounds.bottom + inset;
+
+const lineIntersectsLayoutBounds = (
+  start: { x: number; y: number },
+  end: { x: number; y: number },
+  bounds: DrawsyLayoutBounds,
+) => {
+  const deltaX = end.x - start.x;
+  const deltaY = end.y - start.y;
+  let entry = 0;
+  let exit = 1;
+
+  for (const [delta, distance] of [
+    [-deltaX, start.x - bounds.left],
+    [deltaX, bounds.right - start.x],
+    [-deltaY, start.y - bounds.top],
+    [deltaY, bounds.bottom - start.y],
+  ]) {
+    if (delta === 0) {
+      if (distance < 0) return false;
+      continue;
+    }
+    const ratio = distance / delta;
+    if (delta < 0) {
+      if (ratio > exit) return false;
+      entry = Math.max(entry, ratio);
+    } else {
+      if (ratio < entry) return false;
+      exit = Math.min(exit, ratio);
+    }
+  }
+  return entry <= exit;
+};
+
+const describeDrawsyLayoutElement = (element: ExcalidrawElement) =>
+  isTextElement(element)
+    ? `text “${element.text.replace(/\s+/g, " ").trim().slice(0, 48)}”`
+    : `${element.type} ${element.id}`;
 
 const ExcalidrawWrapper = () => {
   const excalidrawAPI = useExcalidrawAPI();
@@ -4986,6 +5062,174 @@ const ExcalidrawWrapper = () => {
     },
     [drawsyCanvasName, excalidrawAPI, isCurrentDrawsyCanvas],
   );
+  const inspectDrawsyCanvasLayout = useCallback(
+    (expectedCanvasId: string): DrawsyCanvasLayoutReport => {
+      if (!excalidrawAPI || !isCurrentDrawsyCanvas(expectedCanvasId)) {
+        throw new Error("The active canvas changed. Please retry.");
+      }
+
+      const elements = getNonDeletedElements(
+        excalidrawAPI.getSceneElementsIncludingDeleted(),
+      );
+      const elementsMap = arrayToMap(elements);
+      const boundsById = new Map(
+        elements.map((element) => {
+          const [left, top, right, bottom] = getElementBounds(
+            element,
+            elementsMap,
+          );
+          return [
+            element.id,
+            { left, top, right, bottom } satisfies DrawsyLayoutBounds,
+          ];
+        }),
+      );
+      const issues: DrawsyCanvasLayoutReport["issues"] = [];
+      const addIssue = (
+        issue: DrawsyCanvasLayoutReport["issues"][number],
+      ) => {
+        if (
+          issues.length < 64 &&
+          !issues.some(
+            (current) =>
+              current.kind === issue.kind &&
+              current.elementIds.join("\u0000") ===
+                issue.elementIds.join("\u0000"),
+          )
+        ) {
+          issues.push(issue);
+        }
+      };
+      const nodes = elements.filter(
+        (element) =>
+          !isTextElement(element) &&
+          !isLinearElement(element) &&
+          !isFrameLikeElement(element) &&
+          element.type !== "freedraw",
+      );
+      const textElements = elements.filter(
+        isTextElement,
+      ) as readonly ExcalidrawTextElement[];
+      const connectors = elements.filter(
+        isLinearElement,
+      ) as readonly ExcalidrawLinearElement[];
+
+      for (const text of textElements) {
+        const textBounds = boundsById.get(text.id)!;
+        if (text.containerId) {
+          const container = elementsMap.get(text.containerId);
+          const containerBounds = container
+            ? boundsById.get(container.id)
+            : null;
+          if (!container || !containerBounds) {
+            addIssue({
+              kind: "text_overflow",
+              elementIds: [text.id, text.containerId],
+              message: `${describeDrawsyLayoutElement(text)} refers to a missing container.`,
+            });
+          } else if (
+            textBounds.left < containerBounds.left ||
+            textBounds.right > containerBounds.right ||
+            textBounds.top < containerBounds.top ||
+            textBounds.bottom > containerBounds.bottom
+          ) {
+            addIssue({
+              kind: "text_overflow",
+              elementIds: [text.id, container.id],
+              message: `${describeDrawsyLayoutElement(text)} exceeds its ${describeDrawsyLayoutElement(container)}.`,
+            });
+          }
+          continue;
+        }
+
+        const center = {
+          x: (textBounds.left + textBounds.right) / 2,
+          y: (textBounds.top + textBounds.bottom) / 2,
+        };
+        const nearbyNode = nodes.find((node) => {
+          const nodeBounds = boundsById.get(node.id)!;
+          return layoutBoundsContainPoint(nodeBounds, center);
+        });
+        if (nearbyNode) {
+          addIssue({
+            kind: "unbound_text",
+            elementIds: [text.id, nearbyNode.id],
+            message: `${describeDrawsyLayoutElement(text)} sits inside ${describeDrawsyLayoutElement(nearbyNode)} but is not bound to it.`,
+          });
+        }
+      }
+
+      for (let firstIndex = 0; firstIndex < nodes.length; firstIndex += 1) {
+        const first = nodes[firstIndex]!;
+        const firstBounds = boundsById.get(first.id)!;
+        for (
+          let secondIndex = firstIndex + 1;
+          secondIndex < nodes.length;
+          secondIndex += 1
+        ) {
+          const second = nodes[secondIndex]!;
+          const overlap = layoutBoundsOverlap(
+            firstBounds,
+            boundsById.get(second.id)!,
+          );
+          if (overlap.width > 2 && overlap.height > 2) {
+            addIssue({
+              kind: "overlap",
+              elementIds: [first.id, second.id],
+              message: `${describeDrawsyLayoutElement(first)} overlaps ${describeDrawsyLayoutElement(second)}.`,
+            });
+          }
+        }
+      }
+
+      for (const connector of connectors) {
+        if (connector.points.length < 2) continue;
+        const points = connector.points.map(([x, y]) => ({
+          x: connector.x + x,
+          y: connector.y + y,
+        }));
+        const attachedNodeIds = new Set(
+          [connector.startBinding?.elementId, connector.endBinding?.elementId].filter(
+            (id): id is string => Boolean(id),
+          ),
+        );
+        for (const node of nodes) {
+          if (attachedNodeIds.has(node.id)) continue;
+          const nodeBounds = boundsById.get(node.id)!;
+          if (
+            layoutBoundsContainPoint(nodeBounds, points[0]!, 8) ||
+            layoutBoundsContainPoint(nodeBounds, points.at(-1)!, 8)
+          ) {
+            continue;
+          }
+          if (
+            points.some(
+              (point, index) =>
+                index > 0 &&
+                lineIntersectsLayoutBounds(
+                  points[index - 1]!,
+                  point,
+                  nodeBounds,
+                ),
+            )
+          ) {
+            addIssue({
+              kind: "connector_collision",
+              elementIds: [connector.id, node.id],
+              message: `${describeDrawsyLayoutElement(connector)} crosses ${describeDrawsyLayoutElement(node)} without an endpoint binding.`,
+            });
+          }
+        }
+      }
+
+      return {
+        canvasId: expectedCanvasId,
+        elementCount: elements.length,
+        issues,
+      };
+    },
+    [excalidrawAPI, isCurrentDrawsyCanvas],
+  );
   const attachDrawsyLivePreview = useCallback(
     (
       expectedCanvasId: string,
@@ -5101,7 +5345,7 @@ const ExcalidrawWrapper = () => {
     [drawsyCanvasId],
   );
   const applyDrawsyCanvas = useCallback(
-    (expectedCanvasId: string, operations: DrawsyCanvasOperations) => {
+    async (expectedCanvasId: string, operations: DrawsyCanvasOperations) => {
       if (!excalidrawAPI || !isCurrentDrawsyCanvas(expectedCanvasId)) {
         throw new Error("The active canvas changed. Please retry.");
       }
@@ -5138,18 +5382,22 @@ const ExcalidrawWrapper = () => {
         ...incomingFiles.map((file) => file.id),
       ]);
       const current = excalidrawAPI.getSceneElementsIncludingDeleted();
+      const currentVersions = new Map(
+        current.map((element) => [element.id, element.version]),
+      );
       const currentById = new Map(
         current.map((element) => [element.id, element]),
       );
       const upserts = new Map<string, ExcalidrawElement>();
       const newElements: ExcalidrawElement[] = [];
       const seen = new Set<string>();
+      const textIdsToReflow = new Set<string>();
 
       for (const raw of operations.upsertElements) {
         if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
           throw new Error("Every canvas upsert must be an element object.");
         }
-        const incoming = raw as Partial<ExcalidrawElement> & {
+        let incoming = raw as Partial<ExcalidrawElement> & {
           id?: unknown;
           type?: unknown;
         };
@@ -5160,9 +5408,35 @@ const ExcalidrawWrapper = () => {
         ) {
           throw new Error("Canvas upserts require unique element ids.");
         }
-        seen.add(incoming.id);
-        const existing = currentById.get(incoming.id);
+        const incomingId = incoming.id;
+        seen.add(incomingId);
+        const existing = currentById.get(incomingId);
         const incomingType = existing?.type || incoming.type;
+        if (incomingType === "text") {
+          textIdsToReflow.add(incomingId);
+          const incomingText = incoming as Partial<ExcalidrawTextElement>;
+          if (!existing && typeof incomingText.text === "string") {
+            const fontFamily =
+              typeof incomingText.fontFamily === "number"
+                ? (incomingText.fontFamily as FontFamilyValues)
+                : DEFAULT_FONT_FAMILY;
+            incoming = {
+              ...incoming,
+              originalText:
+                typeof incomingText.originalText === "string"
+                  ? incomingText.originalText
+                  : incomingText.text,
+              // Agent element dimensions are an output target, not a source of
+              // font metrics. Use Excalidraw's canonical line height instead
+              // of inferring it from a guessed element height.
+              lineHeight:
+                typeof incomingText.lineHeight === "number" &&
+                Number.isFinite(incomingText.lineHeight)
+                  ? incomingText.lineHeight
+                  : getLineHeight(fontFamily),
+            } as typeof incoming;
+          }
+        }
         if (incomingType === "image") {
           const fileId =
             typeof (incoming as { fileId?: unknown }).fileId === "string"
@@ -5192,8 +5466,27 @@ const ExcalidrawWrapper = () => {
             isDeleted: _isDeleted,
             ...patch
           } = incoming as any;
+          if (
+            isTextElement(existing) &&
+            typeof patch.text === "string" &&
+            !Object.hasOwn(patch, "originalText")
+          ) {
+            // Native text editing keeps the unwrapped source in originalText.
+            // An agent patch that changes text is the equivalent edit, so it
+            // must not retain a stale source string from the prior label.
+            patch.originalText = patch.text;
+          }
+          if (
+            isTextElement(existing) &&
+            typeof patch.fontFamily === "number" &&
+            !Object.hasOwn(patch, "lineHeight")
+          ) {
+            patch.lineHeight = getLineHeight(
+              patch.fontFamily as FontFamilyValues,
+            );
+          }
           upserts.set(
-            incoming.id,
+            incomingId,
             newElementWith(existing, patch as any, true),
           );
         } else {
@@ -5226,11 +5519,69 @@ const ExcalidrawWrapper = () => {
       const normalized = restoreElements([...next, ...newElements], current, {
         repairBindings: true,
       });
+
+      // A container resize also changes the native layout of its bound label.
+      for (const element of normalized) {
+        if (
+          isTextElement(element) &&
+          element.containerId &&
+          seen.has(element.containerId)
+        ) {
+          textIdsToReflow.add(element.id);
+        }
+      }
+
+      const textElementsToReflow = normalized.filter(
+        (element) => isTextElement(element) && textIdsToReflow.has(element.id),
+      );
+      let finalElements: readonly ExcalidrawElement[] = normalized;
+      if (textElementsToReflow.length) {
+        // Measure only after the actual font faces for the submitted text are
+        // available. This avoids persisting fallback-font dimensions that only
+        // appear to correct themselves when a user later edits the label.
+        await Fonts.loadElementsFonts(textElementsToReflow);
+
+        // Font loading is asynchronous. Do not replace a scene that changed
+        // while its labels were being finalized; the next model pass can read
+        // the newer canvas and apply a fresh, targeted update.
+        const latest = excalidrawAPI.getSceneElementsIncludingDeleted();
+        if (
+          !isCurrentDrawsyCanvas(expectedCanvasId) ||
+          latest.length !== current.length ||
+          latest.some(
+            (element) => currentVersions.get(element.id) !== element.version,
+          )
+        ) {
+          throw new Error(
+            "The canvas changed while text layout was being finalized. Please retry.",
+          );
+        }
+
+        // Use Excalidraw's own bound-text reflow rather than reproducing its
+        // geometry. It wraps to the current container, grows it when needed,
+        // and computes the correct centered/aligned position.
+        const layoutScene = new Scene(normalized);
+        for (const element of layoutScene.getNonDeletedElements()) {
+          if (!isTextElement(element) || !textIdsToReflow.has(element.id)) {
+            continue;
+          }
+          const text = layoutScene.getNonDeletedElement(element.id);
+          if (!text || !isTextElement(text)) {
+            continue;
+          }
+          redrawTextBoundingBox(
+            text,
+            layoutScene.getContainerElement(text),
+            layoutScene,
+          );
+        }
+        finalElements = layoutScene.getElementsIncludingDeleted();
+      }
       if (incomingFiles.length) {
         excalidrawAPI.addFiles(incomingFiles);
       }
       excalidrawAPI.updateScene({
-        elements: normalized,
+        elements: finalElements,
         captureUpdate: CaptureUpdateAction.IMMEDIATELY,
       });
     },
@@ -7872,6 +8223,7 @@ const ExcalidrawWrapper = () => {
           ]}
           readCanvas={readDrawsyCanvas}
           applyCanvas={applyDrawsyCanvas}
+          inspectCanvasLayout={inspectDrawsyCanvasLayout}
           captureCanvas={captureDrawsyCanvas}
           replaceCanvasImage={replaceDrawsyCanvasImage}
           attachLivePreview={attachDrawsyLivePreview}
