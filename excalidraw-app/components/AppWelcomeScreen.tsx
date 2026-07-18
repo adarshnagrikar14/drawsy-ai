@@ -1,4 +1,8 @@
-import { loginIcon, MagicIcon } from "@excalidraw/excalidraw/components/icons";
+import {
+  loginIcon,
+  MagicIcon,
+  WelcomeScreenMenuArrow,
+} from "@excalidraw/excalidraw/components/icons";
 import { POINTER_EVENTS } from "@excalidraw/common";
 import { useI18n } from "@excalidraw/excalidraw/i18n";
 import { WelcomeScreen } from "@excalidraw/excalidraw/index";
@@ -151,7 +155,20 @@ export const AppWelcomeScreen: React.FC<{
   return (
     <WelcomeScreen>
       <WelcomeScreen.Hints.MenuHint>
-        {t("welcomeScreen.app.menuHint")}
+        <div className="drawsy-workspaces-welcome-hint">
+          <div className="drawsy-workspaces-welcome-hint__title">
+            Explore more than a canvas.
+          </div>
+          <div className="drawsy-workspaces-welcome-hint__body">
+            Drawsy brings you more productivity with:
+          </div>
+          <div className="drawsy-workspaces-welcome-hint__list">
+            <span>Presentation</span>
+            <span>Tracker</span>
+            <span>Projects</span>
+            <span>Connectors</span>
+          </div>
+        </div>
       </WelcomeScreen.Hints.MenuHint>
       <WelcomeScreen.Hints.ToolbarHint />
       <WelcomeScreen.Hints.HelpHint />
@@ -187,6 +204,17 @@ export const AppWelcomeScreen: React.FC<{
             </WelcomeScreen.Center.MenuItem>
           )}
         </WelcomeScreen.Center.Menu>
+        {props.authStatus === "authenticated" && (
+          <div
+            className="excalifont welcome-screen-decor welcome-screen-decor-hint drawsy-ai-welcome-hint"
+            aria-hidden="true"
+          >
+            <div className="welcome-screen-decor-hint__label">
+              Ask Drawsy AI to shape the canvas.
+            </div>
+            {WelcomeScreenMenuArrow}
+          </div>
+        )}
       </WelcomeScreen.Center>
     </WelcomeScreen>
   );

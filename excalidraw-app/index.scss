@@ -64,6 +64,105 @@
     }
   }
 
+  .drawsy-ai-welcome-hint {
+    position: absolute;
+    top: 2.8rem;
+    right: clamp(1rem, 2.25vw, 2.25rem);
+    width: min(20rem, 24vw);
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+    gap: 0.15rem;
+    pointer-events: none;
+
+    .welcome-screen-decor-hint__label {
+      max-width: 13rem;
+      text-align: center;
+    }
+
+    svg {
+      width: 41px;
+      height: 94px;
+      flex: 0 0 auto;
+      transform: scaleX(-1);
+    }
+  }
+
+  // The welcome hint belongs to the + canvas menu, not the adjacent app menu.
+  .welcome-screen-decor-hint--menu {
+    margin-inline-start: calc(
+      0.6rem + var(--lg-button-size) + 0.375rem
+    );
+
+    > svg {
+      transform: translateY(-4.8rem);
+
+      :root[dir="rtl"] & {
+        transform: translateY(-4.8rem) scaleX(-1);
+      }
+    }
+  }
+
+  .drawsy-workspaces-welcome-hint {
+    display: grid;
+    gap: 0.42rem;
+    justify-items: center;
+    max-width: 13.5rem;
+    color: var(--color-gray-40);
+    text-align: center;
+    transform: translateY(2.7rem);
+
+    &__title {
+      margin-bottom: 0.18rem;
+      font-size: 1.34rem;
+      line-height: 1.06;
+    }
+
+    &__body {
+      font-size: 0.92rem;
+      line-height: 1.16;
+    }
+
+    &__list {
+      display: grid;
+      grid-template-columns: max-content;
+      justify-self: center;
+      row-gap: 0.34rem;
+      padding-top: 0.12rem;
+      font-size: 0.96rem;
+      line-height: 1.12;
+
+      span {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+
+        &::before {
+          content: "•";
+          font-size: 0.76rem;
+        }
+      }
+    }
+  }
+
+  .welcome-screen-decor-hint--toolbar {
+    .welcome-screen-decor-hint__label {
+      text-align: center;
+    }
+  }
+
+  &.theme--dark {
+    .drawsy-workspaces-welcome-hint {
+      color: var(--color-gray-60);
+    }
+  }
+
+  @media (max-height: 780px), (max-width: 1080px) {
+    .drawsy-ai-welcome-hint {
+      display: none;
+    }
+  }
+
   .presentation-quick-dock {
     position: fixed;
     z-index: 10;
