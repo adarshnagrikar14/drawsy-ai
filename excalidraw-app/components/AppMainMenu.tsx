@@ -1,6 +1,5 @@
 import {
   DeviceDesktopIcon,
-  ExcalLogo,
   MoonIcon,
   RetryIcon,
   SunIcon,
@@ -199,7 +198,13 @@ export const AppMainMenu: React.FC<{
 
       <MainMenu.Separator />
       <MainMenu.ItemCustom className="drawsy-plus-menu-item">
-        <span className="dropdown-menu-item__icon">{ExcalLogo}</span>
+        <span className="dropdown-menu-item__icon">
+          <img
+            className="drawsy-plus-menu-mark"
+            src="/drawsy-logo.svg"
+            alt=""
+          />
+        </span>
         <span className="drawsy-plus-menu-copy">
           <span className="drawsy-plus-menu-label">
             <strong>Drawsy+</strong>

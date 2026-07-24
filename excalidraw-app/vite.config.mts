@@ -126,7 +126,7 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [
       Sitemap({
-        hostname: "https://excalidraw.com",
+        hostname: "https://drawsy.adarsh.rocks",
         outDir: "build",
         changefreq: "monthly",
         // its static in public folder
@@ -219,10 +219,10 @@ export default defineConfig(({ mode }) => {
           maximumFileSizeToCacheInBytes: 5 * 1024 ** 2, // 5MB
         },
         manifest: {
-          short_name: "Excalidraw",
-          name: "Excalidraw",
+          short_name: "Drawsy AI",
+          name: "Drawsy AI — Visual workspaces",
           description:
-            "Excalidraw is a whiteboard tool that lets you easily sketch diagrams that have a hand-drawn feel to them.",
+            "Turn messy ideas into visual workspaces with a canvas, project context, and working software in one place.",
           icons: [
             {
               src: "android-chrome-192x192.png",
@@ -246,9 +246,9 @@ export default defineConfig(({ mode }) => {
             },
           ],
           start_url: "/",
-          id: "excalidraw",
+          id: "drawsy-ai",
           display: "standalone",
-          theme_color: "#121212",
+          theme_color: "#685ED8",
           background_color: "#ffffff",
           file_handlers: [
             {
@@ -275,38 +275,6 @@ export default defineConfig(({ mode }) => {
               ],
             },
           },
-          screenshots: [
-            {
-              src: "/screenshots/virtual-whiteboard.png",
-              type: "image/png",
-              sizes: "462x945",
-            },
-            {
-              src: "/screenshots/wireframe.png",
-              type: "image/png",
-              sizes: "462x945",
-            },
-            {
-              src: "/screenshots/illustration.png",
-              type: "image/png",
-              sizes: "462x945",
-            },
-            {
-              src: "/screenshots/shapes.png",
-              type: "image/png",
-              sizes: "462x945",
-            },
-            {
-              src: "/screenshots/collaboration.png",
-              type: "image/png",
-              sizes: "462x945",
-            },
-            {
-              src: "/screenshots/export.png",
-              type: "image/png",
-              sizes: "462x945",
-            },
-          ],
         },
       }),
       createHtmlPlugin({

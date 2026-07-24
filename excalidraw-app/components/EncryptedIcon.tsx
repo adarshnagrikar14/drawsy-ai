@@ -6,16 +6,13 @@ export const EncryptedIcon = () => {
   const { t } = useI18n();
 
   return (
-    <a
+    <span
       className="encrypted-icon tooltip"
-      href="https://plus.excalidraw.com/blog/end-to-end-encryption"
-      target="_blank"
-      rel="noopener"
-      aria-label={t("encrypted.link")}
+      aria-label={t("encrypted.tooltip")}
     >
       <Tooltip label={t("encrypted.tooltip")} long={true}>
         {shield}
       </Tooltip>
-    </a>
+    </span>
   );
 };

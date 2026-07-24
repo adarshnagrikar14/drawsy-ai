@@ -1,10 +1,10 @@
-# Excalidraw Libraries
+# Drawsy Libraries
 
-> Explore [libraries.excalidraw.com](https://libraries.excalidraw.com)
+> Explore Drawsy Libraries at <https://drawsy.adarsh.rocks/drawsy-libraries/>.
 
 ## Create your own library
 
-1. Open [Excalidraw](https://excalidraw.com/) and draw some objects.
+1. Open Drawsy and create reusable objects on a canvas.
 2. Optional: Make sure every object is it's own group (by selecting it and clicking "Group selection" or `Ctrl`+`G`).
 3. Add each object you want in your library like so:
 
@@ -30,6 +30,6 @@ If you want to test your library file, use the "Load" button in the library menu
 6. In general, a library should be composed of at least 3 items, and the items should be related to each other (be in a single category).
 7. If a library item consists of multiple elements, you should group them together so that the item acts as a single unit when inserting on canvas. Exception being templates or if you really think it works better if ungrouped.
 
-Check out our existing [libraries](https://libraries.excalidraw.com/?theme=light&sort=default) to get started.
+Browse the existing libraries at <https://drawsy.adarsh.rocks/drawsy-libraries/?theme=light&sort=default> to get started.
 
 Once the library is submitted for review, changes may be requested if the guidelines above are not followed or the quality doesn't meet the standards of the published libraries.

@@ -1,6 +1,6 @@
 @font-face {
   font-family: "Virgil";
-  src: url("https://excalidraw.com/FG_Virgil.woff2");
+  src: url("../Virgil.woff2");
 }
 
 *:focus {
@@ -139,6 +139,14 @@ footer {
 h1 {
   font-family: "Virgil", var(--font-family);
   font-size: 3em;
+}
+
+.drawsy-libraries-logo {
+  width: 0.95em;
+  height: 0.95em;
+  margin-right: 0.18em;
+  vertical-align: -0.13em;
+  transform: rotate(-4deg);
 }
 
 h2 {

@@ -1,4 +1,4 @@
-// copied from excalidraw/excalidraw
+// Adapted for Drawsy Libraries.
 const debounce = (fn, timeout) => {
   let handle = 0;
   let lastArgs = null;
@@ -114,9 +114,7 @@ const sortBy = {
 
 // -----------------------------------------------------------------------------
 const APP_NAMES = {
-  "Excalidraw+": "https://app.excalidraw.com",
-  Excalidraw: "https://excalidraw.com",
-  Excalideck: "https://app.excalideck.com",
+  "Drawsy AI": "https://drawsy.adarsh.rocks",
 };
 
 let appName = "";
@@ -127,7 +125,7 @@ const getAppName = (referrer) => {
     Object.entries(APP_NAMES).find(([appName, domain]) => {
       return referrer.includes(domain);
     })?.[0] ||
-    "Excalidraw");
+    "Drawsy AI");
 };
 // -----------------------------------------------------------------------------
 
@@ -209,7 +207,7 @@ const populateLibraryList = (filterQuery = "") => {
   const template = document.getElementById("template");
   const searchParams = new URLSearchParams(location.search);
   const referrer = escapeHTMLAttribute(
-    searchParams.get("referrer") || "https://excalidraw.com",
+    searchParams.get("referrer") || "https://drawsy.adarsh.rocks",
   );
   const appName = getAppName(referrer);
   const target = decodeURIComponent(
@@ -417,9 +415,9 @@ document.addEventListener("click", (event) => {
 
     if (referrer && referrerVersion < libraryVersion) {
       let message =
-        "It seems the Excalidraw editor's version is older than the library version. Installing this library may not work correctly.";
-      if (referrer.includes("excalidraw.com")) {
-        message += `\n\nTo ensure you are on the latest version, hard-reload the excalidraw.com tab (Mac: Cmd-Shift-R, Window: Ctrl-F5). If that doesn't work, ensure you only have a single excalidraw.com tab open.`;
+        "It seems the Drawsy editor's version is older than the library version. Installing this library may not work correctly.";
+      if (referrer.includes("drawsy.adarsh.rocks")) {
+        message += `\n\nTo ensure you are on the latest version, reload the Drawsy tab. If that doesn't work, ensure you only have a single Drawsy tab open.`;
       }
       window.alert(message);
     }

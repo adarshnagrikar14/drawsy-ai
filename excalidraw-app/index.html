@@ -2,59 +2,72 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Drawsy Whiteboard</title>
+    <title>Drawsy AI — Turn messy ideas into living workspaces</title>
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, shrink-to-fit=no"
     />
     <meta name="referrer" content="origin" />
     <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="theme-color" content="#121212" />
+    <meta name="theme-color" content="#685ED8" />
 
     <!-- Primary Meta Tags -->
     <meta
       name="title"
-      content="Free, collaborative whiteboard • Hand-drawn look & feel | Drawsy"
+      content="Drawsy AI — Turn messy ideas into living workspaces"
     />
     <meta
       name="description"
-      content="Drawsy is a virtual collaborative whiteboard tool that lets you easily sketch diagrams that have a hand-drawn feel to them."
+      content="Drawsy AI turns messy ideas into visual workspaces with a canvas, project context, and working software in one place."
     />
-    <meta name="image" content="https://excalidraw.com/og-image-3.png" />
+    <meta
+      name="image"
+      content="https://drawsy.adarsh.rocks/drawsy-ai-visual-workspace.png"
+    />
 
     <!-- Open Graph / Facebook -->
-    <meta property="og:site_name" content="Drawsy" />
+    <meta property="og:site_name" content="Drawsy AI" />
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://excalidraw.com" />
+    <meta property="og:url" content="https://drawsy.adarsh.rocks/" />
     <meta
       property="og:title"
-      content="Drawsy — Collaborative whiteboarding made easy"
+      content="Drawsy AI — Turn messy ideas into living workspaces"
     />
-    <meta property="og:image:alt" content="Drawsy AI logo" />
+    <meta
+      property="og:image:alt"
+      content="A Drawsy AI visual workspace transforming a messy thought into an organized plan"
+    />
     <meta
       property="og:description"
-      content="Drawsy is a virtual collaborative whiteboard tool that lets you easily sketch diagrams that have a hand-drawn feel to them."
+      content="Drawsy AI turns messy ideas into visual workspaces with a canvas, project context, and working software in one place."
     />
-    <meta property="og:image" content="https://excalidraw.com/og-image-3.png" />
+    <meta
+      property="og:image"
+      content="https://drawsy.adarsh.rocks/drawsy-ai-visual-workspace.png"
+    />
 
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image" />
-    <meta property="twitter:site" content="@excalidraw" />
-    <meta property="twitter:url" content="https://excalidraw.com" />
+    <meta property="twitter:site" content="@DrawsyAI" />
+    <meta property="twitter:url" content="https://drawsy.adarsh.rocks/" />
     <meta
       property="twitter:title"
-      content="Drawsy — Collaborative whiteboarding made easy"
+      content="Drawsy AI — Turn messy ideas into living workspaces"
     />
     <meta
       property="twitter:description"
-      content="Drawsy is a virtual collaborative whiteboard tool that lets you easily sketch diagrams that have a hand-drawn feel to them."
+      content="Drawsy AI turns messy ideas into visual workspaces with a canvas, project context, and working software in one place."
     />
     <meta
       property="twitter:image"
-      content="https://excalidraw.com/og-image-3.png"
+      content="https://drawsy.adarsh.rocks/drawsy-ai-visual-workspace.png"
+    />
+    <meta
+      property="twitter:image:alt"
+      content="A Drawsy AI visual workspace transforming a messy thought into an organized plan"
     />
 
-    <link rel="canonical" href="https://excalidraw.com" />
+    <link rel="canonical" href="https://drawsy.adarsh.rocks/" />
 
     <!------------------------------------------------------------------------->
     <!--   to minimize white flash on load when user has dark mode enabled   -->
@@ -98,25 +111,6 @@
 
     <!------------------------------------------------------------------------->
     <% if (typeof PROD != 'undefined' && PROD == true) { %>
-    <script>
-      // Redirect Excalidraw+ users which have auto-redirect enabled.
-      //
-      // Redirect only the bare root path, so link/room/library urls are not
-      // redirected.
-      //
-      // Putting into index.html for best performance (can't redirect on server
-      // due to location.hash checks).
-      if (
-        window.location.pathname === "/" &&
-        !window.location.hash &&
-        !window.location.search &&
-        // if its present redirect
-        document.cookie.includes("excplus-autoredirect=true")
-      ) {
-        window.location.href = "https://app.excalidraw.com";
-      }
-    </script>
-
     <!-- Following placeholder is replaced during the build step -->
     <!-- PLACEHOLDER:EXCALIDRAW_APP_FONTS -->
 
@@ -137,7 +131,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
 
-    <!-- Excalidraw version -->
+    <!-- App version -->
     <meta name="version" content="{version}" />
 
     <% if (typeof VITE_APP_DEV_DISABLE_LIVE_RELOAD != 'undefined' &&
@@ -159,7 +153,7 @@
     <% } %>
     <script>
       // setting this so that libraries installation reuses this window tab.
-      window.name = "_excalidraw";
+      window.name = "_drawsy";
     </script>
 
     <!-- FIXME: remove this when we update CRA (fix SW caching) -->

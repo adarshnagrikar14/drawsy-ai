@@ -3,13 +3,10 @@ import {
   MagicIcon,
   WelcomeScreenMenuArrow,
 } from "@excalidraw/excalidraw/components/icons";
-import { POINTER_EVENTS } from "@excalidraw/common";
 import { useI18n } from "@excalidraw/excalidraw/i18n";
 import { WelcomeScreen } from "@excalidraw/excalidraw/index";
 import { getShortcutKey } from "@excalidraw/excalidraw/shortcut";
 import React from "react";
-
-import { isExcalidrawPlusSignedUser } from "../app_constants";
 
 export const AppWelcomeScreen: React.FC<{
   onCollabDialogOpen: () => any;
@@ -22,7 +19,15 @@ export const AppWelcomeScreen: React.FC<{
   onSignIn: () => void;
 }> = React.memo((props) => {
   const { t } = useI18n();
-  let headingContent;
+  const headingContent = (
+    <>
+      {t("welcomeScreen.app.center_heading")}
+      <br />
+      {t("welcomeScreen.app.center_heading_line2")}
+      <br />
+      {t("welcomeScreen.app.center_heading_line3")}
+    </>
+  );
 
   if (props.isPresentationMode) {
     return (
@@ -122,37 +127,6 @@ export const AppWelcomeScreen: React.FC<{
     );
   }
 
-  if (isExcalidrawPlusSignedUser) {
-    headingContent = t("welcomeScreen.app.center_heading_plus")
-      .split(/(Drawsy\+)/)
-      .map((bit, idx) => {
-        if (bit === "Drawsy+") {
-          return (
-            <a
-              style={{ pointerEvents: POINTER_EVENTS.inheritFromUI }}
-              href={`${
-                import.meta.env.VITE_APP_PLUS_APP
-              }?utm_source=excalidraw&utm_medium=app&utm_content=welcomeScreenSignedInUser`}
-              key={idx}
-            >
-              Drawsy+
-            </a>
-          );
-        }
-        return bit;
-      });
-  } else {
-    headingContent = (
-      <>
-        {t("welcomeScreen.app.center_heading")}
-        <br />
-        {t("welcomeScreen.app.center_heading_line2")}
-        <br />
-        {t("welcomeScreen.app.center_heading_line3")}
-      </>
-    );
-  }
-
   return (
     <WelcomeScreen>
       <WelcomeScreen.Hints.MenuHint>
@@ -174,7 +148,14 @@ export const AppWelcomeScreen: React.FC<{
       <WelcomeScreen.Hints.ToolbarHint />
       <WelcomeScreen.Hints.HelpHint />
       <WelcomeScreen.Center>
-        <WelcomeScreen.Center.Logo />
+        <WelcomeScreen.Center.Logo>
+          <span className="drawsy-welcome-brand" aria-label="Drawsy AI">
+            <img src="/drawsy-logo.svg" alt="" />
+            <strong>
+              Drawsy <em>AI</em>
+            </strong>
+          </span>
+        </WelcomeScreen.Center.Logo>
         <WelcomeScreen.Center.Heading>
           {headingContent}
         </WelcomeScreen.Center.Heading>

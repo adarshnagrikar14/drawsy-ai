@@ -10,43 +10,45 @@
     <!-- General tags -->
     <meta
       name="description"
-      content="A directory of public libraries that you can easily add to Excalidraw."
+      content="A community library of reusable visual building blocks for Drawsy AI."
     />
     <meta name="image" content="og-image.png" />
 
     <!-- OpenGraph tags -->
-    <meta property="og:url" content="https://libraries.excalidraw.com" />
-    <meta property="og:site_name" content="Excalidraw" />
-    <meta property="og:type" content="website" />
     <meta
-      property="og:title"
-      name="twitter:title"
-      content="Excalidraw Libraries"
+      property="og:url"
+      content="https://drawsy.adarsh.rocks/drawsy-libraries/"
     />
+    <meta property="og:site_name" content="Drawsy AI" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" name="twitter:title" content="Drawsy Libraries" />
     <meta
       property="og:description"
       name="twitter:description"
-      content="A directory of public libraries that you can easily add to Excalidraw."
+      content="A community library of reusable visual building blocks for Drawsy AI."
     />
 
     <!-- OG tags require an absolute url for images -->
     <meta
       property="og:image"
       name="twitter:image"
-      content="https://excalidraw.com/og-image.png"
+      content="https://drawsy.adarsh.rocks/drawsy-ai-visual-workspace.png"
     />
     <meta
       property="og:image:secure_url"
       name="twitter:image"
-      content="https://excalidraw.com/og-image.png"
+      content="https://drawsy.adarsh.rocks/drawsy-ai-visual-workspace.png"
     />
-    <meta property="og:image:width" content="1280" />
-    <meta property="og:image:height" content="669" />
-    <meta property="og:image:alt" content="Excalidraw logo with byline." />
+    <meta property="og:image:width" content="1672" />
+    <meta property="og:image:height" content="941" />
+    <meta
+      property="og:image:alt"
+      content="A Drawsy AI visual workspace transforming a messy thought into an organized plan"
+    />
 
     <!-- Twitter Card tags -->
     <meta name="twitter:card" content="summary_large_image" />
-    <title>Excalidraw Libraries</title>
+    <title>Drawsy Libraries</title>
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/open-color/1.7.0/open-color.min.css"
@@ -58,24 +60,8 @@
     <link rel="stylesheet" href="style.css" />
     <link rel="icon" href="favicon.ico" />
 
-    <script
-      async
-      src="https://www.googletagmanager.com/gtag/js?id=UA-387204-13"
-    ></script>
     <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag() {
-        dataLayer.push(arguments);
-      }
-      gtag("js", new Date());
-      gtag("config", "UA-387204-13");
-      window.trackEvent = function (category, name, label, value) {
-        window.gtag("event", name, {
-          event_category: category,
-          event_label: label,
-          value,
-        });
-      };
+      window.trackEvent = () => {};
     </script>
   </head>
 
@@ -112,26 +98,17 @@
     </nav>
     <div class="content">
       <header>
-        <h1>Excalidraw Libraries</h1>
+        <h1>
+          <img class="drawsy-libraries-logo" src="../drawsy-logo.svg" alt="" />
+          Drawsy Libraries
+        </h1>
         <p class="lead">
-          A directory of public libraries that you can easily add to
-          <a href="https://excalidraw.com">Excalidraw</a>.
-        </p>
-        <p>
-          Follow the
-          <a
-            href="https://github.com/excalidraw/excalidraw-libs#create-your-own-library"
-            >instructions</a
-          >
-          if you want to <strong>add your own library</strong> into this list.
+          A community collection of reusable visual building blocks for Drawsy
+          AI.
         </p>
         <p class="small">
-          All the following libraries are under
-          <a
-            href="https://github.com/excalidraw/excalidraw-libs/blob/main/LICENSE"
-            target="_license"
-            >MIT License</a
-          >.
+          Libraries are provided by their creators. Check each library’s source
+          and license before using it in your work.
         </p>
         <div id="sort">
           <span id="sort-contents">Sort By </span>
@@ -180,12 +157,7 @@
         </div>
       </main>
       <footer>
-        <div id="footer">
-          © {currentYear} <a href="https://excalidraw.com">Excalidraw</a> •
-          <a href="https://github.com/excalidraw/excalidraw-libraries"
-            >Source Code</a
-          >
-        </div>
+        <div id="footer">© {currentYear} Drawsy AI • Community libraries</div>
       </footer>
     </div>
     <script src="script.js"></script>
