@@ -4,7 +4,7 @@ import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui";
 
 import { useCallback, useState } from "react";
 
-import { useEditorInterface } from "../App";
+import { useEditorInterface, useExcalidrawContainer } from "../App";
 import { Island } from "../Island";
 import Stack from "../Stack";
 
@@ -23,35 +23,40 @@ const DropdownMenuSubContent = ({
   className?: string;
 }) => {
   const editorInterface = useEditorInterface();
+  const { container } = useExcalidrawContainer();
 
   const classNames = clsx(`dropdown-menu dropdown-submenu ${className}`, {
     "dropdown-menu--mobile": editorInterface.formFactor === "phone",
   }).trim();
 
-  const callbacksRef = useCallback((node: HTMLDivElement | null) => {
-    if (!node) {
-      return;
-    }
+  const callbacksRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      if (!node) {
+        return;
+      }
 
-    const parentContainer = node.closest(".dropdown-menu-container");
-    const parentRect = parentContainer?.getBoundingClientRect();
-    const menuWidth = node.getBoundingClientRect().width;
+      const parentContainer = node.closest(".dropdown-menu-container");
+      const parentRect = parentContainer?.getBoundingClientRect();
+      const menuWidth = node.getBoundingClientRect().width;
 
-    const viewportWidth = window.innerWidth;
-    const spaceRemaining = parentRect
-      ? viewportWidth - parentRect.right
-      : Number.POSITIVE_INFINITY;
-    const needsLeftPlacement = spaceRemaining < menuWidth + 20;
+      const boundaryRect = container?.getBoundingClientRect();
+      const boundaryRight = boundaryRect?.right ?? window.innerWidth;
+      const spaceRemaining = parentRect
+        ? boundaryRight - parentRect.right
+        : Number.POSITIVE_INFINITY;
+      const needsLeftPlacement = spaceRemaining < menuWidth + 20;
 
-    setSideOffset(
-      needsLeftPlacement
-        ? spaceRemaining - menuWidth + BASE_ALIGN_OFFSET
-        : BASE_SIDE_OFFSET,
-    );
-    setAlignOffset(
-      needsLeftPlacement ? BASE_ALIGN_OFFSET + 8 : BASE_ALIGN_OFFSET,
-    );
-  }, []);
+      setSideOffset(
+        needsLeftPlacement
+          ? spaceRemaining - menuWidth + BASE_ALIGN_OFFSET
+          : BASE_SIDE_OFFSET,
+      );
+      setAlignOffset(
+        needsLeftPlacement ? BASE_ALIGN_OFFSET + 8 : BASE_ALIGN_OFFSET,
+      );
+    },
+    [container],
+  );
 
   const handleNestedPopupPointerDownOutside = useCallback((event: Event) => {
     if (isNestedPopupTarget(event.target)) {
@@ -74,6 +79,7 @@ const DropdownMenuSubContent = ({
       sideOffset={sideOffset}
       alignOffset={alignOffset}
       collisionPadding={8}
+      collisionBoundary={container ?? undefined}
       ref={callbacksRef}
       onPointerDownOutside={handleNestedPopupPointerDownOutside}
       onFocusOutside={handleNestedPopupFocusOutside}
