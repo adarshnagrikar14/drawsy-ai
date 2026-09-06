@@ -11,6 +11,10 @@ import Stack from "../Stack";
 const BASE_ALIGN_OFFSET = -4;
 const BASE_SIDE_OFFSET = 10;
 
+const isNestedPopupTarget = (target: EventTarget | null) =>
+  target instanceof Element &&
+  Boolean(target.closest("[data-prevent-outside-click]"));
+
 const DropdownMenuSubContent = ({
   children,
   className,
@@ -25,19 +29,39 @@ const DropdownMenuSubContent = ({
   }).trim();
 
   const callbacksRef = useCallback((node: HTMLDivElement | null) => {
-    if (node) {
-      const parentContainer = node.closest(".dropdown-menu-container");
-      const parentRect = parentContainer?.getBoundingClientRect();
-      if (parentRect) {
-        const menuWidth = node.getBoundingClientRect().width;
+    if (!node) {
+      return;
+    }
 
-        const viewportWidth = window.innerWidth;
-        const spaceRemaining = viewportWidth - parentRect.right;
-        if (spaceRemaining < menuWidth + 20) {
-          setSideOffset(spaceRemaining - menuWidth + BASE_ALIGN_OFFSET);
-          setAlignOffset(BASE_ALIGN_OFFSET + 8);
-        }
-      }
+    const parentContainer = node.closest(".dropdown-menu-container");
+    const parentRect = parentContainer?.getBoundingClientRect();
+    const menuWidth = node.getBoundingClientRect().width;
+
+    const viewportWidth = window.innerWidth;
+    const spaceRemaining = parentRect
+      ? viewportWidth - parentRect.right
+      : Number.POSITIVE_INFINITY;
+    const needsLeftPlacement = spaceRemaining < menuWidth + 20;
+
+    setSideOffset(
+      needsLeftPlacement
+        ? spaceRemaining - menuWidth + BASE_ALIGN_OFFSET
+        : BASE_SIDE_OFFSET,
+    );
+    setAlignOffset(
+      needsLeftPlacement ? BASE_ALIGN_OFFSET + 8 : BASE_ALIGN_OFFSET,
+    );
+  }, []);
+
+  const handleNestedPopupPointerDownOutside = useCallback((event: Event) => {
+    if (isNestedPopupTarget(event.target)) {
+      event.preventDefault();
+    }
+  }, []);
+
+  const handleNestedPopupFocusOutside = useCallback((event: Event) => {
+    if (isNestedPopupTarget(event.target)) {
+      event.preventDefault();
     }
   }, []);
 
@@ -51,6 +75,8 @@ const DropdownMenuSubContent = ({
       alignOffset={alignOffset}
       collisionPadding={8}
       ref={callbacksRef}
+      onPointerDownOutside={handleNestedPopupPointerDownOutside}
+      onFocusOutside={handleNestedPopupFocusOutside}
     >
       {editorInterface.formFactor === "phone" ? (
         <Stack.Col className="dropdown-menu-container">{children}</Stack.Col>
