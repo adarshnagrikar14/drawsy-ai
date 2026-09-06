@@ -90,6 +90,14 @@ export type DrawsyAgentAccessMode = "workspace" | "readOnly";
 export type DrawsyConversationScope = "canvas" | "general";
 export type DrawsyConversationEngine = "codex" | "opencode";
 
+export type DrawsyLocalEngineStatus = {
+  id: DrawsyConversationEngine;
+  name: string;
+  installed: boolean;
+  path?: string;
+  version?: string;
+};
+
 export type DrawsyAgentPreference = {
   model: string | null;
   modelProvider: string | null;
@@ -261,6 +269,9 @@ export type DrawsyBridgeEvent =
 
 type ApiErrorBody = { error?: { message?: string } };
 
+export const DRAWSY_LOCAL_BRIDGE_UNAVAILABLE_MESSAGE =
+  "Local Drawsy AI is unavailable. Check that the local bridge is running, then retry.";
+
 const apiBase =
   import.meta.env.VITE_APP_DRAWSY_AGENT_URL || "http://127.0.0.1:3031";
 
@@ -272,9 +283,7 @@ const fetchLocal = async (
     return await fetch(input, init);
   } catch (error) {
     if (error instanceof TypeError) {
-      throw new Error(
-        "Local Drawsy AI is unavailable. Check that the local bridge is running, then retry.",
-      );
+      throw new Error(DRAWSY_LOCAL_BRIDGE_UNAVAILABLE_MESSAGE);
     }
     throw error;
   }
@@ -339,6 +348,11 @@ export const DrawsyAgentApi = {
   getPreferences: async () =>
     parseResponse<{ preferences: DrawsyConversationPreferences }>(
       await fetchLocal(`${apiBase}/v1/preferences`),
+    ),
+
+  getEngines: async () =>
+    parseResponse<{ engines: DrawsyLocalEngineStatus[] }>(
+      await fetchLocal(`${apiBase}/v1/engines`),
     ),
 
   updatePreferences: async (
