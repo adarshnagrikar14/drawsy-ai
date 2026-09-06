@@ -12,6 +12,7 @@ interface PropertiesPopoverProps {
   container: HTMLDivElement | null;
   children: ReactNode;
   style?: object;
+  zIndex?: React.CSSProperties["zIndex"];
   onClose: () => void;
   onKeyDown?: React.KeyboardEventHandler<HTMLDivElement>;
   onPointerLeave?: React.PointerEventHandler<HTMLDivElement>;
@@ -30,6 +31,7 @@ export const PropertiesPopover = React.forwardRef<
       container,
       children,
       style,
+      zIndex = "var(--zIndex-ui-styles-popup)",
       onClose,
       onKeyDown,
       onFocusOutside,
@@ -55,7 +57,7 @@ export const PropertiesPopover = React.forwardRef<
           sideOffset={20}
           collisionBoundary={container ?? undefined}
           style={{
-            zIndex: "var(--zIndex-ui-styles-popup)",
+            zIndex,
             marginLeft:
               editorInterface.formFactor === "phone" ? "0.5rem" : undefined,
           }}

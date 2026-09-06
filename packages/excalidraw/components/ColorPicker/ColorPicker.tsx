@@ -110,6 +110,11 @@ const ColorPickerPopupContent = ({
     <PropertiesPopover
       container={container}
       style={{ maxWidth: "13rem" }}
+      zIndex={
+        type === "canvasBackground"
+          ? "calc(var(--zIndex-ui-main-menu) + 1)"
+          : undefined
+      }
       // Improve focus handling for text editing scenarios
       preventAutoFocusOnTouch={!!appState.editingTextElement}
       onFocusOutside={(event) => {
