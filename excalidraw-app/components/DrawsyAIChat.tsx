@@ -27,6 +27,7 @@ import {
 import { copyTextToSystemClipboard } from "@excalidraw/excalidraw/clipboard";
 
 import {
+  DRAWSY_LOCAL_BRIDGE_UNAVAILABLE_MESSAGE,
   DrawsyAgentApi,
   type DrawsyAgentAccessMode,
   type DrawsyAgentControls,
@@ -42,6 +43,7 @@ import {
   type DrawsyCanvasLayoutReport,
   type DrawsyCanvasOperations,
   type DrawsyCanvasSnapshot,
+  type DrawsyLocalEngineStatus,
   type DrawsyLivePreviewRequest,
   type DrawsySurfaceKind,
 } from "../data/DrawsyAgentApi";
@@ -125,7 +127,8 @@ const EngineMark = ({
       viewBox="0 0 24 24"
       aria-hidden="true"
     >
-      <path fillRule="evenodd" d="M3 5h18v14H3V5Zm5 4v6h8V9H8Z" />
+      <path fillRule="evenodd" d="M5 2.5h14v19H5v-19Zm4 4.5h6v6H9V7Z" />
+      <path d="M9 12h6v5H9z" opacity="0.42" />
     </svg>
   ) : (
     <svg
@@ -146,6 +149,84 @@ const DrawsyMark = () => (
     <path d="M963.277 289.389L933.94 393.517C931.705 401.448 935.859 409.78 943.539 412.767L1077.84 465.02C1086.73 468.477 1096.65 463.444 1099.11 454.231L1156.59 238.666C1159.92 226.164 1147.81 215.081 1135.65 219.51L973.201 278.694C968.366 280.456 964.673 284.436 963.277 289.389Z" />
   </svg>
 );
+
+const DRAWSY_COMPANION_URL = "https://app.drawsyai.tech/companion";
+
+const DRAWSY_ENGINE_DOWNLOADS: Record<
+  AgentEngine,
+  { label: string; url: string }
+> = {
+  opencode: {
+    label: "Download OpenCode",
+    url: "https://opencode.ai/download",
+  },
+  codex: {
+    label: "Download Codex",
+    url: "https://openai.com/codex/",
+  },
+};
+
+const isLocalBridgeUnavailable = (message: string | null) =>
+  Boolean(message?.includes(DRAWSY_LOCAL_BRIDGE_UNAVAILABLE_MESSAGE));
+
+type LocalAiSetup =
+  | { kind: "companion" }
+  | { kind: "engine"; engine: AgentEngine };
+
+const LocalAiSetupPlaceholder = ({
+  setup,
+  theme,
+}: {
+  setup: LocalAiSetup;
+  theme: DrawsyAIChatProps["theme"];
+}) => {
+  const engineLabel =
+    setup.kind === "engine"
+      ? agentEngines.find((option) => option.id === setup.engine)!.label
+      : null;
+  const engineDownload =
+    setup.kind === "engine" ? DRAWSY_ENGINE_DOWNLOADS[setup.engine] : null;
+  const title =
+    setup.kind === "companion"
+      ? "Bring your companion online"
+      : `${engineLabel} needs a local install`;
+  const description =
+    setup.kind === "companion"
+      ? "Connect Drawsy Companion to use local AI, or download it if it is not on this device."
+      : `Install ${engineLabel} on this device, then refresh Companion to continue.`;
+  const primaryLabel =
+    setup.kind === "companion" ? "Download Companion" : engineDownload!.label;
+  const primaryUrl =
+    setup.kind === "companion" ? DRAWSY_COMPANION_URL : engineDownload!.url;
+
+  return (
+    <section className="drawsy-ai-chat__setup" aria-label={title}>
+      <img
+        className="drawsy-ai-chat__setup-illustration"
+        src="/drawsy-companion-connection.png"
+        alt=""
+        aria-hidden="true"
+      />
+      {setup.kind === "engine" && (
+        <span className="drawsy-ai-chat__setup-engine-mark" aria-hidden="true">
+          <EngineMark engine={setup.engine} theme={theme} />
+        </span>
+      )}
+      <h2>{title}</h2>
+      <p>{description}</p>
+      <div className="drawsy-ai-chat__setup-actions">
+        <a
+          className="drawsy-ai-chat__setup-primary"
+          href={primaryUrl}
+          target="_blank"
+          rel="noreferrer"
+        >
+          {primaryLabel}
+        </a>
+      </div>
+    </section>
+  );
+};
 
 type PathComposerTag = {
   kind: "skill" | "plugin";
@@ -1106,6 +1187,9 @@ export const DrawsyAIChat = ({
   const [preferencesError, setPreferencesError] = useState<string | null>(null);
   const [preferencesAttempt, setPreferencesAttempt] = useState(0);
   const [sessionAttempt, setSessionAttempt] = useState(0);
+  const [engineStatuses, setEngineStatuses] = useState<
+    DrawsyLocalEngineStatus[] | null
+  >(null);
   const [preferences, setPreferences] = useState<AiConversationPreferences>(
     defaultConversationPreferences,
   );
@@ -1280,6 +1364,34 @@ export const DrawsyAIChat = ({
       cancelled = true;
     };
   }, [preferencesAttempt]);
+
+  useEffect(() => {
+    if (!preferencesLoaded) {
+      setEngineStatuses(null);
+      return;
+    }
+
+    let cancelled = false;
+    void DrawsyAgentApi.getEngines()
+      .then(({ engines }) => {
+        if (!cancelled) {
+          setEngineStatuses(engines);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          console.warn(
+            "Drawsy local AI engine status could not be loaded",
+            error,
+          );
+          setEngineStatuses(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [preferencesLoaded]);
 
   useEffect(() => {
     if (!preferencesLoaded) {
@@ -1959,6 +2071,21 @@ export const DrawsyAIChat = ({
 
   const selectedEngine = agentEngines.find((option) => option.id === engine)!;
   const localConnectionError = preferencesError || sessionError;
+  const selectedEngineStatus = engineStatuses?.find(
+    (status) => status.id === engine,
+  );
+  const localAiSetup: LocalAiSetup | null =
+    isLocalBridgeUnavailable(preferencesError) ||
+    isLocalBridgeUnavailable(sessionError)
+      ? { kind: "companion" }
+      : selectedEngineStatus?.installed === false ||
+        sessionError?.startsWith(`${selectedEngine.label} was not found.`)
+      ? { kind: "engine", engine }
+      : null;
+  const retryLocalAi = () => {
+    setPreferencesAttempt((attempt) => attempt + 1);
+    setSessionAttempt((attempt) => attempt + 1);
+  };
   const slashQueryOpen =
     draft.startsWith("/") &&
     !draft.slice(1).includes(" ") &&
@@ -2947,12 +3074,16 @@ export const DrawsyAIChat = ({
         }}
       >
         {timeline.length === 0 ? (
-          <div className="drawsy-ai-chat__empty">
-            <span className="drawsy-ai-chat__empty-mark" aria-hidden="true">
-              <DrawsyMark />
-            </span>
-            <h2>What are we making?</h2>
-          </div>
+          localAiSetup ? (
+            <LocalAiSetupPlaceholder setup={localAiSetup} theme={theme} />
+          ) : (
+            <div className="drawsy-ai-chat__empty">
+              <span className="drawsy-ai-chat__empty-mark" aria-hidden="true">
+                <DrawsyMark />
+              </span>
+              <h2>What are we making?</h2>
+            </div>
+          )
         ) : (
           <div className="drawsy-ai-chat__messages">
             {timeline.map((item) => {
@@ -3094,6 +3225,9 @@ export const DrawsyAIChat = ({
                   <span>Thinking</span>
                 </div>
               )}
+            {localAiSetup && (
+              <LocalAiSetupPlaceholder setup={localAiSetup} theme={theme} />
+            )}
           </div>
         )}
       </div>
@@ -3417,15 +3551,9 @@ export const DrawsyAIChat = ({
             <button
               type="button"
               className="drawsy-ai-chat__retry"
-              onClick={() => {
-                if (preferencesError) {
-                  setPreferencesAttempt((attempt) => attempt + 1);
-                } else {
-                  setSessionAttempt((attempt) => attempt + 1);
-                }
-              }}
+              onClick={retryLocalAi}
             >
-              Retry
+              Try again
             </button>
           )}
           {agentMetadata && !localConnectionError && (
